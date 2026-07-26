@@ -282,4 +282,387 @@ The single plant is always on, so its fixed cost $F_t$ is a constant and is drop
 
 \noindent Since this is just the network model with routing fixed, going the other way needs nothing new: free the routing variables and add more sources, plants and zones.
 The toy can therefore be built and tested first, then scaled up without reformulating.
+
+\subsection{Additional discrete activation logic}
+
+The base formulation already links source activation to source draw through the
+source-capacity constraint. This section records additional discrete activation
+logic that can be included where operational assumptions require lower-bound
+operation or explicit activation-cost interpretation.
+
+\paragraph{Role of source activation cost.}
+The term $\sum_{s \in \mathcal{S}} F_s\alpha_s$ represents the fixed cost incurred
+when a water source is activated. This cost applies whenever $\alpha_s=1$,
+regardless of the volume drawn from that source. It discourages unnecessary
+source activation, particularly where a source contributes only a marginal volume
+to the final blend. If reliable fixed activation cost values are not available
+during Sprint~1, these values may be set to zero or treated as estimated scenario
+parameters.
+
+\paragraph{Optional minimum source-use requirement.}
+A minimum source-use requirement may be included to avoid solutions where an
+activated source contributes only a negligible volume of water. Let
+$\underline{A}_s$ represent the minimum draw required from source $s$ when it is
+activated. The constraint is:
+\begin{equation}
+    a_s \geq \underline{A}_s \alpha_s,
+    \quad \forall s \in \mathcal{S}.
+\end{equation}
+
+Together with the source-capacity constraint, this defines the operating range:
+\begin{equation}
+    \underline{A}_s\alpha_s
+    \leq
+    a_s
+    \leq
+    \overline{W}_s\alpha_s,
+    \quad \forall s \in \mathcal{S}.
+\end{equation}
+
+Therefore, if $\alpha_s=0$, source $s$ is inactive and has zero draw. If
+$\alpha_s=1$, source $s$ is active and must operate between its minimum-use
+requirement and maximum available withdrawal. This constraint is optional in the
+Sprint~1 base formulation and may be enabled in scenario analysis if minimum
+source-use behaviour is required.
+
+\paragraph{Minimum plant operating flow.}
+A treatment plant may be required to operate above a minimum throughput once it
+is activated. Let $\underline{V}_t$ represent the minimum operating flow required
+for treatment plant $t$. The constraint is:
+\begin{equation}
+    \sum_{s \in \mathcal{S}} b_{st}
+    \geq
+    \underline{V}_t\beta_t,
+    \quad \forall t \in \mathcal{T}.
+\end{equation}
+
+Together with the plant-capacity constraint, this defines the operating range:
+\begin{equation}
+    \underline{V}_t\beta_t
+    \leq
+    \sum_{s \in \mathcal{S}} b_{st}
+    \leq
+    \overline{V}_t\beta_t,
+    \quad \forall t \in \mathcal{T}.
+\end{equation}
+
+Therefore, if $\beta_t=0$, treatment plant $t$ is inactive and processes no water.
+If $\beta_t=1$, treatment plant $t$ is active and must operate between its
+minimum operating flow and maximum throughput.
+
+\subsection{Water-quality formulation logic}
+
+This section expands the water-quality constraint in the general formulation by
+describing how blended quality is represented for turbidity, alkalinity, and pH.
+The aim is to ensure that the selected source flows satisfy the required
+water-quality limits while preserving the linear structure of the MILP.
+
+\subsubsection{Purpose of the water-quality formulation}
+
+The water-quality formulation defines how the model represents the quality of
+blended water when flows from multiple sources are combined at a treatment plant.
+In the general formulation, each source $s$ has a fixed value for each quality
+parameter $p$. These values are represented by $Q_{sp}$, where $Q_{sp}$ denotes
+the value of quality parameter $p$ in source $s$.
+
+The model uses the source-to-plant flow variables $b_{st}$ to calculate the
+blended quality arriving at each treatment plant. For the Sprint~1 model, the
+main quality parameters considered are pH, alkalinity, and turbidity. Alkalinity
+and turbidity are treated as approximately linear under blending, while pH is
+handled by converting raw pH values into hydrogen ion concentration before
+optimisation.
+
+\subsubsection{General weighted-average quality logic}
+
+For any quality parameter that blends approximately linearly by volume, the
+blended value at treatment plant $t$ can be represented as a volume-weighted
+average. The blended value of quality parameter $p$ at plant $t$ is:
+\begin{equation}
+    Q^{\mathrm{blend}}_{tp}
+    =
+    \frac{
+    \sum_{s \in \mathcal{S}} Q_{sp} b_{st}
+    }{
+    \sum_{s \in \mathcal{S}} b_{st}
+    }.
+\end{equation}
+
+Here, $Q_{sp}$ is the quality value of parameter $p$ in source $s$, and $b_{st}$
+is the volume of water sent from source $s$ to treatment plant $t$. This
+weighted-average structure means that a source has greater influence on the
+final blended quality if it contributes a larger volume to the plant.
+
+\subsubsection{Linear quality constraint form}
+
+The blended value of each quality parameter must remain within its allowed lower
+and upper limits:
+\begin{equation}
+    \underline{Q}_p
+    \leq
+    Q^{\mathrm{blend}}_{tp}
+    \leq
+    \overline{Q}_p.
+\end{equation}
+
+Substituting the weighted-average expression gives:
+\begin{equation}
+    \underline{Q}_p
+    \leq
+    \frac{
+    \sum_{s \in \mathcal{S}} Q_{sp} b_{st}
+    }{
+    \sum_{s \in \mathcal{S}} b_{st}
+    }
+    \leq
+    \overline{Q}_p.
+\end{equation}
+
+To preserve linearity, the formulation is rearranged by multiplying through by
+the total flow into plant $t$:
+\begin{equation}
+    \underline{Q}_p
+    \sum_{s \in \mathcal{S}} b_{st}
+    \leq
+    \sum_{s \in \mathcal{S}} Q_{sp} b_{st}
+    \leq
+    \overline{Q}_p
+    \sum_{s \in \mathcal{S}} b_{st}.
+\end{equation}
+
+This is the load-form quality constraint used in the MILP. It avoids division by
+a decision variable and therefore preserves linearity.
+
+\subsubsection{Turbidity formulation}
+
+Turbidity measures the cloudiness of water and is associated with suspended
+particles such as sediment, organic matter, algae, clay, or runoff material. In
+water-supply modelling, turbidity is important because high turbidity may
+increase treatment requirements and affect disinfection performance.
+
+In this formulation, turbidity is treated as approximately linear under blending.
+Therefore, for the turbidity parameter, $Q_{sp}$ directly represents the turbidity
+value of source $s$:
+\begin{equation}
+    Q_{sp} = \mathrm{Turbidity}_s.
+\end{equation}
+
+The blended turbidity at plant $t$ is:
+\begin{equation}
+    \mathrm{Turbidity}^{\mathrm{blend}}_{t}
+    =
+    \frac{
+    \sum_{s \in \mathcal{S}} \mathrm{Turbidity}_s b_{st}
+    }{
+    \sum_{s \in \mathcal{S}} b_{st}
+    }.
+\end{equation}
+
+If both lower and upper turbidity limits are used, the acceptable range is:
+\begin{equation}
+    \mathrm{Turbidity}^{\min}
+    \leq
+    \mathrm{Turbidity}^{\mathrm{blend}}_{t}
+    \leq
+    \mathrm{Turbidity}^{\max}.
+\end{equation}
+
+The corresponding linear constraints are:
+\begin{equation}
+    \sum_{s \in \mathcal{S}} \mathrm{Turbidity}_s b_{st}
+    \geq
+    \mathrm{Turbidity}^{\min}
+    \sum_{s \in \mathcal{S}} b_{st},
+    \quad \forall t \in \mathcal{T},
+\end{equation}
+
+\begin{equation}
+    \sum_{s \in \mathcal{S}} \mathrm{Turbidity}_s b_{st}
+    \leq
+    \mathrm{Turbidity}^{\max}
+    \sum_{s \in \mathcal{S}} b_{st},
+    \quad \forall t \in \mathcal{T}.
+\end{equation}
+
+These constraints ensure that the blended turbidity remains within the defined
+operating range.
+
+\subsubsection{Alkalinity formulation}
+
+Alkalinity measures the ability of water to neutralise acid. It represents the
+buffering capacity of water and is important for pH stability, corrosion control,
+treatment performance, remineralisation, and water stability in distribution
+systems.
+
+In this formulation, alkalinity is treated as approximately linear under blending.
+Therefore, for the alkalinity parameter, $Q_{sp}$ directly represents the
+alkalinity value of source $s$:
+\begin{equation}
+    Q_{sp} = \mathrm{Alkalinity}_s.
+\end{equation}
+
+The blended alkalinity at plant $t$ is:
+\begin{equation}
+    \mathrm{Alkalinity}^{\mathrm{blend}}_{t}
+    =
+    \frac{
+    \sum_{s \in \mathcal{S}} \mathrm{Alkalinity}_s b_{st}
+    }{
+    \sum_{s \in \mathcal{S}} b_{st}
+    }.
+\end{equation}
+
+If both lower and upper alkalinity limits are used, the acceptable range is:
+\begin{equation}
+    \mathrm{Alkalinity}^{\min}
+    \leq
+    \mathrm{Alkalinity}^{\mathrm{blend}}_{t}
+    \leq
+    \mathrm{Alkalinity}^{\max}.
+\end{equation}
+
+The corresponding linear constraints are:
+\begin{equation}
+    \sum_{s \in \mathcal{S}} \mathrm{Alkalinity}_s b_{st}
+    \geq
+    \mathrm{Alkalinity}^{\min}
+    \sum_{s \in \mathcal{S}} b_{st},
+    \quad \forall t \in \mathcal{T},
+\end{equation}
+
+\begin{equation}
+    \sum_{s \in \mathcal{S}} \mathrm{Alkalinity}_s b_{st}
+    \leq
+    \mathrm{Alkalinity}^{\max}
+    \sum_{s \in \mathcal{S}} b_{st},
+    \quad \forall t \in \mathcal{T}.
+\end{equation}
+
+These constraints ensure that the blended alkalinity remains within the required
+operating range.
+
+\subsubsection{pH transformation}
+
+pH is handled differently from turbidity and alkalinity because pH is a
+logarithmic measure of hydrogen ion concentration. Raw pH values should not be
+averaged directly because direct pH averaging can produce a scientifically
+misleading blended value.
+
+pH is defined as:
+\begin{equation}
+    pH = -\log_{10}([H^+]),
+\end{equation}
+where $[H^+]$ represents hydrogen ion concentration.
+
+To preserve the physical meaning of pH while keeping the MILP formulation
+linear, each source pH value is converted into hydrogen ion concentration before
+optimisation. For each source $s$, the transformed value is:
+\begin{equation}
+    H_s = 10^{-pH_s}.
+\end{equation}
+
+For the pH quality parameter, $Q_{sp}$ therefore stores the transformed hydrogen
+ion concentration $H_s$, not the raw pH value:
+\begin{equation}
+    Q_{sp} = H_s.
+\end{equation}
+
+This allows pH-related blending to be represented using the same linear
+load-form structure as the other quality parameters.
+
+\subsubsection{Transformed pH bounds}
+
+The pH limits must also be converted into hydrogen ion concentration limits. If
+the acceptable pH range is:
+\begin{equation}
+    \underline{pH}
+    \leq
+    pH
+    \leq
+    \overline{pH},
+\end{equation}
+then the corresponding hydrogen ion concentration bounds are:
+\begin{equation}
+    \underline{H} = 10^{-\overline{pH}},
+\end{equation}
+
+\begin{equation}
+    \overline{H} = 10^{-\underline{pH}}.
+\end{equation}
+
+The direction of the bounds changes because pH and hydrogen ion concentration
+are inversely related. A higher pH corresponds to a lower hydrogen ion
+concentration, while a lower pH corresponds to a higher hydrogen ion
+concentration. Therefore, the lower hydrogen ion concentration bound comes from
+the upper pH limit, and the upper hydrogen ion concentration bound comes from
+the lower pH limit.
+
+\subsubsection{pH constraint in linear form}
+
+After converting source pH values into hydrogen ion concentration, the pH
+constraint can be written in the same linear load form as the general quality
+constraint. For each treatment plant $t$:
+\begin{equation}
+    \underline{H}
+    \sum_{s \in \mathcal{S}} b_{st}
+    \leq
+    \sum_{s \in \mathcal{S}} H_s b_{st}
+    \leq
+    \overline{H}
+    \sum_{s \in \mathcal{S}} b_{st},
+    \quad \forall t \in \mathcal{T}.
+\end{equation}
+
+This constraint ensures that the blended hydrogen ion concentration remains
+within the transformed pH bounds. The constraint remains linear because $H_s$,
+$\underline{H}$, and $\overline{H}$ are fixed parameters, while $b_{st}$ is the
+decision variable.
+
+\subsubsection{Blended pH recovery after optimisation}
+
+The MILP does not directly optimise or report blended pH in raw pH units.
+Instead, the optimisation model works with hydrogen ion concentration. After the
+solver finds the optimal source-to-plant flows, the blended hydrogen ion
+concentration at plant $t$ is calculated as:
+\begin{equation}
+    H^{\mathrm{blend}}_{t}
+    =
+    \frac{
+    \sum_{s \in \mathcal{S}} H_s b_{st}
+    }{
+    \sum_{s \in \mathcal{S}} b_{st}
+    }.
+\end{equation}
+
+The blended pH is then recovered in post-processing as:
+\begin{equation}
+    pH^{\mathrm{blend}}_{t}
+    =
+    -\log_{10}
+    \left(
+    H^{\mathrm{blend}}_{t}
+    \right).
+\end{equation}
+
+This recovered pH value is not a MILP decision variable. It is a post-solve
+reporting value used for validation, interpretation, dashboard display, and
+output generation.
+
+\subsubsection{Linearity assumptions for water quality}
+
+The water-quality formulation relies on simplifying assumptions that preserve
+linearity in the Sprint~1 MILP. The key assumptions are:
+\begin{enumerate}[label=(\roman*)]
+    \item water from selected sources is completely mixed before quality is assessed;
+    \item the model represents a single time period, so temporal variation in water quality is not modelled;
+    \item source quality values are fixed input parameters for the representative period;
+    \item alkalinity and turbidity are approximated as volume-weighted linear blends;
+    \item raw pH values are not averaged directly; pH is transformed into hydrogen ion concentration before optimisation;
+    \item no nonlinear chemical reactions between blended sources are modelled;
+    \item chemical dosing does not alter pH, alkalinity, or turbidity in the Sprint~1 toy model;
+    \item water quality is checked at the blended output point.
+\end{enumerate}
+
+These assumptions allow the water-quality constraints to remain linear and
+suitable for inclusion in the MILP formulation.
+
 \end{document}
