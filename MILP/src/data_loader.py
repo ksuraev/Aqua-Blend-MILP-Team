@@ -1,7 +1,8 @@
-from __future__ import annotations
+=from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 from dataclasses import dataclass
@@ -14,6 +15,7 @@ class DataLoadError(RuntimeError):
     """Raised when scenario or database data cannot be loaded safely."""
 
 
+# Raw input objects may retain None in preview mode, but strict mode blocks them.
 @dataclass(frozen=True)
 class SourceInput:
     source_id: str
@@ -23,6 +25,7 @@ class SourceInput:
     forced_inactive: bool
     max_available_ml_per_day: float | None
     availability_origin: str
+    fixed_activation_cost: float | None
     cost_per_ml: float | None
     ph: float | None
     alkalinity_mg_l_caco3: float | None
@@ -38,10 +41,10 @@ class PlantInput:
     plant_id: str
     name: str
     enabled: bool
-    minimum_operating_flow_ml_per_day: float
+    minimum_operating_flow_ml_per_day: float | None
     maximum_processing_capacity_ml_per_day: float | None
-    fixed_activation_cost: float
-    treatment_cost_per_ml: float
+    fixed_activation_cost: float | None
+    treatment_cost_per_ml: float | None
 
 
 @dataclass(frozen=True)
@@ -88,12 +91,44 @@ class ScenarioData:
         return not self.validation_issues
 
 
-def _to_float(value: Any) -> float | None:
+def _to_float(value: Any, field_name: str) -> float | None:
+    """Convert a numeric input while rejecting invalid and non-finite values."""
     if value is None:
         return None
-    if isinstance(value, Decimal):
-        return float(value)
-    return float(value)
+
+    try:
+        converted = float(value) if not isinstance(value, Decimal) else float(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise DataLoadError(f'"{field_name}" must be a valid number.') from exc
+
+    if not math.isfinite(converted):
+        raise DataLoadError(f'"{field_name}" must be finite.')
+
+    return converted
+
+
+def _append_required_non_negative_issue(
+    issues: list[str],
+    value: float | None,
+    field_label: str,
+    *,
+    required: bool = True,
+) -> None:
+    """Record missing or negative model inputs without hiding the original value."""
+    if value is None:
+        if required:
+            issues.append(f"{field_label} is missing.")
+        return
+
+    if value < 0:
+        issues.append(f"{field_label} must be greater than or equal to zero.")
+
+
+def _required_text(item: dict[str, Any], key: str, field_name: str) -> str:
+    value = str(item.get(key, "")).strip()
+    if not value:
+        raise DataLoadError(f'"{field_name}" is required.')
+    return value
 
 
 def _read_json(path: str | Path) -> dict[str, Any]:
@@ -124,6 +159,7 @@ def _database_url() -> str:
             'Install it with: pip install python-dotenv'
         ) from exc
 
+    # Credentials remain local and are never stored in the scenario file.
     load_dotenv()
     value = os.getenv("DATABASE_URL")
 
@@ -161,6 +197,7 @@ def _fetch_sources(
 
     relation = _quoted_relation(view_name)
 
+    # Source activation cost is scenario-specific and is loaded from the JSON.
     query = f"""
         SELECT
             source_id,
@@ -204,7 +241,7 @@ def _fetch_sources(
     except Exception as exc:
         raise DataLoadError(
             "Could not fetch source data from Supabase. "
-             f"Original error: {type(exc).__name__}: {exc}"
+            f"Original error: {type(exc).__name__}: {exc}"
         ) from exc
 
 
@@ -220,6 +257,19 @@ def _require_list(value: Any, field_name: str) -> list[Any]:
     return value
 
 
+def _enabled_mappings(value: Any, field_name: str) -> list[dict[str, Any]]:
+    """Return enabled configuration objects and reject malformed list entries."""
+    result: list[dict[str, Any]] = []
+
+    for index, item in enumerate(_require_list(value, field_name)):
+        if not isinstance(item, dict):
+            raise DataLoadError(f'"{field_name}[{index}]" must be a JSON object.')
+        if bool(item.get("enabled", True)):
+            result.append(item)
+
+    return result
+
+
 def _build_sources(
     config_sources: list[dict[str, Any]],
     database_rows: list[dict[str, Any]],
@@ -227,24 +277,21 @@ def _build_sources(
     validation: dict[str, Any],
 ) -> tuple[tuple[SourceInput, ...], list[str]]:
     issues: list[str] = []
+    enabled_configs = _enabled_mappings(config_sources, "sources")
 
-    enabled_configs = [
-        item for item in config_sources if bool(item.get("enabled", True))
+    source_ids = [
+        _required_text(item, "source_id", f"sources[{index}].source_id")
+        for index, item in enumerate(enabled_configs)
     ]
-
-    source_ids = [str(item.get("source_id", "")).strip() for item in enabled_configs]
-
-    if any(not source_id for source_id in source_ids):
-        raise DataLoadError("Every enabled source must have a source_id.")
 
     if len(source_ids) != len(set(source_ids)):
         raise DataLoadError("The scenario contains duplicate source IDs.")
 
-    rows_by_id = {str(row["source_id"]): row for row in database_rows}
+    rows_by_id = {str(row["source_id"]).strip(): row for row in database_rows}
     loaded_sources: list[SourceInput] = []
 
-    for item in enabled_configs:
-        source_id = str(item["source_id"])
+    for index, item in enumerate(enabled_configs):
+        source_id = source_ids[index]
         row = rows_by_id.get(source_id)
 
         if row is None:
@@ -254,42 +301,82 @@ def _build_sources(
             continue
 
         override = item.get("max_available_ml_per_day_override")
-        database_availability = _to_float(row["max_available_ml_per_day"])
+        database_availability = _to_float(
+            row["max_available_ml_per_day"],
+            f"database source {source_id}.max_available_ml_per_day",
+        )
 
         if override is not None:
-            availability = _to_float(override)
+            availability = _to_float(
+                override,
+                f"sources[{index}].max_available_ml_per_day_override",
+            )
             availability_origin = "scenario_override"
         else:
             availability = database_availability
             availability_origin = "database"
 
         forced_inactive = bool(item.get("forced_inactive", False))
+        source_name = str(row["source_name"])
 
-        if (
-            availability is None
-            and not forced_inactive
-            and validation.get("fail_if_daily_availability_missing", True)
-        ):
-            issues.append(
-                f"{row['source_name']} is missing max availability in ML/day."
-            )
+        _append_required_non_negative_issue(
+            issues,
+            availability,
+            f"{source_name} max availability in ML/day",
+            required=(
+                not forced_inactive
+                and validation.get("fail_if_daily_availability_missing", True)
+            ),
+        )
 
-        if availability is not None and availability < 0:
-            issues.append(
-                f"{row['source_name']} has a negative daily availability."
-            )
+        fixed_activation_cost = _to_float(
+            item.get("fixed_activation_cost"),
+            f"sources[{index}].fixed_activation_cost",
+        )
+        variable_cost = _to_float(
+            row["cost_per_ml"],
+            f"database source {source_id}.cost_per_ml",
+        )
 
-        required_quality = {
-            "pH": row["representative_ph"],
-            "alkalinity": row["representative_alkalinity_mg_l_caco3"],
-            "turbidity": row["representative_turbidity_ntu"],
-            "cost": row["cost_per_ml"],
-        }
+        # Costs belong to the objective and are validated separately from quality.
+        _append_required_non_negative_issue(
+            issues,
+            fixed_activation_cost,
+            f"{source_name} fixed activation cost",
+        )
+        _append_required_non_negative_issue(
+            issues,
+            variable_cost,
+            f"{source_name} cost per ML",
+        )
+
+        ph = _to_float(
+            row["representative_ph"],
+            f"database source {source_id}.representative_ph",
+        )
+        alkalinity = _to_float(
+            row["representative_alkalinity_mg_l_caco3"],
+            f"database source {source_id}.representative_alkalinity_mg_l_caco3",
+        )
+        turbidity = _to_float(
+            row["representative_turbidity_ntu"],
+            f"database source {source_id}.representative_turbidity_ntu",
+        )
 
         if validation.get("fail_if_required_quality_value_missing", True):
-            for label, value in required_quality.items():
-                if value is None:
-                    issues.append(f"{row['source_name']} is missing {label}.")
+            if ph is None:
+                issues.append(f"{source_name} is missing pH.")
+            if alkalinity is None:
+                issues.append(f"{source_name} is missing alkalinity.")
+            if turbidity is None:
+                issues.append(f"{source_name} is missing turbidity.")
+
+        if ph is not None and not 0 <= ph <= 10:
+            issues.append(f"{source_name} pH must be between 0 and 10.")
+        if alkalinity is not None and alkalinity < 0:
+            issues.append(f"{source_name} alkalinity must be non-negative.")
+        if turbidity is not None and turbidity < 0:
+            issues.append(f"{source_name} turbidity must be non-negative.")
 
         estimated_flags = [
             bool(row["cost_is_estimated"]),
@@ -301,24 +388,23 @@ def _build_sources(
 
         if has_estimated_values and not allow_estimated_values:
             issues.append(
-                f"{row['source_name']} contains estimated or overridden values."
+                f"{source_name} contains estimated or overridden values."
             )
 
         loaded_sources.append(
             SourceInput(
                 source_id=source_id,
-                name=str(row["source_name"]),
+                name=source_name,
                 source_type=str(row["source_type"]),
                 enabled=True,
                 forced_inactive=forced_inactive,
                 max_available_ml_per_day=availability,
                 availability_origin=availability_origin,
-                cost_per_ml=_to_float(row["cost_per_ml"]),
-                ph=_to_float(row["representative_ph"]),
-                alkalinity_mg_l_caco3=_to_float(
-                    row["representative_alkalinity_mg_l_caco3"]
-                ),
-                turbidity_ntu=_to_float(row["representative_turbidity_ntu"]),
+                fixed_activation_cost=fixed_activation_cost,
+                cost_per_ml=variable_cost,
+                ph=ph,
+                alkalinity_mg_l_caco3=alkalinity,
+                turbidity_ntu=turbidity,
                 has_estimated_values=has_estimated_values,
                 database_model_ready=bool(row["model_ready"]),
                 availability_status=str(row["availability_status"]),
@@ -338,9 +424,7 @@ def _build_sources(
     if missing_ids and not validation.get(
         "fail_if_source_missing_from_database", True
     ):
-        issues.append(
-            "Skipped database sources: " + ", ".join(sorted(missing_ids))
-        )
+        issues.append("Skipped database sources: " + ", ".join(sorted(missing_ids)))
 
     return tuple(loaded_sources), issues
 
@@ -357,100 +441,262 @@ def _build_network(
 ]:
     issues: list[str] = []
 
-    plants = tuple(
-        PlantInput(
-            plant_id=str(item["plant_id"]),
-            name=str(item["name"]),
-            enabled=bool(item.get("enabled", True)),
-            minimum_operating_flow_ml_per_day=_to_float(
-                item.get("minimum_operating_flow_ml_per_day", 0)
+    plant_configs = _enabled_mappings(network.get("plants", []), "network.plants")
+    zone_configs = _enabled_mappings(
+        network.get("demand_zones", []),
+        "network.demand_zones",
+    )
+    source_link_configs = _enabled_mappings(
+        network.get("source_to_plant_links", []),
+        "network.source_to_plant_links",
+    )
+    zone_link_configs = _enabled_mappings(
+        network.get("plant_to_zone_links", []),
+        "network.plant_to_zone_links",
+    )
+
+    plants: list[PlantInput] = []
+    for index, item in enumerate(plant_configs):
+        plant_id = _required_text(
+            item,
+            "plant_id",
+            f"network.plants[{index}].plant_id",
+        )
+        name = _required_text(item, "name", f"network.plants[{index}].name")
+
+        # Minimum flow is an optional business rule and defaults explicitly to zero.
+        minimum_flow = _to_float(
+            item.get("minimum_operating_flow_ml_per_day", 0),
+            f"network.plants[{index}].minimum_operating_flow_ml_per_day",
+        )
+        maximum_capacity = _to_float(
+            item.get("maximum_processing_capacity_ml_per_day"),
+            f"network.plants[{index}].maximum_processing_capacity_ml_per_day",
+        )
+        fixed_cost = _to_float(
+            item.get("fixed_activation_cost"),
+            f"network.plants[{index}].fixed_activation_cost",
+        )
+        treatment_cost = _to_float(
+            item.get("treatment_cost_per_ml"),
+            f"network.plants[{index}].treatment_cost_per_ml",
+        )
+
+        _append_required_non_negative_issue(
+            issues,
+            minimum_flow,
+            f"{name} minimum operating flow",
+        )
+        _append_required_non_negative_issue(
+            issues,
+            maximum_capacity,
+            f"{name} maximum processing capacity",
+        )
+        _append_required_non_negative_issue(
+            issues,
+            fixed_cost,
+            f"{name} fixed activation cost",
+        )
+        _append_required_non_negative_issue(
+            issues,
+            treatment_cost,
+            f"{name} treatment cost per ML",
+        )
+
+        plants.append(
+            PlantInput(
+                plant_id=plant_id,
+                name=name,
+                enabled=True,
+                minimum_operating_flow_ml_per_day=minimum_flow,
+                maximum_processing_capacity_ml_per_day=maximum_capacity,
+                fixed_activation_cost=fixed_cost,
+                treatment_cost_per_ml=treatment_cost,
             )
-            or 0.0,
-            maximum_processing_capacity_ml_per_day=_to_float(
-                item.get("maximum_processing_capacity_ml_per_day")
+        )
+
+    plant_ids_in_order = [plant.plant_id for plant in plants]
+    if len(plant_ids_in_order) != len(set(plant_ids_in_order)):
+        raise DataLoadError("The scenario contains duplicate plant IDs.")
+
+    demand_zones: list[DemandZoneInput] = []
+    for index, item in enumerate(zone_configs):
+        zone_id = _required_text(
+            item,
+            "zone_id",
+            f"network.demand_zones[{index}].zone_id",
+        )
+        name = _required_text(
+            item,
+            "name",
+            f"network.demand_zones[{index}].name",
+        )
+        demand_must_be_met = bool(item.get("demand_must_be_met", True))
+        demand = _to_float(
+            item.get("demand_ml_per_day"),
+            f"network.demand_zones[{index}].demand_ml_per_day",
+        )
+
+        _append_required_non_negative_issue(
+            issues,
+            demand,
+            f"{name} demand in ML/day",
+            required=(
+                demand_must_be_met
+                and validation.get("fail_if_demand_missing", True)
             ),
-            fixed_activation_cost=_to_float(
-                item.get("fixed_activation_cost", 0)
+        )
+
+        demand_zones.append(
+            DemandZoneInput(
+                zone_id=zone_id,
+                name=name,
+                demand_ml_per_day=demand,
+                demand_must_be_met=demand_must_be_met,
             )
-            or 0.0,
-            treatment_cost_per_ml=_to_float(
-                item.get("treatment_cost_per_ml", 0)
+        )
+
+    zone_ids_in_order = [zone.zone_id for zone in demand_zones]
+    if len(zone_ids_in_order) != len(set(zone_ids_in_order)):
+        raise DataLoadError("The scenario contains duplicate demand zone IDs.")
+
+    source_links: list[SourcePlantLinkInput] = []
+    source_link_keys: list[tuple[str, str]] = []
+    for index, item in enumerate(source_link_configs):
+        source_id = _required_text(
+            item,
+            "source_id",
+            f"network.source_to_plant_links[{index}].source_id",
+        )
+        plant_id = _required_text(
+            item,
+            "plant_id",
+            f"network.source_to_plant_links[{index}].plant_id",
+        )
+        maximum_flow = _to_float(
+            item.get("maximum_flow_ml_per_day"),
+            f"network.source_to_plant_links[{index}].maximum_flow_ml_per_day",
+        )
+
+        _append_required_non_negative_issue(
+            issues,
+            maximum_flow,
+            f"Source-to-plant link {source_id} -> {plant_id} maximum flow",
+        )
+
+        source_link_keys.append((source_id, plant_id))
+        source_links.append(
+            SourcePlantLinkInput(
+                source_id=source_id,
+                plant_id=plant_id,
+                enabled=True,
+                maximum_flow_ml_per_day=maximum_flow,
             )
-            or 0.0,
         )
-        for item in _require_list(network.get("plants", []), "network.plants")
-    )
 
-    demand_zones = tuple(
-        DemandZoneInput(
-            zone_id=str(item["zone_id"]),
-            name=str(item["name"]),
-            demand_ml_per_day=_to_float(item.get("demand_ml_per_day")),
-            demand_must_be_met=bool(item.get("demand_must_be_met", True)),
+    if len(source_link_keys) != len(set(source_link_keys)):
+        raise DataLoadError(
+            "The scenario contains duplicate source-to-plant links."
         )
-        for item in _require_list(
-            network.get("demand_zones", []),
-            "network.demand_zones",
-        )
-    )
 
-    if validation.get("fail_if_demand_missing", True):
-        for zone in demand_zones:
-            if zone.demand_must_be_met and zone.demand_ml_per_day is None:
-                issues.append(
-                    f"{zone.name} is missing demand in ML/day."
-                )
+    zone_links: list[PlantZoneLinkInput] = []
+    zone_link_keys: list[tuple[str, str]] = []
+    for index, item in enumerate(zone_link_configs):
+        plant_id = _required_text(
+            item,
+            "plant_id",
+            f"network.plant_to_zone_links[{index}].plant_id",
+        )
+        zone_id = _required_text(
+            item,
+            "zone_id",
+            f"network.plant_to_zone_links[{index}].zone_id",
+        )
+        maximum_flow = _to_float(
+            item.get("maximum_flow_ml_per_day"),
+            f"network.plant_to_zone_links[{index}].maximum_flow_ml_per_day",
+        )
 
-    source_links = tuple(
-        SourcePlantLinkInput(
-            source_id=str(item["source_id"]),
-            plant_id=str(item["plant_id"]),
-            enabled=bool(item.get("enabled", True)),
-            maximum_flow_ml_per_day=_to_float(
-                item.get("maximum_flow_ml_per_day")
-            ),
+        _append_required_non_negative_issue(
+            issues,
+            maximum_flow,
+            f"Plant-to-zone link {plant_id} -> {zone_id} maximum flow",
         )
-        for item in _require_list(
-            network.get("source_to_plant_links", []),
-            "network.source_to_plant_links",
-        )
-    )
 
-    zone_links = tuple(
-        PlantZoneLinkInput(
-            plant_id=str(item["plant_id"]),
-            zone_id=str(item["zone_id"]),
-            enabled=bool(item.get("enabled", True)),
-            maximum_flow_ml_per_day=_to_float(
-                item.get("maximum_flow_ml_per_day")
-            ),
+        zone_link_keys.append((plant_id, zone_id))
+        zone_links.append(
+            PlantZoneLinkInput(
+                plant_id=plant_id,
+                zone_id=zone_id,
+                enabled=True,
+                maximum_flow_ml_per_day=maximum_flow,
+            )
         )
-        for item in _require_list(
-            network.get("plant_to_zone_links", []),
-            "network.plant_to_zone_links",
-        )
-    )
 
-    plant_ids = {plant.plant_id for plant in plants}
-    zone_ids = {zone.zone_id for zone in demand_zones}
+    if len(zone_link_keys) != len(set(zone_link_keys)):
+        raise DataLoadError(
+            "The scenario contains duplicate plant-to-zone links."
+        )
+
+    plant_ids = set(plant_ids_in_order)
+    zone_ids = set(zone_ids_in_order)
 
     for link in source_links:
         if link.plant_id not in plant_ids:
-            issues.append(
-                f"Source link references unknown plant {link.plant_id}."
-            )
+            issues.append(f"Source link references unknown plant {link.plant_id}.")
 
     for link in zone_links:
         if link.plant_id not in plant_ids:
-            issues.append(
-                f"Zone link references unknown plant {link.plant_id}."
-            )
+            issues.append(f"Zone link references unknown plant {link.plant_id}.")
         if link.zone_id not in zone_ids:
-            issues.append(
-                f"Zone link references unknown zone {link.zone_id}."
-            )
+            issues.append(f"Zone link references unknown zone {link.zone_id}.")
 
-    return plants, demand_zones, source_links, zone_links, issues
+    return (
+        tuple(plants),
+        tuple(demand_zones),
+        tuple(source_links),
+        tuple(zone_links),
+        issues,
+    )
+
+
+def _validate_quality_limits(
+    quality_limits: dict[str, Any],
+) -> list[str]:
+    """Validate the raw bounds; pH conversion remains a preprocessing task."""
+    issues: list[str] = []
+    required_parameters = {
+        "ph": "pH",
+        "alkalinity_mg_l_caco3": "alkalinity",
+        "turbidity_ntu": "turbidity",
+    }
+
+    for key, label in required_parameters.items():
+        value = quality_limits.get(key)
+        if not isinstance(value, dict):
+            issues.append(f"Quality limits for {label} are missing.")
+            continue
+
+        minimum = _to_float(value.get("minimum"), f"quality_limits.{key}.minimum")
+        maximum = _to_float(value.get("maximum"), f"quality_limits.{key}.maximum")
+
+        if minimum is None:
+            issues.append(f"{label} minimum quality limit is missing.")
+        if maximum is None:
+            issues.append(f"{label} maximum quality limit is missing.")
+        if minimum is None or maximum is None:
+            continue
+
+        if minimum > maximum:
+            issues.append(f"{label} minimum quality limit exceeds its maximum.")
+
+        if key == "ph":
+            if not 0 <= minimum <= 10 or not 0 <= maximum <= 10:
+                issues.append("pH quality limits must be between 0 and 10.")
+        elif minimum < 0 or maximum < 0:
+            issues.append(f"{label} quality limits must be non-negative.")
+
+    return issues
 
 
 def load_scenario(
@@ -461,14 +707,8 @@ def load_scenario(
     """Load one scenario and merge it with Supabase source data."""
     config = _read_json(scenario_path)
 
-    data_source = _require_mapping(
-        config.get("data_source"),
-        "data_source",
-    )
-    validation = _require_mapping(
-        config.get("validation", {}),
-        "validation",
-    )
+    data_source = _require_mapping(config.get("data_source"), "data_source")
+    validation = _require_mapping(config.get("validation", {}), "validation")
 
     if data_source.get("type") != "supabase":
         raise DataLoadError('Only data_source.type = "supabase" is supported.')
@@ -478,17 +718,13 @@ def load_scenario(
         raise DataLoadError("data_source.view is required.")
 
     source_config = _require_list(config.get("sources"), "sources")
+    enabled_sources = _enabled_mappings(source_config, "sources")
     enabled_source_ids = [
-        str(item["source_id"])
-        for item in source_config
-        if bool(item.get("enabled", True))
+        _required_text(item, "source_id", f"sources[{index}].source_id")
+        for index, item in enumerate(enabled_sources)
     ]
 
-    rows = _fetch_sources(
-        _database_url(),
-        view_name,
-        enabled_source_ids,
-    )
+    rows = _fetch_sources(_database_url(), view_name, enabled_source_ids)
 
     sources, source_issues = _build_sources(
         source_config,
@@ -506,6 +742,7 @@ def load_scenario(
         network_issues,
     ) = _build_network(network, validation)
 
+    # References are checked after source and network filtering are complete.
     known_source_ids = {source.source_id for source in sources}
     for link in source_links:
         if link.source_id not in known_source_ids:
@@ -513,7 +750,12 @@ def load_scenario(
                 f"Source link references unavailable source {link.source_id}."
             )
 
-    issues = tuple(source_issues + network_issues)
+    quality_limits = _require_mapping(
+        config.get("quality_limits"),
+        "quality_limits",
+    )
+    quality_issues = _validate_quality_limits(quality_limits)
+    issues = tuple(source_issues + network_issues + quality_issues)
 
     scenario = ScenarioData(
         scenario_id=str(config.get("scenario_id", "")).strip(),
@@ -525,22 +767,15 @@ def load_scenario(
         demand_zones=demand_zones,
         source_to_plant_links=source_links,
         plant_to_zone_links=zone_links,
-        quality_limits=_require_mapping(
-            config.get("quality_limits"),
-            "quality_limits",
-        ),
-        treatment=_require_mapping(
-            config.get("treatment", {}),
-            "treatment",
-        ),
+        quality_limits=quality_limits,
+        treatment=_require_mapping(config.get("treatment", {}), "treatment"),
         validation_issues=issues,
     )
 
+    # Strict mode is the final gate before preprocessing and model construction.
     if strict and issues:
         message = "\n".join(f"- {issue}" for issue in issues)
-        raise DataLoadError(
-            "Scenario validation failed:\n" + message
-        )
+        raise DataLoadError("Scenario validation failed:\n" + message)
 
     return scenario
 
@@ -557,10 +792,7 @@ def print_summary(scenario: ScenarioData) -> None:
             if source.max_available_ml_per_day is not None
             else "missing"
         )
-        print(
-            f"- {source.name}: {availability} "
-            f"({source.availability_origin})"
-        )
+        print(f"- {source.name}: {availability} ({source.availability_origin})")
 
     print("\nDemand zones:")
     for zone in scenario.demand_zones:
@@ -595,10 +827,7 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        scenario = load_scenario(
-            args.scenario,
-            strict=not args.preview,
-        )
+        scenario = load_scenario(args.scenario, strict=not args.preview)
         print_summary(scenario)
     except DataLoadError as exc:
         raise SystemExit(f"\nData loader error:\n{exc}") from exc
