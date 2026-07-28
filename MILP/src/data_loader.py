@@ -216,11 +216,15 @@ def _fetch_sources(
             max_available_is_estimated,
             cost_is_estimated,
             alkalinity_is_estimated,
+            ph_is_estimated,
+            turbidity_is_estimated,
             storage_capacity_provenance,
             reference_flow_provenance,
             max_available_provenance,
             cost_provenance,
             alkalinity_provenance,
+            ph_provenance,
+            turbidity_provenance,
             availability_status,
             model_ready
         FROM {relation}
@@ -381,6 +385,8 @@ def _build_sources(
         estimated_flags = [
             bool(row["cost_is_estimated"]),
             bool(row["alkalinity_is_estimated"]),
+            bool(row["ph_is_estimated"]),
+            bool(row["turbidity_is_estimated"]),
             bool(row["max_available_is_estimated"]),
             availability_origin == "scenario_override",
         ]
@@ -414,6 +420,8 @@ def _build_sources(
                     "max_available": row["max_available_provenance"],
                     "cost": row["cost_provenance"],
                     "alkalinity": row["alkalinity_provenance"],
+                    "ph": row["ph_provenance"],
+                    "turbidity": row["turbidity_provenance"],
                 },
             )
         )
@@ -663,22 +671,72 @@ def _build_network(
 def _validate_quality_limits(
     quality_limits: dict[str, Any],
 ) -> list[str]:
-    """Validate the raw bounds; pH conversion remains a preprocessing task."""
+    """Validate the agreed quality-limit contract before preprocessing."""
     issues: list[str] = []
-    required_parameters = {
-        "ph": "pH",
-        "alkalinity_mg_l_caco3": "alkalinity",
-        "turbidity_ntu": "turbidity",
+
+    applies_to = str(quality_limits.get("applies_to", "")).strip()
+    if applies_to != "blend_at_plant_inflow":
+        issues.append(
+            'quality_limits.applies_to must equal "blend_at_plant_inflow".'
+        )
+
+    parameters = quality_limits.get("parameters")
+    if not isinstance(parameters, dict):
+        issues.append('"quality_limits.parameters" must be a JSON object.')
+        return issues
+
+    specifications = {
+        "pH": {
+            "label": "pH",
+            "unit": "pH",
+            "transform": "ph_to_hydrogen_ion",
+        },
+        "alkalinity": {
+            "label": "alkalinity",
+            "unit": "mg/L CaCO3",
+            "transform": "identity",
+        },
+        "turbidity": {
+            "label": "turbidity",
+            "unit": "NTU",
+            "transform": "identity",
+        },
     }
 
-    for key, label in required_parameters.items():
-        value = quality_limits.get(key)
-        if not isinstance(value, dict):
+    unsupported = sorted(set(parameters) - set(specifications))
+    if unsupported:
+        issues.append(
+            "Unsupported quality parameters: " + ", ".join(unsupported) + "."
+        )
+
+    for key, expected in specifications.items():
+        entry = parameters.get(key)
+        label = expected["label"]
+
+        if not isinstance(entry, dict):
             issues.append(f"Quality limits for {label} are missing.")
             continue
 
-        minimum = _to_float(value.get("minimum"), f"quality_limits.{key}.minimum")
-        maximum = _to_float(value.get("maximum"), f"quality_limits.{key}.maximum")
+        unit = str(entry.get("unit", "")).strip()
+        if unit != expected["unit"]:
+            issues.append(
+                f'{label} unit must be "{expected["unit"]}".'
+            )
+
+        transform = str(entry.get("transform", "")).strip()
+        if transform != expected["transform"]:
+            issues.append(
+                f'{label} transform must be "{expected["transform"]}".'
+            )
+
+        minimum = _to_float(
+            entry.get("min"),
+            f"quality_limits.parameters.{key}.min",
+        )
+        maximum = _to_float(
+            entry.get("max"),
+            f"quality_limits.parameters.{key}.max",
+        )
 
         if minimum is None:
             issues.append(f"{label} minimum quality limit is missing.")
@@ -690,7 +748,7 @@ def _validate_quality_limits(
         if minimum > maximum:
             issues.append(f"{label} minimum quality limit exceeds its maximum.")
 
-        if key == "ph":
+        if key == "pH":
             if not 0 <= minimum <= 10 or not 0 <= maximum <= 10:
                 issues.append("pH quality limits must be between 0 and 10.")
         elif minimum < 0 or maximum < 0:

@@ -1,0 +1,113 @@
+{
+  "scenario_id": "scenario_2026_07_17_001",
+  "scenario_name": "Toy model — single plant, single zone",
+  "status": "draft",
+  "description": "Sprint 1 toy case of the network formulation: three active water sources feed one treatment plant serving one demand zone. Source attributes are loaded from Supabase, while this scenario defines source activation costs, temporary availability overrides, network capacities and blend-quality limits.",
+  "data_source": {
+    "type": "supabase",
+    "view": "public.milp_model_input",
+    "allow_estimated_values": true
+  },
+  "validation": {
+    "fail_if_source_missing_from_database": true,
+    "fail_if_daily_availability_missing": true,
+    "fail_if_required_quality_value_missing": true,
+    "fail_if_demand_missing": true
+  },
+  "sources": [
+    {
+      "source_id": "225103",
+      "enabled": true,
+      "forced_inactive": false,
+      "fixed_activation_cost": 0.0,
+      "max_available_ml_per_day_override": 350
+    },
+    {
+      "source_id": "229421",
+      "enabled": true,
+      "forced_inactive": false,
+      "fixed_activation_cost": 0.0,
+      "max_available_ml_per_day_override": 300
+    },
+    {
+      "source_id": "233217",
+      "enabled": true,
+      "forced_inactive": false,
+      "fixed_activation_cost": 0.0,
+      "max_available_ml_per_day_override": null
+    }
+  ],
+  "network": {
+    "plants": [
+      {
+        "plant_id": "facility_1",
+        "name": "Treatment Facility 1",
+        "enabled": true,
+        "minimum_operating_flow_ml_per_day": 0,
+        "maximum_processing_capacity_ml_per_day": 600,
+        "fixed_activation_cost": 0.0,
+        "treatment_cost_per_ml": 64
+      }
+    ],
+    "demand_zones": [
+      {
+        "zone_id": "zone_1",
+        "name": "Zone 1",
+        "demand_ml_per_day": 500,
+        "demand_must_be_met": true
+      }
+    ],
+    "source_to_plant_links": [
+      {
+        "source_id": "225103",
+        "plant_id": "facility_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 350
+      },
+      {
+        "source_id": "229421",
+        "plant_id": "facility_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 300
+      },
+      {
+        "source_id": "233217",
+        "plant_id": "facility_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 300
+      }
+    ],
+    "plant_to_zone_links": [
+      {
+        "plant_id": "facility_1",
+        "zone_id": "zone_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 600
+      }
+    ]
+  },
+  "quality_limits": {
+    "applies_to": "blend_at_plant_inflow",
+    "parameters": {
+      "pH": {
+        "unit": "pH",
+        "min": 6.5,
+        "max": 8.5,
+        "transform": "ph_to_hydrogen_ion"
+      },
+      "alkalinity": {
+        "unit": "mg/L CaCO3",
+        "min": 20,
+        "max": 100,
+        "transform": "identity"
+      },
+      "turbidity": {
+        "unit": "NTU",
+        "min": 0,
+        "max": 8.0,
+        "transform": "identity"
+      }
+    }
+  },
+  "treatment": {}
+}

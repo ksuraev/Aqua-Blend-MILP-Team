@@ -80,8 +80,6 @@ class ModelParameters:
             "T": self.plant_ids,
             "Z": self.zone_ids,
             "P": self.quality_parameter_ids,
-            "A_ST": self.source_plant_arcs,
-            "A_TZ": self.plant_zone_arcs,
             "D_z": self.demand_by_zone,
             "F_s": self.source_fixed_cost,
             "F_t": self.plant_fixed_cost,
@@ -224,77 +222,82 @@ def _ensure_unique(values: Iterable[str], label: str) -> tuple[str, ...]:
 
 def _quality_entry(
     parameters: dict[str, Any],
-    aliases: tuple[str, ...],
+    name: str,
     label: str,
 ) -> dict[str, Any]:
-    for alias in aliases:
-        value = parameters.get(alias)
-        if isinstance(value, dict):
-            return value
-    raise PreprocessingError(f"Quality limits for {label} are missing.")
+    value = parameters.get(name)
+    if not isinstance(value, dict):
+        raise PreprocessingError(f"Quality limits for {label} are missing.")
+    return value
 
 
 def _normalise_quality_rules(
     quality_limits: dict[str, Any],
 ) -> tuple[tuple[_QualityRule, ...], list[str]]:
-    """Normalise the current contract while retaining limited legacy support."""
+    """Validate and normalise the agreed quality-limit contract."""
     if not isinstance(quality_limits, dict):
         raise PreprocessingError("quality_limits must be a JSON object.")
 
-    warnings: list[str] = []
-    nested_parameters = quality_limits.get("parameters")
+    applies_to = str(quality_limits.get("applies_to", "")).strip()
+    if applies_to != "blend_at_plant_inflow":
+        raise PreprocessingError(
+            'quality_limits.applies_to must equal "blend_at_plant_inflow".'
+        )
 
-    if isinstance(nested_parameters, dict):
-        applies_to = str(quality_limits.get("applies_to", "")).strip()
-        if applies_to != "blend_at_plant_inflow":
-            raise PreprocessingError(
-                'quality_limits.applies_to must equal "blend_at_plant_inflow".'
-            )
-        parameters = nested_parameters
-        uses_legacy_schema = False
-    else:
-        # This branch supports older ScenarioData objects while the JSON contract
-        # and loader are being aligned. New scenarios should use parameters.<p>.
-        parameters = quality_limits
-        uses_legacy_schema = True
-        warnings.append(
-            "Legacy flat quality_limits schema detected; migrate to "
-            "quality_limits.parameters before the interface is finalised."
+    parameters = quality_limits.get("parameters")
+    if not isinstance(parameters, dict):
+        raise PreprocessingError(
+            "quality_limits.parameters must be a JSON object."
         )
 
     specifications = (
         (
-            ("pH", "ph"),
+            "pH",
             "pH",
             PH_PARAMETER,
             "ph_to_hydrogen_ion",
+            "pH",
             "mol/L",
         ),
         (
-            ("alkalinity", "alkalinity_mg_l_caco3"),
+            "alkalinity",
             "alkalinity",
             ALKALINITY_PARAMETER,
             "identity",
             "mg/L CaCO3",
+            "mg/L CaCO3",
         ),
         (
-            ("turbidity", "turbidity_ntu"),
+            "turbidity",
             "turbidity",
             TURBIDITY_PARAMETER,
             "identity",
             "NTU",
+            "NTU",
         ),
     )
 
+    supported_names = {item[0] for item in specifications}
+    unsupported = sorted(set(parameters) - supported_names)
+    if unsupported:
+        raise PreprocessingError(
+            "Unsupported quality parameters: " + ", ".join(unsupported) + "."
+        )
+
     rules: list[_QualityRule] = []
 
-    for aliases, label, model_name, expected_transform, transformed_unit in specifications:
-        entry = _quality_entry(parameters, aliases, label)
+    for (
+        parameter_name,
+        label,
+        model_name,
+        expected_transform,
+        expected_input_unit,
+        model_unit,
+    ) in specifications:
+        entry = _quality_entry(parameters, parameter_name, label)
 
-        minimum_key = "min" if "min" in entry else "minimum"
-        maximum_key = "max" if "max" in entry else "maximum"
-        minimum = _require_finite(entry.get(minimum_key), f"{label} minimum limit")
-        maximum = _require_finite(entry.get(maximum_key), f"{label} maximum limit")
+        minimum = _require_finite(entry.get("min"), f"{label} minimum limit")
+        maximum = _require_finite(entry.get("max"), f"{label} maximum limit")
 
         if minimum > maximum:
             raise PreprocessingError(
@@ -303,35 +306,38 @@ def _normalise_quality_rules(
 
         if label == "pH":
             if not 0 <= minimum <= 10 or not 0 <= maximum <= 10:
-                raise PreprocessingError("pH quality limits must be between 0 and 10.")
-        elif minimum < 0 or maximum < 0:
-            raise PreprocessingError(f"{label} quality limits must be non-negative.")
-
-        if uses_legacy_schema:
-            transform = expected_transform
-            unit = str(entry.get("unit", transformed_unit)).strip() or transformed_unit
-        else:
-            transform = str(entry.get("transform", "")).strip()
-            unit = str(entry.get("unit", "")).strip()
-            if not unit:
-                raise PreprocessingError(f"{label} quality-limit unit is required.")
-            if transform != expected_transform:
                 raise PreprocessingError(
-                    f'{label} transform must be "{expected_transform}".'
+                    "pH quality limits must be between 0 and 10."
                 )
+        elif minimum < 0 or maximum < 0:
+            raise PreprocessingError(
+                f"{label} quality limits must be non-negative."
+            )
+
+        unit = str(entry.get("unit", "")).strip()
+        if unit != expected_input_unit:
+            raise PreprocessingError(
+                f'{label} unit must be "{expected_input_unit}".'
+            )
+
+        transform = str(entry.get("transform", "")).strip()
+        if transform != expected_transform:
+            raise PreprocessingError(
+                f'{label} transform must be "{expected_transform}".'
+            )
 
         rules.append(
             _QualityRule(
                 raw_name=label,
                 model_name=model_name,
-                unit=transformed_unit if label == "pH" else unit,
+                unit=model_unit,
                 minimum=minimum,
                 maximum=maximum,
                 transform=transform,
             )
         )
 
-    return tuple(rules), warnings
+    return tuple(rules), []
 
 
 def _transform_quality_bounds(
@@ -370,27 +376,49 @@ def _build_source_parameters(
     scenario: ScenarioData,
 ) -> tuple[
     tuple[str, ...],
+    tuple[str, ...],
     dict[str, float],
     dict[str, float],
     dict[str, float],
     dict[tuple[str, str], float],
     list[str],
 ]:
-    source_ids = _ensure_unique(
+    all_source_ids = _ensure_unique(
         (source.source_id for source in scenario.sources),
         "source IDs",
     )
+
+    forced_inactive_ids = tuple(
+        source.source_id
+        for source in scenario.sources
+        if source.forced_inactive
+    )
+    active_sources = tuple(
+        source
+        for source in scenario.sources
+        if not source.forced_inactive
+    )
+    source_ids = tuple(source.source_id for source in active_sources)
+
     if not source_ids:
-        raise PreprocessingError("The scenario must contain at least one enabled source.")
+        raise PreprocessingError(
+            "The scenario must contain at least one usable source."
+        )
 
     capacity: dict[str, float] = {}
     fixed_cost: dict[str, float] = {}
     unit_cost: dict[str, float] = {}
     quality: dict[tuple[str, str], float] = {}
-    warnings: list[str] = []
+    warnings = [
+        (
+            f"Source '{source_id}' was excluded from S and its outgoing arcs "
+            "because it is marked forced_inactive."
+        )
+        for source_id in forced_inactive_ids
+    ]
 
-    for source in scenario.sources:
-        available = _require_non_negative(
+    for source in active_sources:
+        capacity[source.source_id] = _require_non_negative(
             source.max_available_ml_per_day,
             f"Source '{source.source_id}' maximum withdrawal W_s",
         )
@@ -402,9 +430,6 @@ def _build_source_parameters(
             source.cost_per_ml,
             f"Source '{source.source_id}' unit cost C_s",
         )
-
-        # A forced-inactive source remains visible in S but cannot supply water.
-        capacity[source.source_id] = 0.0 if source.forced_inactive else available
 
         ph = _require_finite(source.ph, f"Source '{source.source_id}' pH")
         if not 0 <= ph <= 10:
@@ -427,11 +452,20 @@ def _build_source_parameters(
 
         if not source.database_model_ready:
             warnings.append(
-                f"Source '{source.source_id}' is not marked model_ready by the database; "
-                "required scenario overrides and field-level validation were still applied."
+                f"Source '{source.source_id}' is not marked model_ready by the "
+                "database; required scenario overrides and field-level "
+                "validation were still applied."
             )
 
-    return source_ids, capacity, fixed_cost, unit_cost, quality, warnings
+    return (
+        source_ids,
+        forced_inactive_ids,
+        capacity,
+        fixed_cost,
+        unit_cost,
+        quality,
+        warnings,
+    )
 
 
 def _build_plant_parameters(
@@ -516,6 +550,7 @@ def _build_demand_parameters(
 def _build_link_parameters(
     scenario: ScenarioData,
     source_ids: tuple[str, ...],
+    forced_inactive_source_ids: tuple[str, ...],
     plant_ids: tuple[str, ...],
     zone_ids: tuple[str, ...],
 ) -> tuple[
@@ -525,12 +560,18 @@ def _build_link_parameters(
     dict[tuple[str, str], float],
 ]:
     source_set = set(source_ids)
+    forced_inactive_set = set(forced_inactive_source_ids)
     plant_set = set(plant_ids)
     zone_set = set(zone_ids)
 
     source_plant_capacity: dict[tuple[str, str], float] = {}
     for link in scenario.source_to_plant_links:
         key = (link.source_id, link.plant_id)
+
+        # Arcs from forced-inactive sources are omitted with the source itself.
+        if link.source_id in forced_inactive_set:
+            continue
+
         if key in source_plant_capacity:
             raise PreprocessingError(f"Duplicate source-to-plant arc {key!r}.")
         if link.source_id not in source_set:
@@ -543,7 +584,8 @@ def _build_link_parameters(
             )
         source_plant_capacity[key] = _require_non_negative(
             link.maximum_flow_ml_per_day,
-            f"Source-to-plant capacity L_st for {link.source_id} -> {link.plant_id}",
+            f"Source-to-plant capacity L_st for "
+            f"{link.source_id} -> {link.plant_id}",
         )
 
     plant_zone_capacity: dict[tuple[str, str], float] = {}
@@ -561,13 +603,18 @@ def _build_link_parameters(
             )
         plant_zone_capacity[key] = _require_non_negative(
             link.maximum_flow_ml_per_day,
-            f"Plant-to-zone capacity L_tz for {link.plant_id} -> {link.zone_id}",
+            f"Plant-to-zone capacity L_tz for "
+            f"{link.plant_id} -> {link.zone_id}",
         )
 
     if not source_plant_capacity:
-        raise PreprocessingError("At least one source-to-plant arc is required.")
+        raise PreprocessingError(
+            "At least one usable source-to-plant arc is required."
+        )
     if not plant_zone_capacity:
-        raise PreprocessingError("At least one plant-to-zone arc is required.")
+        raise PreprocessingError(
+            "At least one plant-to-zone arc is required."
+        )
 
     return (
         tuple(source_plant_capacity),
@@ -735,9 +782,15 @@ def preprocess_scenario(
             + issues
         )
 
-    source_ids, source_capacity, source_fixed, source_unit, source_quality, warnings = (
-        _build_source_parameters(scenario)
-    )
+    (
+        source_ids,
+        forced_inactive_source_ids,
+        source_capacity,
+        source_fixed,
+        source_unit,
+        source_quality,
+        warnings,
+    ) = _build_source_parameters(scenario)
     plant_ids, plant_capacity, plant_fixed, treatment_cost = (
         _build_plant_parameters(scenario)
     )
@@ -748,7 +801,13 @@ def preprocess_scenario(
         plant_zone_arcs,
         source_plant_capacity,
         plant_zone_capacity,
-    ) = _build_link_parameters(scenario, source_ids, plant_ids, zone_ids)
+    ) = _build_link_parameters(
+        scenario,
+        source_ids,
+        forced_inactive_source_ids,
+        plant_ids,
+        zone_ids,
+    )
 
     quality_rules, quality_warnings = _normalise_quality_rules(
         scenario.quality_limits
