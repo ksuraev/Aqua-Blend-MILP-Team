@@ -118,35 +118,6 @@ Only about half the model's parameters live in this file. Source attributes are 
 | `parameters.<p>.unit` | string | Unit of the limits and of the database's representative value. |
 | `parameters.<p>.min` | number | $\underline{Q}_p$. Use a value the blend cannot realistically breach (e.g. `0`) when only an upper limit is regulated. |
 | `parameters.<p>.max` | number | $\overline{Q}_p \ge$ `min`. |
-| `parameters.<p>.transform` | string | `"identity"` if the parameter blends linearly by volume; otherwise name the transform and supply transformed values. |
+| `parameters.<p>.transform` | string | `"identity"` if the parameter is kept identical to what it provided in the json; otherwise name the transform and supply transformed values, e.g. `"hydrogenic"` for `pH` to be linearised into $[H^+]$. |
 
 
-## 4. What the `data_loader.py` checks
-
-Do not duplicate these; they run on every load and, with `strict=True`, raise:
-
-1. `data_source` present and an object; `type == "supabase"`; `view` present and name-safe.
-2. `sources`, `network` present and the right JSON types; `quality_limits` present and an object.
-3. Every enabled source has a `source_id`; no duplicate source ids.
-4. Each enabled source resolves to an active database row.
-5. Availability present (unless `forced_inactive`) and non-negative.
-6. pH, alkalinity, turbidity and cost present on each source row.
-7. Estimated or overridden values only when `allow_estimated_values` is `true`.
-8. Every link endpoint resolves to a known source, plant or zone.
-
-
-## 6. Known gaps — read before populating
-
-Interface questions for the team, not bugs in the file.
-
-- **The loader models things the formulation does not.** `minimum_operating_flow_ml_per_day` implies a semi-continuous plant ($\sum_s b_{st} = 0$ or $\ge$ the minimum when $\beta_t = 1$), and `demand_must_be_met: false` implies soft demand with a shortfall penalty. Neither is in the formulation. They are set to `0` and `true` in the example so the file describes a model that exists.
-
-- **Quality limits are pre-treatment.** The formulation constrains the blend arriving at a plant and has no removal term, so treatment cannot rescue an out-of-limit blend. These must be *raw blend* limits, back-calculated from regulatory post-treatment limits and the plant's removal performance, not the regulatory limits copied across. The example uses `max: 8.0` NTU for turbidity for that reason; 5.0 NTU is the post-treatment regulatory limit, which belongs to a stage the model does not represent.
-
-- **Limits are global, not per-plant.** If two plants ever need different limits, `quality_limits` needs a plant dimension and the formulation needs $\underline{Q}_{tp}$.
-
-- **Provenance now comes from the database.** The previous revision carried a hand-written `data_flags.estimated_fields` list. The view supplies `*_is_estimated` and `*_provenance` columns per source, and the loader surfaces them on `SourceInput`, so the hand-maintained list is dropped as a second source of truth that would drift. Fields still defined in this file — plant costs, capacities, link capacities, quality limits — have no provenance mechanism at all; that gap is worth closing.
-
-- **`data_source.view` is a placeholder.** `public.source_model_inputs` is a guess. Replace it with the real view name, which must expose every column in `_fetch_sources`.
-
-- **Costs are linear and fixed.** No volume tiers, no time-of-use energy pricing, no ramping. A genuinely non-linear tariff must be linearised upstream.

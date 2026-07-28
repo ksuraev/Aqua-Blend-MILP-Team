@@ -90,7 +90,7 @@
         "unit": "pH",
         "min": 6.5,
         "max": 8.5,
-        "transform": "identity"
+        "transform": "hydrogenic"
       },
       "alkalinity": {
         "unit": "mg/L CaCO3",
