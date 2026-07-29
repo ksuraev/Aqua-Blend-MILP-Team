@@ -15,12 +15,14 @@ Only about half the model's parameters live in this file. Source attributes are 
 | $D_z$ | this file | `network.demand_zones[].demand_ml_per_day` |
 | $F_t$ | this file | `network.plants[].fixed_activation_cost` |
 | $C_t$ | this file | `network.plants[].treatment_cost_per_ml` |
+| $\underline{V}_t$ | this file | `network.plants[].minimum_processing_capacity_ml_per_day` |
 | $\overline{V}_t$ | this file | `network.plants[].maximum_processing_capacity_ml_per_day` |
 | $\overline{L}_{st}$ | this file | `network.source_to_plant_links[].maximum_flow_ml_per_day` |
 | $\overline{L}_{tz}$ | this file | `network.plant_to_zone_links[].maximum_flow_ml_per_day` |
 | $\underline{Q}_p, \overline{Q}_p$ | this file | `quality_limits.parameters.<p>.min` / `.max` |
 | $\mathcal{S}$ | this file | `sources[].source_id` (selection only) |
 | $C_s$ | **database** | `cost_per_ml` |
+| $\underline{W}_s$ | this file | `sources[].minimum_withdrawal_ml_per_day`  |
 | $\overline{W}_s$ | **database** | `max_available_ml_per_day`, overridable per §3.3 |
 | $Q_{sp}$ | **database** | `representative_ph`, `representative_alkalinity_mg_l_caco3`, `representative_turbidity_ntu` |
 | $F_s$ | **nowhere** | see §6 in the maths documentation |
@@ -76,6 +78,7 @@ Only about half the model's parameters live in this file. Source attributes are 
 | `source_id` | string | yes | Must exist in the database view **and** have `is_active = TRUE` there — the fetch filters on it, so a deactivated row simply does not come back and reads as "not found in the database". |
 | `enabled` | boolean | no | Default `true`. `false` drops the source before the database query; it is not fetched and not modelled. |
 | `forced_inactive` | boolean | no | Default `false`. The source is still loaded, but is expected to be held at $\alpha_s = 0$. It also exempts the source from the missing-availability check. |
+| `minimum_withdrawal_ml_per_day` | number | no | $\underline{W}_s$, defaults to `0`. Floor on the draw *when the source is activated*: $a_s \ge \underline{W}_s \alpha_s$. At `0` the row reduces to $a_s \ge 0$, so it is inert and the model behaves exactly as before. Must satisfy $\underline{W}_s \le \overline{W}_s$.|
 | `max_available_ml_per_day_override` | number or null | no | `null` (or absent) uses the database value. A number replaces $\overline{W}_s$ and marks the source as containing estimated values, which fails the load when `allow_estimated_values` is `false`. Use it for what-if runs, not to patch bad data. |
 
 
@@ -86,7 +89,7 @@ Only about half the model's parameters live in this file. Source attributes are 
 | `plant_id` | string | yes | Unique. Referenced by both link arrays. |
 | `name` | string | **yes** | Read as `str(item["name"])` with no default — omitting it raises `KeyError`, not a friendly error. |
 | `enabled` | boolean | no | Default `true`. |
-| `minimum_operating_flow_ml_per_day` | number | no | Defaults to `0`. Not in the formulation — see §6. Keep at `0` until the model implements it. |
+| `minimum_processing_capacity_ml_per_day` | number | no | $\underline{V}_t$, minimum daily throughput, defaults to `0`. Floor on inflow *when the plant is activated*: $\sum_s b_{st} \ge \underline{V}_t \beta_t$. At `0` the row reduces to $\sum_s b_{st} \ge 0$, so it is inert. Must satisfy $\underline{V}_t \le \overline{V}_t$. Renamed from `minimum_operating_flow_ml_per_day`. |
 | `maximum_processing_capacity_ml_per_day` | number or null | no | $\overline{V}_t$. `null` is accepted by the loader and means unbounded, which the model should reject. |
 | `fixed_activation_cost` | number | no | $F_t$, defaults to `0`. `0` is correct for the toy case, where the single plant is always on and its fixed cost is a constant the objective drops. |
 | `treatment_cost_per_ml` | number | no | $C_t$, defaults to `0`. Charged on inflow $\sum_s b_{st}$. Chemical and energy costs fold into this one rate — the formulation has no separate dosing or energy term. |
@@ -119,5 +122,3 @@ Only about half the model's parameters live in this file. Source attributes are 
 | `parameters.<p>.min` | number | $\underline{Q}_p$. Use a value the blend cannot realistically breach (e.g. `0`) when only an upper limit is regulated. |
 | `parameters.<p>.max` | number | $\overline{Q}_p \ge$ `min`. |
 | `parameters.<p>.transform` | string | `"identity"` if the parameter is kept identical to what it provided in the json; otherwise name the transform and supply transformed values, e.g. `"hydrogenic"` for `pH` to be linearised into $[H^+]$. |
-
-

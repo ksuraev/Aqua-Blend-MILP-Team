@@ -19,18 +19,21 @@
       "source_id": "silvan_reservoir",
       "enabled": true,
       "forced_inactive": false,
+      "minimum_withdrawal_ml_per_day": 0,
       "max_available_ml_per_day_override": null
     },
     {
       "source_id": "yarra_kew",
       "enabled": true,
       "forced_inactive": false,
+      "minimum_withdrawal_ml_per_day": 0,
       "max_available_ml_per_day_override": null
     },
     {
       "source_id": "groundwater_bore_1",
       "enabled": true,
       "forced_inactive": false,
+      "minimum_withdrawal_ml_per_day": 0,
       "max_available_ml_per_day_override": null
     }
   ],
@@ -40,7 +43,7 @@
         "plant_id": "facility_1",
         "name": "Treatment Facility 1",
         "enabled": true,
-        "minimum_operating_flow_ml_per_day": 0,
+        "minimum_processing_capacity_ml_per_day": 0,
         "maximum_processing_capacity_ml_per_day": 600,
         "fixed_activation_cost": 0.0,
         "treatment_cost_per_ml": 64
