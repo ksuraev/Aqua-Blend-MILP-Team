@@ -1,0 +1,50 @@
+name: Auto-request reviewers
+
+# Requests review from every team member when a PR is opened.
+# CODEOWNERS already auto-requests the leads; this covers everyone else so
+# nobody has to be added by hand from the Reviewers dropdown each time.
+
+on:
+  pull_request:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  request-reviewers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const TEAM = [
+              'ksuraev',
+              'Architbh007',
+              'DauDAtem',
+              'DinethHasaranga',
+              'jo-kem',
+              'lakshyacheema',
+              'meetgadhia48-glitch',
+              'pcq29704',
+              'SaiAjayChandra',
+              'Trminh06-work',
+            ];
+
+            // The API rejects the whole request (422) if the PR author is in the reviewers list, so drop them.
+            const author = context.payload.pull_request.user.login;
+            const reviewers = TEAM.filter(u => u !== author);
+
+            if (reviewers.length === 0) {
+              core.info('No reviewers to request.');
+              return;
+            }
+
+            await github.rest.pulls.requestReviewers({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+              reviewers,
+            });
+
+            core.info(`Requested review from: ${reviewers.join(', ')}`);
