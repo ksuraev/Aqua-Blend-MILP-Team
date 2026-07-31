@@ -6,7 +6,7 @@ name: Auto-request reviewers
 
 on:
   pull_request:
-    types: [opened]
+    types: [opened, reopened, ready_for_review]
 
 permissions:
   pull-requests: write
