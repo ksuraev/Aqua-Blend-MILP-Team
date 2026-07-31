@@ -20,7 +20,7 @@
 
 ## Generated PDF files:
 *.pdf
-!MILP/docs/formulation.pdf
+!formulation.pdf
 
 ## Bibliography auxiliary files (bibtex/biblatex/biber):
 *.bbl
