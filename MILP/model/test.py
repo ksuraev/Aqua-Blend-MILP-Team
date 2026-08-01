@@ -14,9 +14,6 @@ from model import (
 
 def sample_inputs(*, demand: float = 12.0) -> ToyModelInputs:
     """A hand-inspectable 3-reservoir / 2-chemical toy scenario.
-
-    Reservoir R2 is deliberately the cheapest but has the worst turbidity, so
-    the quality constraints should visibly limit how much of it gets used.
     """
     reservoir_ids = ("R1", "R2", "R3")
     chemical_ids = ("C1", "C2")
@@ -56,8 +53,7 @@ def print_solution(prob: pulp.LpProblem, variables, inputs: ToyModelInputs, stat
         print("No optimal solution to report. Check status above.")
         if status == "Infeasible":
             print(
-                "Infeasible: try widening the quality bounds, raising capacities, "
-                "or lowering demand, then re-run."
+                "Infeasible: try widening the quality bounds, raising capacities, or lowering demand, then re-run."
             )
         return
 
@@ -112,9 +108,6 @@ def print_solution(prob: pulp.LpProblem, variables, inputs: ToyModelInputs, stat
 
     print("\n-- Constraint slacks (0.0000 means binding / active) --")
     for name, constraint in prob.constraints.items():
-        # PuLP stores each constraint as expr <op> 0 internally; .value() is
-        # the LHS-minus-RHS value, so its magnitude tells us how far from
-        # binding each constraint currently is.
         print(f"  {name:28s} slack = {-constraint.value():10.4f}")
 
 
