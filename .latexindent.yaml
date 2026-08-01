@@ -1,6 +1,5 @@
-# localSettings.yaml
-# Place this in the same directory as your .tex file (or repo root),
-# and latexindent will pick it up automatically.
+# .latexindent.yaml
+# Run from docs directory with: latexindent -m -l=.latexindent.yaml -d -w formulation.tex
 
 # Use 2 spaces for indentation instead of the tool's default tab
 defaultIndent: "  "
