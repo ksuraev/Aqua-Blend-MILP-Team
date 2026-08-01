@@ -1,0 +1,33 @@
+# localSettings.yaml
+# Place this in the same directory as your .tex file (or repo root),
+# and latexindent will pick it up automatically.
+
+# Use 2 spaces for indentation instead of the tool's default tab
+defaultIndent: "  "
+
+# Don't add extra indent to top-level document/abstract
+# (keeps the diff smaller if you're indenting an already-written doc)
+noAdditionalIndent:
+  document: 1
+  abstract: 1
+
+# Align & delimiters in table/matrix-like environments
+# (these are already on by default in recent versions, but explicit
+# here so the behaviour doesn't silently change on a latexindent update)
+lookForAlignDelims:
+  tabular: 1
+  tabularx: 1
+  align: 1
+  align*: 1
+  matrix: 1
+  cases: 1
+
+# Trim trailing whitespace on every line after processing
+removeTrailingWhitespace:
+  beforeProcessing: 0
+  afterProcessing: 1
+
+# One sentence per line (this was previously passed via -y on the command line)
+modifyLineBreaks:
+  oneSentencePerLine:
+    manipulateSentences: 1
