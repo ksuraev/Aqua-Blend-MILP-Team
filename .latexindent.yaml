@@ -1,8 +1,5 @@
 # .latexindent.yaml
-# Run from MILP/docs directory with: latexindent -m -l=.latexindent.yaml -d -w formulation.tex
-
-# Use 2 spaces for indentation instead of the tool's default tab
-defaultIndent: "  "
+# Run from repo root: latexindent -m -l=.latexindent.yaml -w MILP/docs/formulation.tex
 
 # Don't add extra indent to top-level document/abstract
 # (keeps the diff smaller if you're indenting an already-written doc)
@@ -11,8 +8,6 @@ noAdditionalIndent:
   abstract: 1
 
 # Align & delimiters in table/matrix-like environments
-# (these are already on by default in recent versions, but explicit
-# here so the behaviour doesn't silently change on a latexindent update)
 lookForAlignDelims:
   tabular: 1
   tabularx: 1
@@ -26,7 +21,30 @@ removeTrailingWhitespace:
   beforeProcessing: 0
   afterProcessing: 1
 
-# One sentence per line (this was previously passed via -y on the command line)
+# One sentence per line
 modifyLineBreaks:
   oneSentencePerLine:
     manipulateSentences: 1
+    sentencesEndWith:
+      betterFullStop: 0
+      other: |-
+        (?x)
+        (?:
+          (?<!
+            (?:
+              (?:[eE]\.[gG])
+              |
+              (?:[iI]\.[eE])
+            )
+          )
+          \.
+          \}?
+          (?!
+            [a-zA-Z0-9-~,]
+          )
+        )
+        |
+        (?:
+          :
+          (?=\s)
+        )
