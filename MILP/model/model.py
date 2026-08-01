@@ -1,25 +1,18 @@
 """AquaBlend toy MILP model builder.
 
-Implements the toy model exactly as specified in the formulation document:
-- Section 4: Decision Variables
-- Section 5: Objective Function
-- Section 7: Constraints (full set, validated final form)
-
 This module builds and solves the toy model with PuLP + HiGHS. It exists to
 validate the MILP formulation (linearised pH handling, activation linking,
 dosing gating, batch counting) on a small, hand-inspectable instance before
 the same patterns are scaled up to the full source/plant/zone network model
-in model_builder.py.
 
-Dosing is cost-only in this toy model (see formulation Section 6): it does
-not alter blended pH, alkalinity, or turbidity in the constraints.
+Dosing is cost-only in this toy model: it does not alter blended 
+pH, alkalinity, or turbidity in the constraints.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-
 import pulp
 
 
@@ -38,8 +31,6 @@ class ModelSolveError(RuntimeError):
 
 @dataclass(frozen=True)
 class ToyModelInputs:
-    """All numeric inputs for the toy model (Sections 4, 5, 7)."""
-
     reservoir_ids: tuple[str, ...]
     chemical_ids: tuple[str, ...]
 
@@ -122,14 +113,12 @@ def ph_to_hydrogen_ion(ph: float) -> float:
     return 10.0 ** (-ph)
 
 
-# ---------------------------------------------------------------------------
 # Variable container
-# ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class ToyModelVariables:
-    """PuLP variables, grouped exactly as listed in Section 4."""
+    """PuLP variables"""
 
     x: dict[str, pulp.LpVariable]           # x_i: continuous >= 0
     y: dict[str, pulp.LpVariable]           # y_i: binary
@@ -138,9 +127,7 @@ class ToyModelVariables:
     b: pulp.LpVariable                      # integer >= 0
 
 
-# ---------------------------------------------------------------------------
-# Model construction (Sections 4, 5, 7)
-# ---------------------------------------------------------------------------
+# Model construction 
 
 
 def build_toy_model(
@@ -148,11 +135,11 @@ def build_toy_model(
     *,
     include_redundant_capacity_constraints: bool = False,
 ) -> tuple[pulp.LpProblem, ToyModelVariables]:
-    """Build the toy MILP exactly as specified in Sections 4, 5, and 7.
+    """Build the toy MILP
 
     Constraint 2 (individual source capacity, x_i <= Capacity_i) is
-    mathematically redundant once constraint 3 exists, as noted in the
-    formulation. It is left out by default and can be switched on with
+    mathematically redundant once constraint 3. 
+    It is left out by default and can be switched on with
     `include_redundant_capacity_constraints=True` purely to inspect it.
     """
     inputs.validate()
@@ -161,7 +148,7 @@ def build_toy_model(
 
     prob = pulp.LpProblem("AquaBlend_Toy_Model", pulp.LpMinimize)
 
-    # --- Section 4: Decision Variables ---
+    # Decision Variables
     x = {i: pulp.LpVariable(f"x_{i}", lowBound=0, cat="Continuous") for i in reservoirs}
     y = {i: pulp.LpVariable(f"y_{i}", cat="Binary") for i in reservoirs}
     d = {c: pulp.LpVariable(f"d_{c}", lowBound=0, cat="Continuous") for c in chemicals}
@@ -172,26 +159,26 @@ def build_toy_model(
 
     total_draw = pulp.lpSum(x[i] for i in reservoirs)
 
-    # --- Section 5: Objective Function ---
+    # Objective Function 
     # Minimise: sum(x_i * Cost_i) + sum(d_c * Cost_c) + (sum x_i) * EnergyRate
     source_draw_cost = pulp.lpSum(x[i] * inputs.source_cost[i] for i in reservoirs)
     dosing_cost = pulp.lpSum(d[c] * inputs.chemical_cost[c] for c in chemicals)
     energy_cost = total_draw * inputs.energy_rate
     prob += source_draw_cost + dosing_cost + energy_cost, "Total_Cost"
 
-    # --- Section 7, Constraint 1: Demand satisfaction ---
+    # Constraint 1: Demand satisfaction
     prob += total_draw >= inputs.demand, "Demand_Satisfaction"
 
-    # --- Section 7, Constraint 2: Source capacity (redundant; optional) ---
+    # Constraint 2: Source capacity (redundant; optional)
     if include_redundant_capacity_constraints:
         for i in reservoirs:
             prob += x[i] <= inputs.capacity[i], f"Source_Capacity_{i}"
 
-    # --- Section 7, Constraint 3: Source activation linking ---
+    # Constraint 3: Source activation linking
     for i in reservoirs:
         prob += x[i] <= inputs.capacity[i] * y[i], f"Activation_Linking_{i}"
 
-    # --- Section 7, Constraint 4: pH range (via [H+]) ---
+    # Constraint 4: pH range (via [H+])
     blended_hydrogen_ion = pulp.lpSum(x[i] * inputs.hydrogen_ion[i] for i in reservoirs)
     prob += (
         blended_hydrogen_ion >= inputs.hydrogen_ion_min * total_draw,
@@ -202,7 +189,7 @@ def build_toy_model(
         "pH_Upper_Bound",
     )
 
-    # --- Section 7, Constraint 5: Alkalinity range ---
+    # Constraint 5: Alkalinity range 
     blended_alkalinity = pulp.lpSum(x[i] * inputs.alkalinity[i] for i in reservoirs)
     prob += (
         blended_alkalinity >= inputs.alkalinity_min * total_draw,
@@ -213,7 +200,7 @@ def build_toy_model(
         "Alkalinity_Upper_Bound",
     )
 
-    # --- Section 7, Constraint 6: Turbidity range ---
+    # Constraint 6: Turbidity range
     blended_turbidity = pulp.lpSum(x[i] * inputs.turbidity[i] for i in reservoirs)
     prob += (
         blended_turbidity >= inputs.turbidity_min * total_draw,
@@ -224,23 +211,20 @@ def build_toy_model(
         "Turbidity_Upper_Bound",
     )
 
-    # --- Section 7, Constraint 7: Facility activation linking ---
+    # Constraint 7: Facility activation linking
     for c in chemicals:
         prob += d[c] <= inputs.big_m_dosing * y_facility, f"Facility_Activation_{c}"
 
-    # --- Section 7, Constraint 8: Batch sufficiency ---
+    # Constraint 8: Batch sufficiency
     prob += total_draw <= inputs.batch_capacity * b, "Batch_Sufficiency"
 
-    # --- Section 7, Constraint 9: Domain and non-negativity ---
+    # Constraint 9: Domain and non-negativity
     # Enforced directly via variable construction above (lowBound=0, cat=...).
 
     return prob, variables
 
 
-# ---------------------------------------------------------------------------
 # Solving
-# ---------------------------------------------------------------------------
-
 
 def solve_toy_model(prob: pulp.LpProblem, *, msg: bool = False) -> str:
     """Solve with HiGHS. Raises ModelSolveError if HiGHS is unavailable."""

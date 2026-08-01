@@ -1,14 +1,3 @@
-"""Interactive debug/inspection runner for the AquaBlend toy MILP model.
-
-This is deliberately NOT a pytest suite. It builds one or more toy-model
-scenarios, prints the full LP formulation so you can read every constraint
-row, solves with HiGHS, and then prints a human-readable breakdown of the
-solution (variable values, objective decomposition, constraint slacks,
-computed blended pH) so you can see exactly why the solver landed where it
-did. Run it directly and read the output; tweak the input dicts and re-run
-to explore "what if" scenarios.
-"""
-
 from __future__ import annotations
 
 import math
@@ -22,9 +11,6 @@ from model import (
     ph_to_hydrogen_ion,
     solve_toy_model,
 )
-
-BAR = "=" * 78
-
 
 def sample_inputs(*, demand: float = 12.0) -> ToyModelInputs:
     """A hand-inspectable 3-reservoir / 2-chemical toy scenario.
@@ -60,16 +46,11 @@ def sample_inputs(*, demand: float = 12.0) -> ToyModelInputs:
 
 
 def print_formulation(prob: pulp.LpProblem) -> None:
-    print(BAR)
     print("FULL LP FORMULATION (as built by PuLP)")
-    print(BAR)
-    print(prob)
 
 
 def print_solution(prob: pulp.LpProblem, variables, inputs: ToyModelInputs, status: str) -> None:
-    print(BAR)
     print(f"SOLVE STATUS: {status}")
-    print(BAR)
 
     if status != "Optimal":
         print("No optimal solution to report. Check status above.")
@@ -138,9 +119,7 @@ def print_solution(prob: pulp.LpProblem, variables, inputs: ToyModelInputs, stat
 
 
 def run_scenario(label: str, inputs: ToyModelInputs) -> None:
-    print("\n" + BAR)
     print(f"SCENARIO: {label}")
-    print(BAR)
 
     prob, variables = build_toy_model(inputs)
     print_formulation(prob)
