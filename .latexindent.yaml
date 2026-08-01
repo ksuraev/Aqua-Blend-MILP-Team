@@ -1,5 +1,5 @@
 # .latexindent.yaml
-# Run from docs directory with: latexindent -m -l=.latexindent.yaml -d -w formulation.tex
+# Run from MILP/docs directory with: latexindent -m -l=.latexindent.yaml -d -w formulation.tex
 
 # Use 2 spaces for indentation instead of the tool's default tab
 defaultIndent: "  "
