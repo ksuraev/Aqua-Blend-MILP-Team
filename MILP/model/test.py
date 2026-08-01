@@ -42,10 +42,6 @@ def sample_inputs(*, demand: float = 12.0) -> ToyModelInputs:
     )
 
 
-def print_formulation(prob: pulp.LpProblem) -> None:
-    print("FULL LP FORMULATION (as built by PuLP)")
-
-
 def print_solution(prob: pulp.LpProblem, variables, inputs: ToyModelInputs, status: str) -> None:
     print(f"SOLVE STATUS: {status}")
 
@@ -115,7 +111,6 @@ def run_scenario(label: str, inputs: ToyModelInputs) -> None:
     print(f"SCENARIO: {label}")
 
     prob, variables = build_toy_model(inputs)
-    print_formulation(prob)
 
     try:
         status = solve_toy_model(prob, msg=False)
