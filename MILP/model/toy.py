@@ -1,5 +1,5 @@
 import pulp
-from MILP.model.vars import (
+from vars import (
     sources, plants, zones,
     s_active, s_vol, t_active, s_t_active, s_t_vol, t_z_active, t_z_vol,
     source_activation_cost, source_draw_cost,
@@ -13,30 +13,37 @@ from MILP.model.vars import (
 )
 
 # Define the problem
-problem = pulp.LpProblem("Aquablend Toy", pulp.LpMinimize)
+problem = pulp.LpProblem("Aquablend_Toy", pulp.LpMinimize)
 
 # Variables
-s_active_vars = problem.add_variable_dict(
-    "Active sources", (s_active,), 0, None, pulp.LpBinary
-    )
-s_vol_vars = problem.add_variable_dict(
-    "Source volumes", (s_vol,), 0, None, pulp.LpContinuous
-    )
-t_active_vars = problem.add_variable_dict(
-    "Active plants", (t_active,), 0, None, pulp.LpBinary
-    )
-s_t_active_vars = problem.add_variable_dict(
-    "Active source-plant links", (s_t_active,), 0, None, pulp.LpBinary
-    )
-s_t_vol_vars = problem.add_variable_dict(
-    "Source-plant volumes", (s_t_vol,), 0, None, pulp.LpContinuous
-    )
-t_z_active_vars = problem.add_variable_dict(
-    "Active plant-demand zone links", (t_z_active,), 0, None, pulp.LpBinary
-    )
-t_z_vol_vars = problem.add_variable_dict(
-    "Plant-demand zone volumes", (t_z_vol,), 0, None, pulp.LpContinuous
-    )
+s_active_vars = {
+    key: pulp.LpVariable(name, lowBound=0, upBound=None, cat=pulp.LpBinary)
+    for key, name in s_active.items()
+}
+s_vol_vars = {
+    key: pulp.LpVariable(name, lowBound=0, upBound=None, cat=pulp.LpContinuous)
+    for key, name in s_vol.items()
+}
+t_active_vars = {
+    key: pulp.LpVariable(name, lowBound=0, upBound=None, cat=pulp.LpBinary)
+    for key, name in t_active.items()
+}
+s_t_active_vars = {
+    key: pulp.LpVariable(name, lowBound=0, upBound=None, cat=pulp.LpBinary)
+    for key, name in s_t_active.items()
+}
+s_t_vol_vars = {
+    key: pulp.LpVariable(name, lowBound=0, upBound=None, cat=pulp.LpContinuous)
+    for key, name in s_t_vol.items()
+}
+t_z_active_vars = {
+    key: pulp.LpVariable(name, lowBound=0, upBound=None, cat=pulp.LpBinary)
+    for key, name in t_z_active.items()
+}
+t_z_vol_vars = {
+    key: pulp.LpVariable(name, lowBound=0, upBound=None, cat=pulp.LpContinuous)
+    for key, name in t_z_vol.items()
+}
 
 # Objective
 source_activation_term = pulp.lpSum(
@@ -65,7 +72,6 @@ problem += (
 ), "Total cost"
 
 # Constraints
-# Read in constraints
 
 # Demand satisfaction: total volume delivered to each zone must meet demand.
 #   sum_t c_tz >= D_z, for all z
