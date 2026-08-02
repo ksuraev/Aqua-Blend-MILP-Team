@@ -29,7 +29,8 @@ jobs:
               'pcq29704',
               'Trminh06-work',
               'lakshyacheema',
-              'SaiAjayChandra'
+              'SaiAjayChandra',
+              'anushapalakurthi'
             ];
 
             // The API rejects the whole request (422) if the PR author is in the reviewers list, so drop them
