@@ -8,9 +8,9 @@ from typing import Any
 class SourceInput:
     """Validated source data required by preprocessing.
 
-    Database-specific column names are normalised before this object is created.
-    The values remain raw scenario inputs and do not contain model variables or
-    transformed quality parameters.
+    Database-specific names are normalised before this object is created.
+    Quality values use the same parameter identifiers as
+    ``ScenarioData.quality_limits["parameters"]``.
     """
 
     source_id: str
@@ -26,9 +26,7 @@ class SourceInput:
     fixed_activation_cost: float
     cost_per_ml: float | None
 
-    ph: float | None
-    alkalinity_mg_l_caco3: float | None
-    turbidity_ntu: float | None
+    quality: dict[str, float]
 
     has_estimated_values: bool
     database_model_ready: bool
@@ -58,7 +56,6 @@ class DemandZoneInput:
     zone_id: str
     name: str
     demand_ml_per_day: float | None
-    demand_must_be_met: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +100,6 @@ class ScenarioData:
     plant_to_zone_links: tuple[PlantZoneLinkInput, ...]
 
     quality_limits: dict[str, Any]
-    treatment: dict[str, Any]
     validation_issues: tuple[str, ...]
 
     @property

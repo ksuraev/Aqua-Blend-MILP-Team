@@ -4,187 +4,212 @@
 
 `src/contracts/scenario_data.py` defines the canonical data structures exchanged between the AquaBlend data-loading and preprocessing stages.
 
-Its main purpose is to give every part of the MILP pipeline one consistent, typed representation of a scenario.
-
 ```text
 Scenario JSON + Supabase
           |
           v
     data_loader.py
-  loads, merges and validates
+ loads, normalises and validates
           |
           v
       ScenarioData
-   shared input contract
+ shared scenario input contract
           |
           v
     preprocessing.py
  transforms raw inputs into
-     ModelParameters
+      ModelParameters
           |
           v
      constraints.py
- adds mathematical rules to
-       the PuLP model
 ```
 
-`ScenarioData` is therefore a boundary object. It is not the database schema, the JSON schema, the mathematical model, or the solver result. It is the validated in-memory representation placed between those layers.
+`ScenarioData` is the boundary between external data sources and the mathematical model. It is not a database schema, JSON schema, PuLP model, solver result, or reporting object.
 
 ---
 
-## 2. Why the contract is separate from `data_loader.py`
+## 2. Design goals
 
-Keeping these classes in `src/contracts/scenario_data.py` provides several benefits:
+The contract is kept separate from `data_loader.py` so that every component uses one shared definition.
 
-| Benefit | Explanation |
+| Goal | How the contract supports it |
 |---|---|
-| Single source of truth | The loader, preprocessing, tests and future model builder all import the same class definitions. |
-| No duplicate dataclasses | A field cannot accidentally be added to one copy of `ScenarioData` while another copy remains outdated. |
-| Clear architectural boundary | Loading logic stays in `data_loader.py`; data structure definitions stay in the contract module. |
-| Easier unit testing | Tests can construct `ScenarioData` directly without connecting to Supabase. |
-| Easier refactoring | Database column names may change without forcing the preprocessing and optimisation layers to change. |
-| Better type checking | IDEs, Ruff, Pyright and other tools can follow the same declared field types across the pipeline. |
-| Safer collaboration | Team members can agree on one contract before implementing separate loader, preprocessing and model-builder tasks. |
+| Single source of truth | Loader, preprocessing, tests and future model components import the same classes. |
+| Stable interface | Database-specific names are normalised before data enters the contract. |
+| Small contract | Repeated or unused fields are excluded until they have an approved model purpose. |
+| Extensible quality model | Source quality values are keyed by parameter identifier instead of being hardcoded as dataclass fields. |
+| Testability | Tests may construct `ScenarioData` directly without connecting to Supabase. |
+| Separation of concerns | Loading, preprocessing, model construction and solving remain separate stages. |
+| Auditability | Source readiness, origin and provenance information remain available. |
 
 ---
 
-## 3. Contract responsibilities
+## 3. What belongs in the contract
 
-### The contract contains
+The contract contains:
 
 - Scenario identity and descriptive metadata
-- Water-source inputs
-- Treatment-plant inputs
-- Demand-zone inputs
-- Directed network links
-- Raw water-quality values and limits
-- Treatment configuration
+- Source identity, availability bounds, costs and quality values
+- Plant capacity bounds and costs
+- Demand-zone requirements
+- Directed source-to-plant and plant-to-zone links
+- Quality-limit definitions
 - Loader validation issues
-- Data-quality and provenance metadata
+- Data-readiness and provenance metadata
 
-### The contract does not contain
+The contract does not contain:
 
-- `DATABASE_URL`
-- SQL queries or database connection objects
+- Database credentials
+- SQL queries or connection objects
 - Raw PostgreSQL rows
-- Scenario-file paths
-- PuLP variables
+- Scenario file paths
+- Model decision variables
 - Objective expressions
 - Constraints
-- Solver configuration
-- Solver status
-- Optimised flows
-- Optimised activation decisions
-- Transformed model parameters such as hydrogen-ion concentration
-- Reporting or dashboard output
+- Solver configuration or output
+- Optimised flows or activation decisions
+- Model-specific transformed quality values
+- Unimplemented treatment, dosing or batching configuration
 
-Those elements belong to other modules.
+A value should only enter this contract when it is a real scenario input with a defined loader source, validation rule and downstream use.
 
 ---
 
 ## 4. Dataclass configuration
 
-Every public contract class uses:
+Every public class uses:
 
 ```python
 @dataclass(frozen=True, slots=True)
 ```
 
-| Option | Meaning | Why it is useful here |
+| Option | Meaning | Reason |
 |---|---|---|
-| `frozen=True` | Fields cannot be reassigned after construction. | Prevents the scenario from being silently changed after validation. A downstream function must create a new object rather than mutating validated input. |
-| `slots=True` | Instances use declared slots instead of a dynamic `__dict__`. | Reduces memory use, prevents accidental undeclared attributes and makes the contract stricter. |
-| Type annotations | Every field declares its expected Python type. | Improves readability, editor support, static analysis and consistency between modules. |
-| Tuples for collections | Scenario collections are stored as tuples. | Signals that the collection is ordered and should not be modified after loading. |
+| `frozen=True` | Fields cannot be reassigned after construction. | Protects validated input from accidental mutation between pipeline stages. |
+| `slots=True` | Only declared attributes may exist. | Prevents accidental fields and reduces per-instance memory. |
+| Type annotations | Every field declares an expected type. | Supports code review, editor assistance and static analysis. |
+| Tuples for collections | Scenario collections are immutable at the top level. | Preserves ordering while discouraging downstream modification. |
 
-### Important limitation
-
-`frozen=True` prevents field reassignment, but it does not deeply freeze mutable objects stored inside fields. For example:
-
-```python
-source.provenance["cost"] = "changed"
-scenario.quality_limits["parameters"] = {}
-```
-
-would still mutate those dictionaries.
-
-The current contract intentionally retains dictionaries because the loader and preprocessing already use them. Code should treat them as read-only. A future version could replace them with immutable mappings or dedicated typed dataclasses.
+`frozen=True` is not a deep freeze. The `quality`, `quality_limits` and `provenance` dictionaries should therefore be treated as read-only after construction.
 
 ---
 
 ## 5. Class overview
 
-| Class | Represents | Created by | Main downstream use |
-|---|---|---|---|
-| `SourceInput` | One candidate raw-water source | `data_loader.py` | Source sets, costs, withdrawal bounds and quality parameters |
-| `PlantInput` | One treatment plant | `data_loader.py` | Plant activation costs and throughput bounds |
-| `DemandZoneInput` | One delivery or demand location | `data_loader.py` | Demand parameter and demand-satisfaction constraints |
-| `SourcePlantLinkInput` | One directed source-to-plant connection | `data_loader.py` | Network arc set and source-to-plant capacity constraints |
-| `PlantZoneLinkInput` | One directed plant-to-zone connection | `data_loader.py` | Network arc set and plant-to-zone capacity constraints |
-| `ScenarioData` | The complete validated scenario | `load_scenario()` | Sole input to `preprocess_scenario()` |
+| Class | Represents | Main downstream use |
+|---|---|---|
+| `SourceInput` | One candidate raw-water source | Source set, withdrawal bounds, source costs and quality values |
+| `PlantInput` | One treatment plant | Plant set, activation costs and throughput bounds |
+| `DemandZoneInput` | One delivery zone | Zone set and demand parameter |
+| `SourcePlantLinkInput` | One source-to-plant arc | Network topology and source-to-plant link capacity |
+| `PlantZoneLinkInput` | One plant-to-zone arc | Network topology and plant-to-zone link capacity |
+| `ScenarioData` | One complete scenario | Sole structured input to preprocessing |
 
 ---
 
 # 6. `SourceInput`
 
-## 6.1 Class purpose
+## 6.1 Purpose
 
-`SourceInput` represents one water source that may supply water to the optimisation network.
+`SourceInput` represents one water source that may supply the network.
 
-Examples include:
+The loader is responsible for converting database-specific names into the canonical contract names. For example:
 
-- Thomson Reservoir
-- O'Shannassy Reservoir
-- Barwon River at Geelong
+```text
+database: max_available_ml_per_day
+contract: maximum_withdrawal_ml_per_day
+```
 
-The class combines:
+Water-quality values are stored in a generic dictionary:
 
-- Source identity
-- Activation eligibility
-- Minimum and maximum withdrawal limits
-- Fixed and variable costs
-- Raw water-quality values
-- Data-readiness information
-- Provenance information
+```python
+quality: dict[str, float]
+```
 
-The loader normalises database-specific names before creating this object. For example, the database column `max_available_ml_per_day` is exposed to the rest of the Python pipeline as `maximum_withdrawal_ml_per_day`.
+The keys must use the same identifiers as:
+
+```python
+scenario.quality_limits["parameters"]
+```
+
+For example:
+
+```python
+quality={
+    "pH": 7.2,
+    "alkalinity": 45.0,
+    "turbidity": 1.1,
+}
+```
+
+This same-key requirement prevents the source values and quality limits from drifting apart.
 
 ## 6.2 Field reference
 
-| Field | Type | Purpose | Typical origin | Downstream use | Validation and notes |
+| Field | Type | Purpose | Typical origin | Downstream use | Validation notes |
 |---|---|---|---|---|---|
-| `source_id` | `str` | Stable unique identifier for the source. It is used as the key that joins source data, network links, parameter dictionaries and solver variables. | Supabase source record and scenario JSON reference | Builds source set `S`; keys costs, withdrawal bounds, quality values and source variables | Must be present and unique within one scenario. Link records must reference an existing source ID. |
-| `name` | `str` | Human-readable source name used in logs, warnings, reports and diagnostics. | Supabase `source_name` | Display and error messages | Not intended to be used as a unique model key; `source_id` is the stable identifier. |
-| `source_type` | `str` | Describes the physical category of source, such as reservoir, river or other supply type. | Supabase `source_type` | Currently informational; may later support source-specific rules or reporting | The present MILP does not branch its mathematics by source type. |
-| `enabled` | `bool` | Records whether the source was enabled in scenario configuration. | Scenario JSON | Intended for scenario filtering and diagnostics | Current loader normally constructs `SourceInput` only for enabled source configurations. Do not use this flag as a substitute for `forced_inactive`. |
-| `forced_inactive` | `bool` | Explicitly excludes the source from the usable model set even when the source exists and is enabled. | Scenario JSON | Preprocessing removes the source from active set `S` and omits its outgoing arcs | Useful for outage, maintenance, testing and what-if scenarios. |
-| `minimum_withdrawal_ml_per_day` | `float \| None` | Lower daily withdrawal bound applied when the source is activated. | Database minimum-withdrawal field or scenario override | Becomes `source_min_withdrawal[source_id]`, corresponding to \(W^{lower}_s\) | Must be finite, non-negative and no greater than the maximum. `None` may exist in preview mode, but strict loading/preprocessing should reject it for a usable source. |
-| `maximum_withdrawal_ml_per_day` | `float \| None` | Upper daily withdrawal bound for the source. | Database `max_available_ml_per_day` or scenario override | Becomes `source_max_withdrawal[source_id]`, corresponding to \(W^{upper}_s\) | Must be finite, non-negative and at least the minimum. `None` may be retained for preview output but is not formulation-ready. |
-| `withdrawal_bounds_origin` | `str` | Summarises where the effective minimum and maximum bounds came from. | Derived by the loader | Diagnostics, auditability and warnings | Current expected values are `database`, `scenario_override` or `mixed`. `mixed` means one bound came from the database and the other from a scenario override. |
-| `fixed_activation_cost` | `float` | One-time cost charged when the source is activated. | Scenario configuration | Becomes `source_fixed_cost[source_id]`, corresponding to \(F_s\) | Must be finite and non-negative. A value of zero is valid for a test scenario but provides no economic penalty for activating that source. |
-| `cost_per_ml` | `float \| None` | Variable cost for each ML withdrawn from the source. | Supabase source record | Becomes `source_unit_cost[source_id]`, corresponding to \(C_s\) | Required by current preprocessing for usable sources. Must be finite and non-negative. Positive marginal cost helps discourage unnecessary oversupply. |
-| `ph` | `float \| None` | Representative raw pH value for the source. | Aggregated database quality view | Preprocessing converts it to hydrogen-ion concentration before model construction | Kept as pH in the contract. Current preprocessing expects a finite value within its supported pH range. It must not be converted in `data_loader.py`. |
-| `alkalinity_mg_l_caco3` | `float \| None` | Representative alkalinity measured in mg/L as CaCO3. | Aggregated database quality view | Becomes one component of `source_quality[(source_id, parameter_id)]` | Must be finite and non-negative before model construction. |
-| `turbidity_ntu` | `float \| None` | Representative turbidity measured in NTU. | Aggregated database quality view | Becomes one component of `source_quality[(source_id, parameter_id)]` | Must be finite and non-negative before model construction. |
-| `has_estimated_values` | `bool` | Indicates that at least one relevant source input is estimated or replaced by a scenario override. | Derived by the loader from estimation flags and override use | Data-governance checks, warnings and scenario-policy enforcement | In the current loader, scenario overrides count as estimated/overridden values for this purpose. |
-| `database_model_ready` | `bool` | Captures the readiness flag returned by the database view before scenario-level corrections or overrides. | Supabase `model_ready` | Generates preprocessing warnings and supports auditability | It does not by itself decide `ScenarioData.is_ready`. A draft/test scenario may pass using allowed overrides even when the database record is not model-ready. |
-| `availability_status` | `str` | Stores the database view's descriptive status for source withdrawal readiness. | Supabase `availability_status` | Diagnostics and reporting | Informational in the current mathematical pipeline. The exact allowed strings are controlled by the database view rather than this dataclass. |
-| `provenance` | `dict[str, str \| None]` | Records where selected source values came from. | Supabase provenance columns | Auditing, debugging and future reporting | Current loader includes keys such as `storage_capacity`, `reference_flow`, `minimum_withdrawal`, `maximum_withdrawal`, `cost` and `alkalinity`. The contract does not enforce a fixed key set. |
+| `source_id` | `str` | Stable unique source identifier. | Database and scenario JSON | Builds source set \(S\); keys source parameters and variables | Required and unique within a scenario. |
+| `name` | `str` | Human-readable source name. | Database | Logs, warnings and reports | Display only; relationships use `source_id`. |
+| `source_type` | `str` | Physical source category such as reservoir or river. | Database | Reporting and possible future source-specific rules | Informational in the current formulation. |
+| `enabled` | `bool` | Indicates whether the source is enabled in scenario configuration. | Scenario JSON | Scenario filtering and diagnostics | Disabled sources should be filtered consistently before model construction. |
+| `forced_inactive` | `bool` | Explicitly excludes an otherwise available source. | Scenario JSON | Preprocessing omits the source and its outgoing arcs | Useful for outage and what-if scenarios. |
+| `minimum_withdrawal_ml_per_day` | `float \| None` | Minimum daily withdrawal when the source is active. | Database or scenario override | Becomes `source_min_withdrawal[source_id]` | Must be finite, non-negative and no greater than the maximum. |
+| `maximum_withdrawal_ml_per_day` | `float \| None` | Maximum daily withdrawal. | Database or scenario override | Becomes `source_max_withdrawal[source_id]` | Must be finite, non-negative and at least the minimum. |
+| `withdrawal_bounds_origin` | `str` | Records whether effective bounds came from the database, scenario overrides or both. | Derived by loader | Auditability and warnings | Expected values include `database`, `scenario_override` and `mixed`. |
+| `fixed_activation_cost` | `float` | Cost incurred when the source is activated. | Scenario configuration | Becomes `source_fixed_cost[source_id]` | Must be finite and non-negative. |
+| `cost_per_ml` | `float \| None` | Variable cost per ML withdrawn. | Database | Becomes `source_unit_cost[source_id]` | Required for usable sources and must be non-negative. |
+| `quality` | `dict[str, float]` | Raw representative source-quality values keyed by canonical parameter identifier. | Database quality view, normalised by loader | Preprocessing transforms and writes `source_quality[(source_id, parameter_id)]` | Keys must match `quality_limits["parameters"]`. Values must be finite and valid for each parameter. |
+| `has_estimated_values` | `bool` | Indicates that at least one relevant input is estimated or overridden. | Derived by loader | Policy enforcement and warnings | Scenario overrides may count as estimated/overridden values. |
+| `database_model_ready` | `bool` | Database-view readiness before scenario-level overrides. | Database view | Warnings and audit information | Does not independently determine `ScenarioData.is_ready`. |
+| `availability_status` | `str` | Descriptive database readiness status. | Database view | Diagnostics and reporting | Informational in the current model. |
+| `provenance` | `dict[str, str \| None]` | Records where selected source values came from. | Database provenance columns | Audit and debugging | Contract does not enforce a fixed provenance-key set. |
 
 ## 6.3 Formulation mapping
 
 | `SourceInput` field | Preprocessing output | Formulation role |
 |---|---|---|
 | `source_id` | `source_ids` | Source set \(S\) |
-| `minimum_withdrawal_ml_per_day` | `source_min_withdrawal` | \(W^{lower}_s\) |
-| `maximum_withdrawal_ml_per_day` | `source_max_withdrawal` | \(W^{upper}_s\) |
+| `minimum_withdrawal_ml_per_day` | `source_min_withdrawal` | \(\underline{W}_s\) |
+| `maximum_withdrawal_ml_per_day` | `source_max_withdrawal` | \(\overline{W}_s\) |
 | `fixed_activation_cost` | `source_fixed_cost` | \(F_s\) |
 | `cost_per_ml` | `source_unit_cost` | \(C_s\) |
-| `ph` | transformed `source_quality` entry | \(Q_{sp}\) for hydrogen-ion concentration |
-| `alkalinity_mg_l_caco3` | `source_quality` entry | \(Q_{sp}\) for alkalinity |
-| `turbidity_ntu` | `source_quality` entry | \(Q_{sp}\) for turbidity |
+| `quality[parameter_id]` | `source_quality[(source_id, parameter_id)]` | \(Q_{sp}\) |
 
-## 6.4 Example
+## 6.4 Quality-key invariant
+
+For a strict, formulation-ready scenario:
+
+```python
+set(source.quality) == set(scenario.quality_limits["parameters"])
+```
+
+This should be checked for every usable source.
+
+The rule provides immediate failure when:
+
+- a source value is missing;
+- a source contains an unknown quality parameter;
+- a quality limit exists without a corresponding source value;
+- inconsistent names such as `alkalinity_mg_l_caco3` and `alkalinity` are used on opposite sides.
+
+Adding a new parameter such as fluoride does not require a new `SourceInput` field. The parameter is added through configuration and source data using the same key:
+
+```python
+quality={
+    "pH": 7.2,
+    "alkalinity": 45.0,
+    "turbidity": 1.1,
+    "fluoride": 0.7,
+}
+```
+
+The associated unit and transformation metadata belong in:
+
+```python
+quality_limits["parameters"]["fluoride"]
+```
+
+## 6.5 Example
 
 ```python
 SourceInput(
@@ -198,9 +223,11 @@ SourceInput(
     withdrawal_bounds_origin="scenario_override",
     fixed_activation_cost=0.0,
     cost_per_ml=1.25,
-    ph=7.2,
-    alkalinity_mg_l_caco3=45.0,
-    turbidity_ntu=1.1,
+    quality={
+        "pH": 7.2,
+        "alkalinity": 45.0,
+        "turbidity": 1.1,
+    },
     has_estimated_values=True,
     database_model_ready=False,
     availability_status="withdrawal_bounds_required",
@@ -216,38 +243,29 @@ SourceInput(
 
 # 7. `PlantInput`
 
-## 7.1 Class purpose
+## 7.1 Purpose
 
-`PlantInput` represents a treatment plant that receives water from sources, processes it and transfers it to demand zones.
-
-It contains the plant data required to create:
-
-- Plant set `T`
-- Plant binary activation variables
-- Minimum-throughput constraints
-- Maximum-throughput constraints
-- Plant fixed-cost objective terms
-- Per-ML treatment-cost objective terms
+`PlantInput` represents one treatment plant. It provides the data needed to create the plant set, plant activation decisions, throughput bounds and cost terms.
 
 ## 7.2 Field reference
 
-| Field | Type | Purpose | Typical origin | Downstream use | Validation and notes |
-|---|---|---|---|---|---|
-| `plant_id` | `str` | Stable unique identifier for the plant. | Scenario JSON | Builds plant set `T`; keys plant parameters, links and variables | Must be unique. Source-to-plant and plant-to-zone links must reference an existing plant ID. |
-| `name` | `str` | Human-readable plant name. | Scenario JSON | Logs, warnings and reporting | Not intended as the primary model key. |
-| `enabled` | `bool` | Records whether the plant is enabled for the scenario. | Scenario JSON | Intended for filtering and scenario control | Current preprocessing expects its input collection to contain usable plants and does not independently enforce this flag everywhere. The loader/model integration should ensure disabled plants are excluded or explicitly handled. |
-| `minimum_processing_capacity_ml_per_day` | `float` | Minimum throughput required whenever the plant is activated. | Scenario JSON | Becomes `plant_min_throughput[plant_id]`, corresponding to \(V^{lower}_t\) | Must be finite, non-negative and no greater than maximum capacity. Zero means the plant has no positive minimum-throughput requirement. |
-| `maximum_processing_capacity_ml_per_day` | `float \| None` | Maximum volume the plant can process per day. | Scenario JSON | Becomes `plant_max_throughput[plant_id]`, corresponding to \(V^{upper}_t\) | Required by preprocessing. Must be finite, non-negative and at least the minimum. |
-| `fixed_activation_cost` | `float` | Cost incurred when the plant is activated. | Scenario JSON | Becomes `plant_fixed_cost[plant_id]`, corresponding to \(F_t\) | Must be finite and non-negative. |
-| `treatment_cost_per_ml` | `float` | Variable treatment cost for every ML processed. | Scenario JSON | Becomes `plant_unit_treatment_cost[plant_id]`, corresponding to \(C_t\) | Must be finite and non-negative. Positive values discourage unnecessary processing when demand is represented as a lower bound. |
+| Field | Type | Purpose | Downstream use | Validation notes |
+|---|---|---|---|---|
+| `plant_id` | `str` | Stable unique plant identifier. | Builds plant set \(T\); keys plant parameters and arcs | Required and unique. |
+| `name` | `str` | Human-readable plant name. | Logs and reports | Display only. |
+| `enabled` | `bool` | Indicates whether the plant is enabled. | Scenario topology selection | Disabled plants should be filtered consistently. |
+| `minimum_processing_capacity_ml_per_day` | `float` | Minimum throughput when the plant is active. | `plant_min_throughput[plant_id]` | Must be finite, non-negative and no greater than maximum. |
+| `maximum_processing_capacity_ml_per_day` | `float \| None` | Maximum daily processing capacity. | `plant_max_throughput[plant_id]` | Required for preprocessing and must be at least the minimum. |
+| `fixed_activation_cost` | `float` | Cost incurred when the plant is activated. | `plant_fixed_cost[plant_id]` | Must be finite and non-negative. |
+| `treatment_cost_per_ml` | `float` | Variable treatment cost per ML processed. | `plant_unit_treatment_cost[plant_id]` | Must be finite and non-negative. |
 
 ## 7.3 Formulation mapping
 
 | `PlantInput` field | Preprocessing output | Formulation role |
 |---|---|---|
 | `plant_id` | `plant_ids` | Plant set \(T\) |
-| `minimum_processing_capacity_ml_per_day` | `plant_min_throughput` | \(V^{lower}_t\) |
-| `maximum_processing_capacity_ml_per_day` | `plant_max_throughput` | \(V^{upper}_t\) |
+| `minimum_processing_capacity_ml_per_day` | `plant_min_throughput` | \(\underline{V}_t\) |
+| `maximum_processing_capacity_ml_per_day` | `plant_max_throughput` | \(\overline{V}_t\) |
 | `fixed_activation_cost` | `plant_fixed_cost` | \(F_t\) |
 | `treatment_cost_per_ml` | `plant_unit_treatment_cost` | \(C_t\) |
 
@@ -269,43 +287,35 @@ PlantInput(
 
 # 8. `DemandZoneInput`
 
-## 8.1 Class purpose
+## 8.1 Purpose
 
-`DemandZoneInput` represents one location or customer group that requires treated water.
+`DemandZoneInput` represents one delivery zone with a required daily demand.
 
-The current formulation requires delivered water to be at least the demand:
+The current formulation requires:
 
 ```text
-sum of plant-to-zone flow >= demand_ml_per_day
+total delivered flow to zone >= demand_ml_per_day
 ```
 
-Demand is intentionally a lower-bound requirement rather than exact equality in the current model.
+Because unmet demand is not currently supported, a separate `demand_must_be_met` flag would always be `True` and would carry no information. It is therefore intentionally excluded from the contract.
 
 ## 8.2 Field reference
 
-| Field | Type | Purpose | Typical origin | Downstream use | Validation and notes |
-|---|---|---|---|---|---|
-| `zone_id` | `str` | Stable unique identifier for the demand zone. | Scenario JSON | Builds zone set `Z`; keys demand parameters, links and delivery variables | Must be unique. Plant-to-zone links must reference an existing zone ID. |
-| `name` | `str` | Human-readable zone name. | Scenario JSON | Logs, errors and reports | Not the model key. |
-| `demand_ml_per_day` | `float \| None` | Required daily delivery to the zone. | Scenario JSON or future demand service | Becomes `demand_by_zone[zone_id]`, corresponding to \(D_z\) | Required when `demand_must_be_met=True`. Must be finite and non-negative. |
-| `demand_must_be_met` | `bool` | Indicates whether the model must fully satisfy the zone's demand. | Scenario JSON | Loader/preprocessing policy check | The current formulation supports mandatory demand. Current preprocessing rejects zones that allow unmet demand because no shortage variable or shortage penalty exists yet. |
+| Field | Type | Purpose | Downstream use | Validation notes |
+|---|---|---|---|---|
+| `zone_id` | `str` | Stable unique zone identifier. | Builds zone set \(Z\); keys demand and delivery arcs | Required and unique. |
+| `name` | `str` | Human-readable zone name. | Logs and reporting | Display only. |
+| `demand_ml_per_day` | `float \| None` | Required daily delivery. | Becomes `demand_by_zone[zone_id]`, corresponding to \(D_z\) | Must be finite and non-negative in a strict scenario. |
 
-## 8.3 Formulation mapping
+If a later formulation introduces optional unmet demand, the contract can add explicit shortage parameters only when the associated variables, penalties and constraints are approved.
 
-| `DemandZoneInput` field | Preprocessing output | Formulation role |
-|---|---|---|
-| `zone_id` | `zone_ids` | Demand-zone set \(Z\) |
-| `demand_ml_per_day` | `demand_by_zone` | \(D_z\) |
-| `demand_must_be_met` | Validation policy | Confirms current model is compatible with mandatory-demand formulation |
-
-## 8.4 Example
+## 8.3 Example
 
 ```python
 DemandZoneInput(
     zone_id="zone_1",
     name="Toy Demand Zone",
     demand_ml_per_day=1200.0,
-    demand_must_be_met=True,
 )
 ```
 
@@ -313,119 +323,92 @@ DemandZoneInput(
 
 # 9. `SourcePlantLinkInput`
 
-## 9.1 Class purpose
+## 9.1 Purpose
 
-`SourcePlantLinkInput` represents one directed network connection from a water source to a treatment plant.
-
-The existence of an object means the network topology permits that source-plant route. The maximum-flow value limits how much water may travel through it.
+Represents one directed network connection from a source to a plant.
 
 ## 9.2 Field reference
 
-| Field | Type | Purpose | Typical origin | Downstream use | Validation and notes |
-|---|---|---|---|---|---|
-| `source_id` | `str` | Identifies the source at the start of the directed link. | Scenario JSON | Forms arc key `(source_id, plant_id)` | Must reference a source that is available in the scenario. Arcs from forced-inactive sources are excluded during preprocessing. |
-| `plant_id` | `str` | Identifies the receiving treatment plant. | Scenario JSON | Forms arc key `(source_id, plant_id)` | Must reference an existing plant. |
-| `enabled` | `bool` | Records whether this route is enabled. | Scenario JSON | Intended for topology filtering | Current preprocessing expects usable arcs in the tuple and does not consistently apply the flag itself. Disabled links should be filtered before model construction or explicitly supported in preprocessing. |
-| `maximum_flow_ml_per_day` | `float \| None` | Maximum daily flow permitted on this connection. | Scenario JSON or future network database | Becomes `source_plant_link_capacity[(source_id, plant_id)]`, corresponding to \(L_{st}\) | Required by current preprocessing. Must be finite and non-negative. |
+| Field | Type | Purpose | Downstream use | Validation notes |
+|---|---|---|---|---|
+| `source_id` | `str` | Source at the start of the arc. | Arc key `(source_id, plant_id)` | Must reference an available source. |
+| `plant_id` | `str` | Plant at the end of the arc. | Arc key `(source_id, plant_id)` | Must reference an existing plant. |
+| `enabled` | `bool` | Indicates whether the route is enabled. | Topology filtering | Disabled arcs should not enter model arc sets. |
+| `maximum_flow_ml_per_day` | `float \| None` | Maximum daily link flow. | `source_plant_link_capacity[(source_id, plant_id)]` | Required, finite and non-negative for a usable link. |
 
 ## 9.3 Formulation mapping
 
 | Contract value | Preprocessing output | Formulation role |
 |---|---|---|
 | `(source_id, plant_id)` | `source_plant_arcs` | Existing source-to-plant arc set |
-| `maximum_flow_ml_per_day` | `source_plant_link_capacity` | \(L_{st}\) |
-
-## 9.4 Example
-
-```python
-SourcePlantLinkInput(
-    source_id="225103",
-    plant_id="plant_1",
-    enabled=True,
-    maximum_flow_ml_per_day=700.0,
-)
-```
+| `maximum_flow_ml_per_day` | `source_plant_link_capacity` | \(\overline{L}_{st}\) |
 
 ---
 
 # 10. `PlantZoneLinkInput`
 
-## 10.1 Class purpose
+## 10.1 Purpose
 
-`PlantZoneLinkInput` represents one directed connection from a treatment plant to a demand zone.
-
-It defines which zones a plant may supply and the maximum capacity of that delivery route.
+Represents one directed connection from a plant to a demand zone.
 
 ## 10.2 Field reference
 
-| Field | Type | Purpose | Typical origin | Downstream use | Validation and notes |
-|---|---|---|---|---|---|
-| `plant_id` | `str` | Identifies the sending treatment plant. | Scenario JSON | Forms arc key `(plant_id, zone_id)` | Must reference an existing plant. |
-| `zone_id` | `str` | Identifies the receiving demand zone. | Scenario JSON | Forms arc key `(plant_id, zone_id)` | Must reference an existing demand zone. |
-| `enabled` | `bool` | Records whether the route is enabled. | Scenario JSON | Intended for topology filtering | As with source-to-plant links, the current pipeline should ensure disabled links are filtered before the arc reaches the solver. |
-| `maximum_flow_ml_per_day` | `float \| None` | Maximum daily flow allowed from the plant to the zone. | Scenario JSON or future network database | Becomes `plant_zone_link_capacity[(plant_id, zone_id)]`, corresponding to \(L_{tz}\) | Required by current preprocessing. Must be finite and non-negative. |
+| Field | Type | Purpose | Downstream use | Validation notes |
+|---|---|---|---|---|
+| `plant_id` | `str` | Sending plant. | Arc key `(plant_id, zone_id)` | Must reference an existing plant. |
+| `zone_id` | `str` | Receiving demand zone. | Arc key `(plant_id, zone_id)` | Must reference an existing zone. |
+| `enabled` | `bool` | Indicates whether the route is enabled. | Topology filtering | Disabled arcs should not enter model arc sets. |
+| `maximum_flow_ml_per_day` | `float \| None` | Maximum daily link flow. | `plant_zone_link_capacity[(plant_id, zone_id)]` | Required, finite and non-negative for a usable link. |
 
 ## 10.3 Formulation mapping
 
 | Contract value | Preprocessing output | Formulation role |
 |---|---|---|
 | `(plant_id, zone_id)` | `plant_zone_arcs` | Existing plant-to-zone arc set |
-| `maximum_flow_ml_per_day` | `plant_zone_link_capacity` | \(L_{tz}\) |
-
-## 10.4 Example
-
-```python
-PlantZoneLinkInput(
-    plant_id="plant_1",
-    zone_id="zone_1",
-    enabled=True,
-    maximum_flow_ml_per_day=1680.0,
-)
-```
+| `maximum_flow_ml_per_day` | `plant_zone_link_capacity` | \(\overline{L}_{tz}\) |
 
 ---
 
 # 11. `ScenarioData`
 
-## 11.1 Class purpose
+## 11.1 Purpose
 
-`ScenarioData` groups all inputs for one optimisation scenario into a single immutable top-level object.
+`ScenarioData` groups all inputs for one scenario into one structured object.
 
-It is returned by:
+It is returned by the loader:
 
 ```python
 scenario = load_scenario(path, strict=True)
 ```
 
-and consumed by:
+and consumed by preprocessing:
 
 ```python
 parameters = preprocess_scenario(scenario)
 ```
 
-This guarantees that preprocessing receives one well-defined object instead of many unrelated dictionaries and lists.
-
 ## 11.2 Field reference
 
-| Field | Type | Purpose | Populated by | Downstream use | Validation and notes |
-|---|---|---|---|---|---|
-| `scenario_id` | `str` | Stable machine-readable identifier for the scenario. | Scenario JSON | Logging, test identification, scenario storage and future result association | Should be non-empty and unique within the scenario catalogue. The dataclass itself does not enforce uniqueness. |
-| `scenario_name` | `str` | Human-readable scenario title. | Scenario JSON | CLI summaries, reports and UI display | Descriptive metadata only. |
-| `status` | `str` | Lifecycle label such as `draft`, `approved` or another team-defined state. | Scenario JSON | Governance, reporting and future scenario selection | Informational in the current pipeline. `status="draft"` does not automatically make `is_ready` false. |
-| `description` | `str` | Explains the scope and intent of the scenario. | Scenario JSON | Documentation, auditability and UI display | Not used in mathematical calculations. |
-| `sources` | `tuple[SourceInput, ...]` | Ordered collection of source records. | `data_loader.py` | Preprocessing builds source sets, costs, bounds and quality parameters | IDs must be unique. Strict preprocessing requires at least one usable source. |
-| `plants` | `tuple[PlantInput, ...]` | Ordered collection of treatment plants. | `data_loader.py` | Preprocessing builds plant sets, costs and throughput parameters | IDs must be unique. Current model requires at least one usable plant. |
-| `demand_zones` | `tuple[DemandZoneInput, ...]` | Ordered collection of demand zones. | `data_loader.py` | Preprocessing builds demand set and demand dictionary | IDs must be unique. Current model requires at least one demand zone. |
-| `source_to_plant_links` | `tuple[SourcePlantLinkInput, ...]` | Directed source-to-plant topology. | `data_loader.py` | Creates source-to-plant arc set and capacity dictionary | Duplicate arcs and unknown references should be rejected. |
-| `plant_to_zone_links` | `tuple[PlantZoneLinkInput, ...]` | Directed plant-to-zone topology. | `data_loader.py` | Creates plant-to-zone arc set and capacity dictionary | Duplicate arcs and unknown references should be rejected. |
-| `quality_limits` | `dict[str, Any]` | Raw quality-limit configuration for the scenario. | Scenario JSON | Preprocessing normalises parameter names, transforms pH bounds and builds lower/upper quality dictionaries | Current preprocessing expects a `parameters` mapping containing entries for `pH`, `alkalinity` and `turbidity`, each with `min` and `max`. It remains broadly typed to avoid premature schema expansion. |
-| `treatment` | `dict[str, Any]` | Stores treatment-related scenario options that are not yet represented as dedicated fields. | Scenario JSON | Reserved for future treatment, dosing or batching extensions | Currently carried through the contract but not used by the present preprocessing or constraints implementation. It must not be mistaken for implemented model behaviour. |
-| `validation_issues` | `tuple[str, ...]` | Blocking issues found by the loader. | `data_loader.py` | Controls readiness and prevents strict preprocessing when issues remain | Empty tuple means no blocking loader issues. It contains errors, not solved-model warnings. |
-| `is_ready` | computed `bool` property | Convenience readiness check. | Derived from `validation_issues` | CLI summaries and caller gating | Returns `True` only when `validation_issues` is empty. It does not inspect `status`, solver feasibility or database readiness independently. |
+| Field | Type | Purpose | Downstream use | Notes |
+|---|---|---|---|---|
+| `scenario_id` | `str` | Stable machine-readable scenario identifier. | Logging, testing and future result association | Should be non-empty and unique in the scenario catalogue. |
+| `scenario_name` | `str` | Human-readable scenario title. | CLI and reporting | Descriptive only. |
+| `status` | `str` | Lifecycle state such as `draft` or `approved`. | Governance and reporting | Does not independently control `is_ready`. |
+| `description` | `str` | Explains scenario purpose and scope. | Documentation and UI | Not used mathematically. |
+| `sources` | `tuple[SourceInput, ...]` | Ordered source collection. | Builds source parameters | IDs must be unique. |
+| `plants` | `tuple[PlantInput, ...]` | Ordered plant collection. | Builds plant parameters | IDs must be unique. |
+| `demand_zones` | `tuple[DemandZoneInput, ...]` | Ordered demand-zone collection. | Builds demand parameters | IDs must be unique. |
+| `source_to_plant_links` | `tuple[SourcePlantLinkInput, ...]` | Source-to-plant topology. | Builds source-plant arcs and capacities | Duplicate and unknown references should be rejected. |
+| `plant_to_zone_links` | `tuple[PlantZoneLinkInput, ...]` | Plant-to-zone topology. | Builds plant-zone arcs and capacities | Duplicate and unknown references should be rejected. |
+| `quality_limits` | `dict[str, Any]` | Parameter definitions, limits, units and transformations. | Preprocessing creates model quality bounds | Parameter keys must match each usable source's `quality` keys. |
+| `validation_issues` | `tuple[str, ...]` | Blocking loader issues. | Controls readiness and strict preprocessing | Empty means no blocking loader issues. |
+| `is_ready` | computed property | Convenience readiness result. | CLI summaries and gating | True only when `validation_issues` is empty. |
 
-## 11.3 `is_ready` behaviour
+An unused `treatment` dictionary is intentionally excluded. Treatment, dosing or batching inputs should only be added after their mathematical variables, parameters and constraints are approved.
 
-The property is:
+---
+
+# 12. `is_ready`
 
 ```python
 @property
@@ -437,31 +420,19 @@ def is_ready(self) -> bool:
 |---|---:|
 | `()` | `True` |
 | `("Missing demand",)` | `False` |
-| `("Minimum exceeds maximum", "Missing turbidity")` | `False` |
 
-### What `is_ready=True` means
+`is_ready=True` means the loader found no blocking issue under the current policy. It does not mean:
 
-- The loader found no blocking issues under the selected loading policy.
-- Required values are present according to the loader's current rules.
-- The scenario may proceed to preprocessing.
-
-### What `is_ready=True` does not mean
-
-- The database has verified every value.
-- The scenario is approved for production use.
-- The MILP is mathematically feasible.
-- Water-quality constraints are satisfiable.
-- The solver will find an optimal solution.
-- The scenario status is approved.
-- Scenario overrides are operationally verified.
-
-Those checks happen elsewhere or require governance outside the code.
+- every database value is operationally verified;
+- the scenario is approved;
+- capacity and quality are feasible;
+- the solver will find an optimal solution.
 
 ---
 
-# 12. Quality-limit structure
+# 13. Quality-limit structure
 
-Although `quality_limits` is typed as `dict[str, Any]`, the current preprocessing expects a structure similar to:
+The current preprocessing expects a structure similar to:
 
 ```json
 {
@@ -489,304 +460,186 @@ Although `quality_limits` is typed as `dict[str, Any]`, the current preprocessin
 }
 ```
 
-## Why pH remains raw in `ScenarioData`
+The same identifiers are used in each source:
 
-pH is not linearly additive. The contract keeps the source value as ordinary pH because that is the natural input representation. Preprocessing performs the transformation:
-
-```text
-pH -> hydrogen-ion concentration
+```python
+source.quality["pH"]
+source.quality["alkalinity"]
+source.quality["turbidity"]
 ```
 
-The transformed value is then placed in `ModelParameters.source_quality`.
+The unit is defined once in `quality_limits`, rather than being duplicated in a source-field name. This reduces the risk of unit metadata and source-field naming drifting apart.
 
-This separation keeps:
-
-- Data loading responsible for loading and validation
-- Preprocessing responsible for model-specific mathematical transformation
+pH remains raw in `SourceInput`. Preprocessing performs the model-specific conversion to hydrogen-ion concentration.
 
 ---
 
-# 13. Treatment structure
+# 14. Validation ownership
 
-The current `treatment` dictionary can carry values such as:
+| Validation | Responsible layer |
+|---|---|
+| Scenario JSON shape | Loader |
+| Database connectivity and source lookup | Loader |
+| Missing required values | Loader |
+| Estimated-value policy | Loader |
+| Source quality keys equal limit parameter keys | Loader, with defensive preprocessing check |
+| Minimum does not exceed maximum | Loader and preprocessing |
+| Non-negative costs and capacities | Loader and preprocessing |
+| Unique IDs and valid arc references | Loader and preprocessing |
+| pH and other quality transformations | Preprocessing |
+| Capacity feasibility | Preprocessing |
+| Necessary quality feasibility | Preprocessing |
+| Variable and parameter key alignment | Constraints/model builder |
+| Final MILP feasibility | Solver |
 
-```json
-{
-  "chemical_dosing_enabled": false,
-  "batching_enabled": false,
-  "batch_capacity_ml": null,
-  "notes": "Dosing and batching are not yet part of the approved formulation."
-}
-```
-
-At present this is configuration metadata only.
-
-A field existing inside `treatment` does not mean the optimisation model implements it. A feature becomes active only after:
-
-1. Its data contract is approved.
-2. Loader validation is added.
-3. Preprocessing creates the required parameters.
-4. Decision variables are added if needed.
-5. Objective terms and constraints are implemented.
-6. Tests confirm expected behaviour.
-7. Documentation and formulation are updated.
+The dataclasses do not run `__post_init__` validation. This permits preview objects, but direct test construction must still follow the documented invariants.
 
 ---
 
-# 14. Data lifecycle
-
-## 14.1 Production loading
-
-```text
-1. Scenario JSON selects sources and network structure.
-2. data_loader.py reads the JSON.
-3. data_loader.py connects to Supabase.
-4. Database source records are fetched.
-5. Scenario overrides are applied where allowed.
-6. Validation issues are collected.
-7. SourceInput, PlantInput, DemandZoneInput and link objects are created.
-8. ScenarioData is returned.
-9. preprocessing.py transforms ScenarioData into ModelParameters.
-10. constraints.py uses ModelParameters when constructing the PuLP model.
-```
-
-## 14.2 Preview mode
-
-In preview mode, optional fields may remain `None`, and `validation_issues` may contain blocking problems.
-
-This is useful for:
-
-- Inspecting incomplete database records
-- Viewing which inputs are missing
-- Reviewing provenance
-- Testing scenario configuration before strict execution
-
-Preprocessing should not accept a scenario with blocking validation issues.
-
-## 14.3 Strict mode
-
-Strict loading stops when `validation_issues` is non-empty.
-
-This ensures that preprocessing does not silently convert missing values into zero or make undocumented assumptions.
-
-## 14.4 Unit testing
+# 15. Testing use
 
 Tests may construct the contract directly:
 
 ```python
 scenario = ScenarioData(
     scenario_id="unit_test_1",
-    scenario_name="Valid lower-bound scenario",
+    scenario_name="Valid contract test",
     status="test",
-    description="Directly constructed deterministic test input.",
+    description="Deterministic input without Supabase.",
     sources=(source,),
     plants=(plant,),
     demand_zones=(zone,),
     source_to_plant_links=(source_plant_link,),
     plant_to_zone_links=(plant_zone_link,),
-    quality_limits=quality_limits,
-    treatment={},
+    quality_limits={
+        "parameters": {
+            "pH": {"min": 6.5, "max": 8.5, "unit": "pH"},
+            "alkalinity": {
+                "min": 20,
+                "max": 200,
+                "unit": "mg/L CaCO3",
+            },
+            "turbidity": {"min": 0, "max": 5, "unit": "NTU"},
+        }
+    },
     validation_issues=(),
 )
 ```
 
-This allows deterministic preprocessing and model tests without:
-
-- Reading files
-- Connecting to Supabase
-- Depending on live database values
-- Maintaining a second production loader
-
----
-
-# 15. Current downstream field usage
-
-| Contract field/group | `data_loader.py` | `preprocessing.py` | `constraints.py` | Reporting/audit |
-|---|---:|---:|---:|---:|
-| Scenario metadata | Creates | Mostly ignores | Ignores | Yes |
-| Source IDs | Creates | Builds `S` | Keys source constraints | Yes |
-| Source lower/upper bounds | Creates and validates | Builds \(W^{lower}_s\), \(W^{upper}_s\) | Source activation bounds | Yes |
-| Source costs | Creates and validates | Builds \(F_s\), \(C_s\) | Future objective/model builder | Yes |
-| Source raw quality | Creates and validates | Transforms and builds \(Q_{sp}\) | Blend-quality constraints | Yes |
-| Source provenance/readiness | Creates | Produces warnings | Ignores | Yes |
-| Plant capacities | Creates | Builds \(V^{lower}_t\), \(V^{upper}_t\) | Plant activation bounds | Yes |
-| Plant costs | Creates | Builds \(F_t\), \(C_t\) | Future objective/model builder | Yes |
-| Demand | Creates | Builds \(D_z\) | Demand-satisfaction constraint | Yes |
-| Network links | Creates and checks references | Builds arc sets and capacities | Flow, activation and capacity constraints | Yes |
-| Quality limits | Creates | Transforms lower/upper bounds | Water-quality constraints | Yes |
-| Treatment dictionary | Carries through | Currently unused | Currently unused | Yes |
-| Validation issues | Creates | Blocks preprocessing | Not reached when blocking issues remain | Yes |
+This supports deterministic tests without creating a second production loader.
 
 ---
 
 # 16. Naming conventions
 
-## 16.1 Units in field names
+## 16.1 Quantities and units
 
-Physical quantities include their unit in the Python field name where practical:
-
-| Suffix | Meaning |
-|---|---|
-| `_ml_per_day` | Megalitres per day |
-| `_per_ml` | Cost per megalitre |
-| `_mg_l_caco3` | Milligrams per litre expressed as CaCO3 |
-| `_ntu` | Nephelometric Turbidity Units |
-
-This reduces ambiguity and prevents accidental unit mixing.
-
-## 16.2 Minimum and maximum terminology
-
-Use:
+Units remain explicit for scalar operational quantities:
 
 ```text
 minimum_withdrawal_ml_per_day
 maximum_withdrawal_ml_per_day
-
 minimum_processing_capacity_ml_per_day
 maximum_processing_capacity_ml_per_day
+cost_per_ml
 ```
 
-Avoid older or ambiguous names such as:
+Quality values use canonical parameter identifiers instead of unit-bearing dataclass fields. Their units are defined by:
 
-```text
-max_available_ml_per_day           # database-specific name
-minimum_operating_flow_ml_per_day  # older scenario name
-W_s                                # ambiguous without lower/upper qualification
-V_t                                # ambiguous without lower/upper qualification
+```python
+quality_limits["parameters"][parameter_id]["unit"]
 ```
 
-Database-specific names may remain in SQL, but they should be mapped to the canonical contract names before entering `ScenarioData`.
+## 16.2 Mathematical notation
 
-## 16.3 Identifier rules
+The documentation follows the formulation notation:
 
-Use IDs for relationships and dictionary keys:
-
-```text
-source_id
-plant_id
-zone_id
-```
-
-Use names for display only:
-
-```text
-name
-scenario_name
-```
-
----
-
-# 17. Validation ownership
-
-The dataclasses themselves do not implement numerical validation in `__post_init__`. Validation is currently owned by the loader and preprocessing layers.
-
-| Validation type | Responsible layer |
+| Meaning | Notation |
 |---|---|
-| JSON structure and required sections | `data_loader.py` |
-| Database connectivity and source lookup | `data_loader.py` |
-| Missing source values | `data_loader.py` |
-| Estimated-value policy | `data_loader.py` |
-| Minimum not greater than maximum | Loader and preprocessing defensive checks |
-| Non-negative costs and capacities | Loader and preprocessing |
-| Unique IDs and valid link references | Loader and preprocessing |
-| pH transformation | `preprocessing.py` |
-| Capacity feasibility | `preprocessing.py` |
-| Necessary quality feasibility | `preprocessing.py` |
-| Variable/parameter key alignment | `constraints.py` |
-| Final optimisation feasibility | PuLP solver |
+| Source minimum withdrawal | \(\underline{W}_s\) |
+| Source maximum withdrawal | \(\overline{W}_s\) |
+| Plant minimum throughput | \(\underline{V}_t\) |
+| Plant maximum throughput | \(\overline{V}_t\) |
+| Source-to-plant link capacity | \(\overline{L}_{st}\) |
+| Plant-to-zone link capacity | \(\overline{L}_{tz}\) |
+| Source quality parameter | \(Q_{sp}\) |
+| Demand | \(D_z\) |
 
-Keeping validation outside the dataclasses makes preview-mode objects possible, but it also means direct test construction must be disciplined. A manually constructed `ScenarioData` object can contain invalid values until preprocessing checks it.
+The plant maximum uses index \(t\), because the value belongs to treatment plant \(t\).
 
 ---
 
-# 18. Rules for adding a new field
+# 17. Adding a quality parameter
 
-Before adding a new field to this contract, answer the following questions:
+Adding a parameter such as fluoride should not require modifying the contract class.
 
-1. Is the value part of scenario input rather than solver output?
-2. Which source supplies it: database, JSON, API or derived loader value?
-3. Is it raw data or a model-specific transformation?
-4. What is its exact unit?
-5. Can it be missing in preview mode?
-6. Is it required in strict mode?
-7. Which class owns it?
-8. Which preprocessing parameter will consume it?
-9. Does it require a new formulation parameter?
-10. Does it require a variable, objective term or constraint?
-11. Does it require provenance or estimation metadata?
-12. Which tests need updating?
-13. Is backward compatibility required?
-14. Does the scenario JSON schema need updating?
-15. Does the database view need updating?
+Required work should be limited to the places that genuinely supply or process the parameter:
 
-A field should not be added merely because it may be useful later. It should have a clear owner and a defined downstream purpose.
+1. Add the parameter definition to `quality_limits["parameters"]`.
+2. Supply a source value using the same key in every usable source.
+3. Add or select the required transformation in preprocessing.
+4. Ensure the database query/view can provide the value.
+5. Add focused tests for transformation and feasibility.
+
+The following should not be necessary:
+
+- adding a new `SourceInput` field;
+- changing every constructor call;
+- updating unrelated model code;
+- adding a duplicate unit-bearing Python attribute.
 
 ---
 
-# 19. Known limitations and planned improvements
+# 18. Rules for future contract changes
 
-| Current limitation | Effect | Possible future improvement |
+Before adding a field, confirm:
+
+1. It is a real scenario input.
+2. Its source is known.
+3. Its unit and validation rule are defined.
+4. Its downstream consumer exists.
+5. The formulation requires it now.
+6. It cannot be represented by an existing generic structure.
+7. Tests and documentation can describe its behaviour.
+
+Do not add fields only because they may be useful later.
+
+---
+
+# 19. Known limitations
+
+| Limitation | Effect | Possible improvement |
 |---|---|---|
-| `quality_limits` is broadly typed | Misspelled keys are not caught by static typing | Add `QualityLimitInput` and `QualityParameterInput` dataclasses |
-| `treatment` is broadly typed | Configuration can exist without implemented model behaviour | Add typed treatment classes only when formulation is approved |
-| Nested dictionaries remain mutable | `frozen=True` is not a deep freeze | Use immutable mappings or typed immutable records |
-| `enabled` handling is not fully centralised | A disabled plant or link could be retained if filtering is inconsistent | Filter disabled objects in one agreed layer and test the behaviour |
-| `status` is free text | Team members could use inconsistent lifecycle values | Introduce an enum such as `draft`, `review`, `approved`, `archived` |
-| Origin/status fields are free text | Typos could create unexpected values | Introduce enums for withdrawal origin and availability status |
-| Contract constructors do not validate | Directly created test objects can be invalid | Add factory functions or optional `__post_init__` checks |
-| Provenance keys are not fixed | Different loaders could use inconsistent keys | Add a typed `SourceProvenance` dataclass |
-| No schema version field | Future contract migrations may be harder to distinguish | Add `contract_version` or `scenario_schema_version` |
-
-These are design improvements, not requirements for the current Sprint 1 pipeline.
+| `quality_limits` remains broadly typed | Misspelled nested keys are not caught statically | Introduce typed quality-limit classes when the shape stabilises |
+| Dictionaries are mutable | `frozen=True` is not a deep freeze | Use immutable mappings or copy-on-construction |
+| `enabled` filtering is not enforced by the dataclasses | Disabled records depend on loader/preprocessing discipline | Centralise filtering in one layer and test it |
+| Status and origin values are free text | Typos are possible | Introduce enums when values stabilise |
+| Constructors do not validate | Directly built test objects may be invalid | Add validated factories if needed |
 
 ---
 
 # 20. Module exports
 
-`scenario_data.py` defines:
-
-```python
-__all__ = [
-    "DemandZoneInput",
-    "PlantInput",
-    "PlantZoneLinkInput",
-    "ScenarioData",
-    "SourceInput",
-    "SourcePlantLinkInput",
-]
-```
-
-The package-level `src/contracts/__init__.py` re-exports the same classes.
-
-This allows clean imports:
+`src/contracts/__init__.py` re-exports the public classes, allowing:
 
 ```python
 from src.contracts import ScenarioData, SourceInput
 ```
 
-instead of:
-
-```python
-from src.contracts.scenario_data import ScenarioData, SourceInput
-```
-
-The package import is preferred across AquaBlend modules because it keeps callers independent of the internal file layout of the contracts package.
+This keeps callers independent of the internal file layout of the contracts package.
 
 ---
 
 # 21. Summary
 
-`ScenarioData` is the canonical validated input contract for the AquaBlend MILP pipeline.
+The revised contract remains small and stable by:
 
-Its design ensures that:
+- representing quality values through `quality: dict[str, float]`;
+- requiring the same parameter keys on source values and quality limits;
+- defining quality units once in `quality_limits`;
+- removing the always-true `demand_must_be_met` flag;
+- excluding the currently unused treatment dictionary;
+- preserving explicit source and plant lower and upper bounds;
+- keeping model variables, transformations and solver output outside the contract.
 
-- The loader remains responsible for acquiring and validating data.
-- Preprocessing remains responsible for mathematical transformation.
-- Constraints remain responsible for enforcing the formulation.
-- Tests can construct deterministic scenarios directly.
-- The model does not depend on database-specific field names.
-- Provenance and readiness information remain available for audit.
-- Minimum and maximum source/plant bounds are represented explicitly.
-- Solver variables and outputs do not leak into the input contract.
-
-The contract should remain small, stable and focused on scenario input. New fields should be introduced only when their data source, validation rule and downstream model use are clearly defined.
+This structure supports the current formulation while reducing the number of code changes required when new quality parameters are introduced.
