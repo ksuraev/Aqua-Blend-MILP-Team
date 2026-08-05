@@ -1,0 +1,137 @@
+{
+  "scenario_id": "base_scenarios_test_v1",
+  "scenario_name": "Aqua Blend Base Scenarios V1",
+  "status": "draft",
+  "description": "Deterministic Sprint 1 test scenario with one treatment plant, one demand zone, and three candidate water sources.",
+  "data_source": {
+    "type": "supabase",
+    "view": "public.milp_model_input",
+    "representative_quality_strategy": "historical_median",
+    "exclude_quality_flags": [
+      "invalid_sensor_value",
+      "missing_quality_data"
+    ],
+    "allow_estimated_values": true
+  },
+  "sources": [
+    {
+      "source_id": "225103",
+      "name": "Thomson Reservoir",
+      "enabled": true,
+      "minimum_withdrawal_ml_per_day_override": 100,
+      "max_available_ml_per_day_override": 700,
+      "fixed_activation_cost": 0,
+      "forced_inactive": false
+    },
+    {
+      "source_id": "229421",
+      "name": "O'Shannassy Reservoir",
+      "enabled": true,
+      "minimum_withdrawal_ml_per_day_override": 50,
+      "max_available_ml_per_day_override": 300,
+      "fixed_activation_cost": 0,
+      "forced_inactive": false
+    },
+    {
+      "source_id": "233217",
+      "name": "Barwon River at Geelong",
+      "enabled": true,
+      "minimum_withdrawal_ml_per_day_override": 80,
+      "max_available_ml_per_day_override": 680,
+      "fixed_activation_cost": 0,
+      "forced_inactive": false
+    }
+  ],
+  "network": {
+    "plants": [
+      {
+        "plant_id": "plant_1",
+        "name": "Toy Treatment Plant",
+        "enabled": true,
+        "minimum_processing_capacity_ml_per_day": 100,
+        "maximum_processing_capacity_ml_per_day": 1680,
+        "fixed_activation_cost": 0,
+        "treatment_cost_per_ml": 0
+      }
+    ],
+    "demand_zones": [
+      {
+        "zone_id": "zone_1",
+        "name": "Toy Demand Zone",
+        "demand_ml_per_day": 1200,
+        "demand_must_be_met": true
+      }
+    ],
+    "source_to_plant_links": [
+      {
+        "source_id": "225103",
+        "plant_id": "plant_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 700
+      },
+      {
+        "source_id": "229421",
+        "plant_id": "plant_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 300
+      },
+      {
+        "source_id": "233217",
+        "plant_id": "plant_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 680
+      }
+    ],
+    "plant_to_zone_links": [
+      {
+        "plant_id": "plant_1",
+        "zone_id": "zone_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 1680
+      }
+    ]
+  },
+  "quality_limits": {
+    "applies_to": "blend_at_plant_inflow",
+    "parameters": {
+      "pH": {
+        "min": 6.5,
+        "max": 8.5,
+        "unit": "pH",
+        "transform": "ph_to_hydrogen_ion"
+      },
+      "alkalinity": {
+        "min": 20,
+        "max": 200,
+        "unit": "mg/L CaCO3",
+        "transform": "identity"
+      },
+      "turbidity": {
+        "min": 0,
+        "max": 5,
+        "unit": "NTU",
+        "transform": "identity"
+      }
+    }
+  },
+  "treatment": {
+    "chemical_dosing_enabled": false,
+    "batching_enabled": false,
+    "batch_capacity_ml": null,
+    "notes": "Chemical dosing and batching remain disabled until their complete plant-level formulation and parameters are approved."
+  },
+  "validation": {
+    "fail_if_source_missing_from_database": true,
+    "fail_if_daily_availability_missing": true,
+    "fail_if_demand_missing": true,
+    "fail_if_required_quality_value_missing": true
+  },
+  "notes": [
+    "This file is a deterministic test scenario and is not a source of verified operational data.",
+    "Withdrawal overrides are test-only assumptions used to exercise the source lower and upper bounds.",
+    "The source minimum withdrawals are all non-negative and do not exceed their corresponding maximums.",
+    "The plant minimum and maximum processing capacities follow the updated naming convention.",
+    "All network-link capacities are explicit because preprocessing requires finite non-negative values.",
+    "The scenario remains marked as draft until its expected MILP solution is independently verified."
+  ]
+}
