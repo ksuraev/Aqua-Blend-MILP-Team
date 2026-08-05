@@ -11,7 +11,7 @@
 `preprocessing.py` is the boundary between validated scenario input and mathematical model construction.
 
 ```text
-Scenario JSON + Supabase
+Scenario JSON + Supabase or inline source rows
           |
           v
     data_loader.py
@@ -74,7 +74,7 @@ When blocking validation issues remain, preprocessing raises `PreprocessingError
 
 ### Output contract
 
-`preprocess_scenario()` returns one immutable, slotted `ModelParameters` object:
+`preprocess_scenario()` returns one frozen, slotted `ModelParameters` object:
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -188,7 +188,7 @@ The model builder should use the transformed values directly. It must not reappl
 |---|---|---|
 | `warnings` | `tuple[str, ...]` | Non-blocking notes that do not prevent model construction. |
 
-Warnings may describe issues such as a source not being marked `model_ready` by the database after required scenario overrides and validation have still produced a usable record.
+Warnings may describe issues such as a source not being marked `model_ready` in the source data after required scenario overrides and validation have still produced a usable record.
 
 Warnings are informational. Blocking problems raise `PreprocessingError` before a `ModelParameters` object is returned.
 
@@ -393,7 +393,7 @@ Non-blocking warnings may identify:
 - disconnected usable sources;
 - plants without usable incoming or outgoing arcs;
 - demand zones without usable incoming arcs;
-- database records not marked model-ready.
+- source records not marked model-ready.
 
 ---
 
@@ -422,7 +422,7 @@ Non-blocking warnings may identify:
 | \(\underline{Q}_p\) | `quality_lower_bound` |
 | \(\overline{Q}_p\) | `quality_upper_bound` |
 
-`as_formulation_dict()` provides stable mathematical-style aliases for integrations that prefer notation-oriented keys.
+`as_formulation_dict()` provides stable mathematical-style aliases for integrations that prefer notation-oriented keys, including `A_ST` for `source_plant_arcs` and `A_TZ` for `plant_zone_arcs`.
 
 The descriptive dataclass attributes remain the canonical Python interface.
 
@@ -525,11 +525,11 @@ PYTHONDONTWRITEBYTECODE=1 python -m py_compile \
   MILP/src/preprocessing.py
 ```
 
-Run the configured scenario:
+Run the offline toy scenario:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 python -m MILP.src.preprocessing \
-  MILP/config/scenarios/base_scenarios_v1.json
+  MILP/config/scenarios/toy_scenario.json
 ```
 
 ---

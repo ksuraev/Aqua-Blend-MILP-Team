@@ -85,6 +85,7 @@ Offline scenarios use:
         "source_id": "225103",
         "source_name": "Thomson Reservoir",
         "source_type": "reservoir",
+        "is_active": true,
         "minimum_withdrawal_ml_per_day": 100.0,
         "max_available_ml_per_day": 700.0,
         "cost_per_ml": 1.1,
@@ -99,6 +100,8 @@ Offline scenarios use:
 ```
 
 `data_source.rows` is accepted as a compact compatibility alias, but `source_rows` is the canonical property.
+
+Inline rows with `is_active: false` are excluded so inline mode follows the same active-source behaviour as the Supabase query.
 
 Each inline row follows the same shape expected from the configured Supabase view. The loader passes both source types through `_build_sources()`, so duplicate IDs, missing values, costs, bounds, quality keys, provenance, estimated-value policy, and readiness checks behave consistently.
 
@@ -133,26 +136,27 @@ flowchart TD
 
 ### 3.1 Withdrawal-bound precedence
 
-Scenario overrides take priority over database values.
+Scenario overrides take priority over values supplied by the selected source-data mode.
 
 ```text
 minimum_withdrawal_ml_per_day_override
     ├─ provided → use scenario override
-    └─ absent   → use database minimum_withdrawal_ml_per_day
+    ├─ absent, minimum_withdrawal_ml_per_day provided → use canonical scenario value
+    └─ otherwise → use source-row minimum_withdrawal_ml_per_day
 
 maximum_withdrawal_ml_per_day_override
     ├─ provided → use scenario override
-    └─ absent   → use database max_available_ml_per_day
+    ├─ absent, maximum_withdrawal_ml_per_day provided → use canonical scenario value
+    ├─ absent, max_available_ml_per_day_override provided → use legacy scenario override
+    └─ otherwise → use source-row max_available_ml_per_day
 ```
 
-The loader also accepts the earlier aliases:
-
-- `minimum_withdrawal_ml_per_day`
-- `max_available_ml_per_day_override`
+The direct canonical scenario fields `minimum_withdrawal_ml_per_day` and `maximum_withdrawal_ml_per_day` are supported alongside the explicit override fields. `max_available_ml_per_day_override` remains accepted as a legacy alias.
 
 The selected origin is stored as:
 
 - `database`
+- `inline`
 - `scenario_override`
 - `mixed`
 
@@ -229,7 +233,7 @@ The loader rejects:
 - non-numeric values;
 - `NaN`;
 - positive or negative infinity;
-- non-boolean values used for boolean configuration properties.
+- non-boolean values used for boolean configuration or source-row metadata fields.
 
 Required text identifiers and names must not be blank.
 
@@ -237,7 +241,7 @@ Required text identifiers and names must not be blank.
 
 | Field or rule | Validation |
 |---|---|
-| Enabled filtering | Entries with `enabled: false` are not loaded. |
+| Enabled filtering | Scenario entries with `enabled: false` are not loaded. Inline source rows with `is_active: false` are also excluded. |
 | Enabled source count | A scenario with no enabled source records receives a validation issue. |
 | `source_id` | Required and unique among enabled source entries. |
 | Source row | Must resolve from the selected Supabase or inline source data when missing-source validation is enabled. |
@@ -252,7 +256,7 @@ Required text identifiers and names must not be blank.
 | Estimated or overridden values | Rejected for usable sources when `allow_estimated_values` is `false`. |
 | Quality keys | Every usable source must have exactly the same raw parameter keys as `quality_limits.parameters`. |
 | Quality values | Values must be numeric and finite. Transform-specific checks are repeated in preprocessing. |
-| `model_ready` | Must be boolean when supplied by the selected source data. |
+| Source-row boolean metadata | `model_ready`, estimation flags, and other configured boolean metadata must be actual booleans; string or numeric truthiness is not accepted. |
 | Provenance | Core provenance and configured quality provenance are copied into `SourceInput.provenance`. |
 
 ### 5.4 Plants
