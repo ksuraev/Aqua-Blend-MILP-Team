@@ -3,12 +3,14 @@
 Companion to [`model_input_contract.json`](model_input_contract.json). It defines what every placeholder in
 that file is expected to contain: type, unit, required/optional, and the rules a producer must satisfy.
 
-**Ground truth is `data_loader.py`.** The notation is adopted from the official mathematical documentation. This specification md aligns with two aforementioned files, committed in $26^\text{th}$ July 2026.
+**Ground truth is `data_loader.py`.** The notation is adopted from the official mathematical documentation. This specification md aligns with two aforementioned files, committed in $5^\text{th}$ August 2026.
 
 
 ## 1. Where each formulation parameter comes from
 
-Only about half the model's parameters live in this file. Source attributes are read from a Supabase view; the scenario file selects *which* sources are in play and describes the network around them.
+Only about half the model's parameters live in this file. Source attributes are read from the configured source data; the scenario file selects *which* sources are in play and describes the network around them.
+
+The source data is one of two things. `data_source.type: "supabase"` reads a Supabase view. `data_source.type: "inline"` reads row-shaped records embedded in the scenario file itself, under `data_source.source_rows` (or `data_source.rows`), which is how test scenarios run without a database. Inline rows use the same column names as the view, so **database** in the table below means whichever of the two the scenario configures. See §3.2.
 
 | Formulation | Source of truth | Path |
 |---|---|---|
@@ -62,8 +64,9 @@ Only about half the model's parameters live in this file. Source attributes are 
 
 | Field | Type | Required | Rule |
 |---|---|---|---|
-| `data_source.type` | string | yes | Must be exactly `"supabase"`; anything else raises. |
-| `data_source.view` | string | yes | Schema-qualified view name. Must match `^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$` or it is rejected as unsafe. The view must expose all 23 columns the loader selects. |
+| `data_source.type` | string | yes | Either `"supabase"` or `"inline"`; anything else raises. Compared after lowercasing, so `"Supabase"` is accepted. Missing or blank raises. |
+| `data_source.view` | string | yes when `type` is `"supabase"` | Schema-qualified view name. Must match `^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$` or it is rejected as unsafe. The loader issues `SELECT *`, so the view must expose every column the run reads: the fixed set named in the loader, plus every `source_field`, `estimated_field` and `provenance_field` declared in `quality_limits.parameters`. Ignored when `type` is `"inline"`. |
+| `data_source.source_rows` | array of objects | yes when `type` is `"inline"` | Source records embedded in the scenario, using the same column names as the view. `data_source.rows` is accepted as an alias and is read only when `source_rows` is absent; supplying neither raises. Each row's `is_active` defaults to `true`, and rows with `is_active: false` are dropped before matching, mirroring the view's `WHERE is_active = TRUE` filter. |
 | `data_source.allow_estimated_values` | boolean | no | Defaults to `false`. **The example sets `true` out of necessity:** every source in the reference data carries `cost_is_estimated`, so `false` fails all three with "contains estimated or overridden values". Setting `true` is an acknowledgement that the run is built on placeholder data. |
 | `validation.fail_if_source_missing_from_database` | boolean | no | Default `true`. When `false`, missing sources are reported as a "Skipped database sources" note instead. |
 | `validation.fail_if_daily_availability_missing` | boolean | no | Default `true`. Skipped for a source marked `forced_inactive`. |
@@ -89,7 +92,7 @@ Only about half the model's parameters live in this file. Source attributes are 
 | `plant_id` | string | yes | Unique. Referenced by both link arrays. |
 | `name` | string | **yes** | Read as `str(item["name"])` with no default — omitting it raises `KeyError`, not a friendly error. |
 | `enabled` | boolean | no | Default `true`. |
-| `minimum_processing_capacity_ml_per_day` | number | no | $\underline{V}_t$, minimum daily throughput, defaults to `0`. Floor on inflow *when the plant is activated*: $\sum_s b_{st} \ge \underline{V}_t \beta_t$. At `0` the row reduces to $\sum_s b_{st} \ge 0$, so it is inert. Must satisfy $\underline{V}_t \le \overline{V}_t$. Renamed from `minimum_operating_flow_ml_per_day`. |
+| `minimum_processing_capacity_ml_per_day` | number | no | $\underline{V}_t$, minimum daily throughput, defaults to `0`. Floor on inflow *when the plant is activated*: $\sum_s b_{st} \ge \underline{V}_t \beta_t$. At `0` the row reduces to $\sum_s b_{st} \ge 0$, so it is inert. Must satisfy $\underline{V}_t \le \overline{V}_t$. Renamed from `minimum_operating_flow_ml_per_day`; the old name is still accepted as a fallback, read only when the new key is absent. Write the new name. |
 | `maximum_processing_capacity_ml_per_day` | number or null | no | $\overline{V}_t$. `null` is accepted by the loader and means unbounded, which the model should reject. |
 | `fixed_activation_cost` | number | no | $F_t$, defaults to `0`. `0` is correct for the toy case, where the single plant is always on and its fixed cost is a constant the objective drops. |
 | `treatment_cost_per_ml` | number | no | $C_t$, defaults to `0`. Charged on inflow $\sum_s b_{st}$. Chemical and energy costs fold into this one rate — the formulation has no separate dosing or energy term. |
@@ -121,4 +124,9 @@ Only about half the model's parameters live in this file. Source attributes are 
 | `parameters.<p>.unit` | string | Unit of the limits and of the database's representative value. |
 | `parameters.<p>.min` | number | $\underline{Q}_p$. Use a value the blend cannot realistically breach (e.g. `0`) when only an upper limit is regulated. |
 | `parameters.<p>.max` | number | $\overline{Q}_p \ge$ `min`. |
-| `parameters.<p>.transform` | string | `"identity"` if the parameter is kept identical to what it provided in the json; otherwise name the transform and supply transformed values, e.g. `"hydrogenic"` for `pH` to be linearised into $[H^+]$. |
+| `parameters.<p>.transform` | string | Defaults to `"identity"`, meaning the value is used exactly as the source data supplies it. The only other accepted value is `"ph_to_hydrogen_ion"`, which linearises `pH` into $[H^+]$. Anything else raises. |
+| `parameters.<p>.source_field` | string | Column in the source data holding this parameter's representative value. Defaults to `representative_ph`, `representative_alkalinity_mg_l_caco3` or `representative_turbidity_ntu` when `<p>` is `pH`, `alkalinity` or `turbidity`. Any other parameter must name its own column or the load raises; declaring it here is what lets a new parameter be added without editing the loader. |
+| `parameters.<p>.model_name` | string | Identifier the parameter carries into the model. Defaults to `<p>`, or to `hydrogen_ion_concentration_mol_l` when `transform` is `"ph_to_hydrogen_ion"`. Must be unique across all parameters. |
+| `parameters.<p>.model_unit` | string | Unit of the value *after* `transform`. Defaults to `unit`, or to `mol/L` when `transform` is `"ph_to_hydrogen_ion"`. |
+| `parameters.<p>.estimated_field` | string | Optional. Boolean column marking this parameter's value as estimated. When it is set and the row is true, the source is flagged as containing estimated values, which fails the load under `allow_estimated_values: false`. Defaults to `alkalinity_is_estimated` for `alkalinity` and to nothing for every other parameter. |
+| `parameters.<p>.provenance_field` | string | Optional. Column carried through to the source's `provenance["quality.<p>"]`. Defaults to `alkalinity_provenance` for `alkalinity` and to nothing for every other parameter, in which case the entry is `null`. |
