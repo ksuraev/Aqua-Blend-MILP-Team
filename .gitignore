@@ -5,6 +5,7 @@ __pycache__/
 
 # Environments
 .env
+.env.*
 .envrc
 .venv
 env/
@@ -12,10 +13,6 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
-# Environment variables
-.env
-.env.*
 
 # Unit test / coverage reports
 htmlcov/
