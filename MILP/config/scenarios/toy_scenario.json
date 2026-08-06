@@ -1,0 +1,180 @@
+{
+  "scenario_id": "toy_inline_001",
+  "scenario_name": "Offline toy scenario",
+  "status": "test",
+  "description": "Deterministic inline scenario for testing the AquaBlend loader and preprocessing pipeline without Supabase.",
+  "data_source": {
+    "type": "inline",
+    "allow_estimated_values": false,
+    "source_rows": [
+      {
+        "source_id": "225103",
+        "source_name": "Thomson Reservoir",
+        "source_type": "reservoir",
+        "is_active": true,
+        "minimum_withdrawal_ml_per_day": 100.0,
+        "max_available_ml_per_day": 700.0,
+        "cost_per_ml": 1.1,
+        "representative_ph": 7.2,
+        "representative_alkalinity_mg_l_caco3": 50.0,
+        "representative_turbidity_ntu": 1.0,
+        "minimum_withdrawal_is_estimated": false,
+        "max_available_is_estimated": false,
+        "cost_is_estimated": false,
+        "alkalinity_is_estimated": false,
+        "minimum_withdrawal_provenance": "offline toy fixture",
+        "max_available_provenance": "offline toy fixture",
+        "cost_provenance": "offline toy fixture",
+        "alkalinity_provenance": "offline toy fixture",
+        "availability_status": "available",
+        "model_ready": true
+      },
+      {
+        "source_id": "229421",
+        "source_name": "O'Shannassy Reservoir",
+        "source_type": "reservoir",
+        "is_active": true,
+        "minimum_withdrawal_ml_per_day": 50.0,
+        "max_available_ml_per_day": 300.0,
+        "cost_per_ml": 1.3,
+        "representative_ph": 7.6,
+        "representative_alkalinity_mg_l_caco3": 70.0,
+        "representative_turbidity_ntu": 2.0,
+        "minimum_withdrawal_is_estimated": false,
+        "max_available_is_estimated": false,
+        "cost_is_estimated": false,
+        "alkalinity_is_estimated": false,
+        "minimum_withdrawal_provenance": "offline toy fixture",
+        "max_available_provenance": "offline toy fixture",
+        "cost_provenance": "offline toy fixture",
+        "alkalinity_provenance": "offline toy fixture",
+        "availability_status": "available",
+        "model_ready": true
+      },
+      {
+        "source_id": "233217",
+        "source_name": "Barwon River",
+        "source_type": "river",
+        "is_active": true,
+        "minimum_withdrawal_ml_per_day": 80.0,
+        "max_available_ml_per_day": 680.0,
+        "cost_per_ml": 1.0,
+        "representative_ph": 7.0,
+        "representative_alkalinity_mg_l_caco3": 40.0,
+        "representative_turbidity_ntu": 3.0,
+        "minimum_withdrawal_is_estimated": false,
+        "max_available_is_estimated": false,
+        "cost_is_estimated": false,
+        "alkalinity_is_estimated": false,
+        "minimum_withdrawal_provenance": "offline toy fixture",
+        "max_available_provenance": "offline toy fixture",
+        "cost_provenance": "offline toy fixture",
+        "alkalinity_provenance": "offline toy fixture",
+        "availability_status": "available",
+        "model_ready": true
+      }
+    ]
+  },
+  "validation": {
+    "fail_if_source_missing_from_database": true,
+    "fail_if_daily_availability_missing": true,
+    "fail_if_required_quality_value_missing": true,
+    "fail_if_demand_missing": true
+  },
+  "sources": [
+    {
+      "source_id": "225103",
+      "enabled": true,
+      "forced_inactive": false,
+      "fixed_activation_cost": 0.0
+    },
+    {
+      "source_id": "229421",
+      "enabled": true,
+      "forced_inactive": false,
+      "fixed_activation_cost": 0.0
+    },
+    {
+      "source_id": "233217",
+      "enabled": true,
+      "forced_inactive": false,
+      "fixed_activation_cost": 0.0
+    }
+  ],
+  "network": {
+    "plants": [
+      {
+        "plant_id": "facility_1",
+        "name": "Treatment Facility 1",
+        "enabled": true,
+        "minimum_processing_capacity_ml_per_day": 100.0,
+        "maximum_processing_capacity_ml_per_day": 1680.0,
+        "fixed_activation_cost": 0.0,
+        "treatment_cost_per_ml": 0.1
+      }
+    ],
+    "demand_zones": [
+      {
+        "zone_id": "zone_1",
+        "name": "Zone 1",
+        "demand_ml_per_day": 1200.0
+      }
+    ],
+    "source_to_plant_links": [
+      {
+        "source_id": "225103",
+        "plant_id": "facility_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 700.0
+      },
+      {
+        "source_id": "229421",
+        "plant_id": "facility_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 300.0
+      },
+      {
+        "source_id": "233217",
+        "plant_id": "facility_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 680.0
+      }
+    ],
+    "plant_to_zone_links": [
+      {
+        "plant_id": "facility_1",
+        "zone_id": "zone_1",
+        "enabled": true,
+        "maximum_flow_ml_per_day": 1680.0
+      }
+    ]
+  },
+  "quality_limits": {
+    "applies_to": "blend_at_plant_inflow",
+    "parameters": {
+      "pH": {
+        "unit": "pH",
+        "min": 6.5,
+        "max": 8.5,
+        "transform": "ph_to_hydrogen_ion",
+        "source_field": "representative_ph",
+        "model_name": "hydrogen_ion_concentration_mol_l",
+        "model_unit": "mol/L"
+      },
+      "alkalinity": {
+        "unit": "mg/L CaCO3",
+        "min": 20.0,
+        "max": 200.0,
+        "transform": "identity",
+        "source_field": "representative_alkalinity_mg_l_caco3"
+      },
+      "turbidity": {
+        "unit": "NTU",
+        "min": 0.0,
+        "max": 5.0,
+        "transform": "identity",
+        "source_field": "representative_turbidity_ntu"
+      }
+    }
+  }
+}
