@@ -370,62 +370,31 @@ The key assumptions are:
 These assumptions allow the water quality constraints to remain linear and suitable for inclusion in the MILP formulation.
 
 \section{Application to the toy model}\label{sec:toy}
-This network model is a generalisation of the Sprint~1 toy model, not a different problem:
-the toy is the special case with a \emph{single} treatment plant and a \emph{single} demand zone.
-With one plant and one zone, there is nothing to route:
-every activated source sends its whole draw to the one plant ($b_{st}=a_s$) and all of it reaches the one zone ($c_{tz}=\sum_s a_s$), so the routing variables $\gamma,\delta,b,c$ are fully determined ($\gamma=\delta=1$, $b_{st}=a_s$, $c_{tz}=\sum_s a_s$) and only the source decisions $\alpha_s,a_s$ remain free.
-Formally this is the network model with $\mathcal{T}=\{t\}$, $\mathcal{Z}=\{z\}$, the plant fixed active ($\beta_t=1$) and the routing fixed on ($\gamma_{st}=\delta_{tz}=1$).
-Substituting these into the network equations gives the toy model formulation below.
 
-\subsection{Decision variables}
+The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
+With one plant and one zone there is nothing to route:
+the arc variables are fixed by conservation, and only the source decisions $\alpha_s$ and $a_s$ remain free.
+
+Every equation of the toy model follows from the general formulation by the substitutions below.
+Nothing is restated here.
+
 \begin{center}
-	\begin{tabular}{@{}llll@{}}
+	\begin{tabular}{@{}ll@{}}
 		\toprule
-		\textbf{Notation} & \textbf{Domain} & \textbf{Description}           & \textbf{Units} \\
+		\textbf{Substitution}                        & \textbf{Consequence}                                             \\
 		\midrule
-		$\alpha_{s}$      & $\{0,1\}$       & $1$ if source $s$ is activated & ---            \\
-		$a_{s}$           & $\ge 0$         & volume drawn from source $s$   & ML/day         \\
+		$\mathcal{T} = \{t\}$, $\mathcal{Z} = \{z\}$ & one plant, one zone                                              \\
+		$\beta_t = 1$                                & the plant is always active, so $F_t$ is a constant and drops out \\
+		$\gamma_{st} = \delta_{tz} = 1$              & every arc is active                                              \\
+		$b_{st} = a_s$                               & by source flow conservation                                      \\
+		$c_{tz} = \sum_{s} a_s$                      & by plant flow conservation                                       \\
 		\bottomrule
 	\end{tabular}
 \end{center}
 
-\subsection{Objective}
-Minimise the fixed activation cost of the chosen sources plus the per-ML cost of drawing and treating the water.
-The single plant is always on, so its fixed cost $F_t$ is a constant and is dropped.
-\begin{equation}
-	\min \quad
-	\underbrace{\sum_{s \in \mathcal{S}}
-		F_s \alpha_s}_{\text{source activation}} + \underbrace{\sum_{s \in \mathcal{S}} C_s a_s}_{\text{drawing water}} + \underbrace{C_t\sum_{s \in \mathcal{S}} a_s}_{\text{plant treatment}}.
-\end{equation}
-
-\subsection{Constraints}
-
-\paragraph{Demand satisfaction.}
-The total volume drawn, all of which is delivered to the one zone, meets the zone's demand $D_{z}$.
-\begin{equation}
-	\sum_{s \in \mathcal{S}} a_s \ge D_{z}.
-\end{equation}
-
-\paragraph{Source capacity and activation.}
-Identical to constraint~\eqref{eq:source_capacity}.
-
-\paragraph{Plant throughput.}
-If plant minimum and maximum throughput limits are retained in the toy model, the fixed active plant must satisfy:
-\begin{equation}
-	\underline{V}_t \leq
-	\sum_{s \in \mathcal{S}} a_s
-	\leq
-	\overline{V}_t.
-\end{equation}
-If the Sprint~1 toy model assumes that the single plant has sufficient feasible capacity for the tested scenarios, this constraint may be omitted from the simplified implementation.
-
-\paragraph{Water quality.}
-The blend of all drawn sources must lie within each parameter's limits.
-\begin{equation}
-	\underline{Q}_p \sum_{s \in \mathcal{S}} a_s
-	\le \sum_{s \in \mathcal{S}}
-	Q_{sp} a_s \le \overline{Q}_p \sum_{s \in \mathcal{S}} a_s, \quad \forall p \in \mathcal{P}.
-\end{equation}
+The reduction is a substitution rather than a rewrite:
+any constraint indexed over $\mathcal{T}$ or $\mathcal{Z}$ contributes exactly one instance, and any variable on an arc is determined by conservation as a sum of source draws.
+Every term of the general model is inherited unchanged.
 
 \begin{center}
 	\begin{tikzpicture}[
@@ -442,11 +411,10 @@ The blend of all drawn sources must lie within each parameter's limits.
 		\draw (s1) edge node[lbl] {$a_1$} (t);
 		\draw (s2) edge node[lbl] {$a_2$} (t);
 		\draw (s3) edge node[lbl] {$a_3$} (t);
-		\draw (t) edge node[lbl, right=1pt] {$\sum_s a_s \ge D_{z}$} (z);
+		\draw (t) edge node[lbl, right=1pt] {$\textstyle\sum_s a_s$} (z);
 	\end{tikzpicture}
-	\captionof{figure}{Toy model: three sources $s_1,s_2,s_3$ feed one plant $t$, which delivers to one zone $z$.
-		Routing is fixed, so the delivered blend $\sum_s a_s$ must meet demand $D_z$ and the quality limits.
-	}
+	\captionof{figure}{Toy model.
+		Three sources draw $a_1,a_2,a_3$ into the single plant $t$, which delivers their sum to the single zone $z$.}
 \end{center}
 
 \noindent Since this is just the network model with routing fixed, going the other way needs nothing new: free the routing variables and add more sources, plants and zones.
