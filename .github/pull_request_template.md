@@ -4,6 +4,10 @@
 
 <!-- What problem does this solve, and why this way? One to three sentences. -->
 
+<!-- Link your sprint planner task here.-->
+
+[Planner task](link-to-planner-task)
+
 ## Before opening this, I checked
 
 - [ ] My PR only contains one logical change that is easy to review <!-- Split unrelated changes into separate PRs - smaller PRs get reviewed faster -->
