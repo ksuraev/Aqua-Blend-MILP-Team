@@ -28,7 +28,7 @@ which sources should be drawn from, how much from each, and how should that wate
 
 This is formulated as a Mixed-Integer Linear Program (MILP).
 Whether a source, plant, or transfer link is used at all is a binary decision; how much water is drawn or flows along each link is a continuous decision.
-The objective balances fixed activation costs against the variable cost of drawing and treating water.
+The objective balances fixed activation costs against the variable cost of drawing, transferring and treating water.
 
 Treatment cost here is a flat rate per megalitre (ML) processed, and water quality only enters as a feasibility requirement:
 a blend must stay within limits, but blending sources more favourably does not itself lower the treatment cost.
@@ -66,28 +66,31 @@ A subscript is an index; an overbar/underbar is an upper/lower bound.
 \begin{center}
 	\begin{tabular}{@{}lll@{}}
 		\toprule
-		\textbf{Notation}   & \textbf{Description}                                  & \textbf{Units} \\
+		\textbf{Notation}   & \textbf{Description}                                         & \textbf{Units} \\
 		\midrule
-		$D_{z}$             & volume of water to deliver to demand zone $z$         & ML/day         \\
-		$F_{s}$             & fixed cost of activating source $s$                   & \$/day         \\
-		$F_{t}$             & fixed cost of activating treatment plant $t$          & \$/day         \\
-		$C_{s}$             & unit cost of drawing water from source $s$            & \$/ML          \\
-		$C_{t}$             & unit treatment cost at plant $t$                      & \$/ML          \\
-		$\underline{W}_{s}$ & minimum daily withdrawal from source $s$              & ML/day         \\
-		$\overline{W}_{s}$  & maximum daily withdrawal from source $s$              & ML/day         \\
-		$\underline{V}_{t}$ & minimum daily throughput of plant $t$                 & ML/day         \\
-		$\overline{V}_{t}$  & maximum daily throughput of plant $t$                 & ML/day         \\
-		$\overline{L}_{st}$ & maximum flow on the link from source $s$ to plant $t$ & ML/day         \\
-		$\overline{L}_{tz}$ & maximum flow on the link from plant $t$ to zone $z$   & ML/day         \\
-		$Q_{sp}$            & value of quality parameter $p$ in source $s$          & units of $p$   \\
-		$\underline{Q}_{p}$ & lower regulatory limit for parameter $p$              & units of $p$   \\
-		$\overline{Q}_{p}$  & upper regulatory limit for parameter $p$              & units of $p$   \\
+		$D_{z}$             & volume of water to deliver to demand zone $z$                & ML/day         \\
+		$F_{s}$             & fixed cost of activating source $s$                          & \$/day         \\
+		$F_{t}$             & fixed cost of activating treatment plant $t$                 & \$/day         \\
+		$C_{s}$             & unit cost of drawing water from source $s$                   & \$/ML          \\
+		$C_{t}$             & unit treatment cost at plant $t$                             & \$/ML          \\
+		$C_{st}$            & unit cost of transferring water from source $s$ to plant $t$ & \$/ML          \\
+		$C_{tz}$            & unit cost of transferring water from plant $t$ to zone $z$   & \$/ML          \\
+		$\underline{W}_{s}$ & minimum daily withdrawal from source $s$                     & ML/day         \\
+		$\overline{W}_{s}$  & maximum daily withdrawal from source $s$                     & ML/day         \\
+		$\underline{V}_{t}$ & minimum daily throughput of plant $t$                        & ML/day         \\
+		$\overline{V}_{t}$  & maximum daily throughput of plant $t$                        & ML/day         \\
+		$\overline{L}_{st}$ & maximum flow on the link from source $s$ to plant $t$        & ML/day         \\
+		$\overline{L}_{tz}$ & maximum flow on the link from plant $t$ to zone $z$          & ML/day         \\
+		$Q_{sp}$            & value of quality parameter $p$ in source $s$                 & units of $p$   \\
+		$\underline{Q}_{p}$ & lower regulatory limit for parameter $p$                     & units of $p$   \\
+		$\overline{Q}_{p}$  & upper regulatory limit for parameter $p$                     & units of $p$   \\
 		\bottomrule
 	\end{tabular}
 \end{center}
 Costs and limits are treated as fixed.
-The units of a quality parameter depend on $p$ (e.g.\ mg/L, NTU).
-Water quality parameters that are not linear in their natural units are stored in $Q_{sp}$ as a transformed value that blends approximately linearly.
+All costs, capacities, and demands are assumed non-negative.
+The units of a water quality parameter depend on $p$.
+Parameters that are not linear in their natural units are stored in $Q_{sp}$ as a transformed value that blends approximately linearly.
 
 \subsection{Decision variables}
 \begin{center}
@@ -129,31 +132,31 @@ Water quality parameters that are not linear in their natural units are stored i
 		\node[nd] (Z3) at (6,0)           {$z_3$};
 
 		% S -> T connections
-		\draw (S1) edge node[lbl] {$\gamma_{11},\,b_{11}$} (T1);
-		\draw (S2) edge node[lbl] {$\gamma_{21},\,b_{21}$} (T1);
-		\draw (S2) edge node[lbl] {$\gamma_{22},\,b_{22}$} (T2);
-		\draw (S3) edge node[lbl] {$\gamma_{32},\,b_{32}$} (T2);
+		\draw (S1) edge node[lbl] {$b_{11}$} (T1);
+		\draw (S2) edge node[lbl] {$b_{21}$} (T1);
+		\draw (S2) edge node[lbl] {$b_{22}$} (T2);
+		\draw (S3) edge node[lbl] {$b_{32}$} (T2);
 
 		% T -> Z connections
-		\draw (T1) edge node[lbl] {$\delta_{11},\,c_{11}$} (Z1);
-		\draw (T1) edge node[lbl] {$\delta_{12},\,c_{12}$} (Z2);
-		\draw (T2) edge node[lbl] {$\delta_{22},\,c_{22}$} (Z2);
-		\draw (T2) edge node[lbl] {$\delta_{23},\,c_{23}$} (Z3);
+		\draw (T1) edge node[lbl] {$c_{11}$} (Z1);
+		\draw (T1) edge node[lbl] {$c_{12}$} (Z2);
+		\draw (T2) edge node[lbl] {$c_{22}$} (Z2);
+		\draw (T2) edge node[lbl] {$c_{23}$} (Z3);
 	\end{tikzpicture}
 	\captionof{figure}{One example of the network structure (sources $\to$ treatment plants $\to$ demand zones).
-		Each source-plant arc carries $(\gamma_{st}, b_{st})$ and each plant-zone arc carries $(\delta_{tz}, c_{tz})$.
-		The formulation is generic over any number of sources, plants, zones and the arcs connecting them; this is only one instance.
+		Each source-plant arc has an activation binary $\gamma_{st}$ and a flow variable $b_{st}$; each plant-zone arc has $\delta_{tz}$ and $c_{tz}$.
 	}
 \end{center}
 
 \section{Objective}
 Minimise total cost over a single period:
-the fixed cost of activating each source and plant, the per-ML cost of drawing water, and the per-ML cost of treating it (charged on the volume each plant processes, $\sum_s b_{st}$).
+the fixed cost of activating each source and plant, and the
+per-ML costs of drawing water, treating it (charged on the volume each plant processes, $\sum_s b_{st}$) and transferring it along each link.
 
 \begin{equation}
-	\min \quad
+	\min
 	\underbrace{\sum_{s \in \mathcal{S}}
-		F_s \alpha_s}_{\text{source activation}} + \underbrace{\sum_{t \in \mathcal{T}} F_t \beta_t}_{\text{plant activation}} + \underbrace{\sum_{s \in \mathcal{S}} C_s a_s}_{\text{drawing water}} + \underbrace{\sum_{t \in \mathcal{T}} C_t \sum_{s \in \mathcal{S}} b_{st}}_{\text{plant treatment}}.
+		F_s \alpha_s}_{\text{source activation}} + \underbrace{\sum_{t \in \mathcal{T}} F_t \beta_t}_{\text{plant activation}} + \underbrace{\sum_{s \in \mathcal{S}} C_s a_s}_{\text{drawing water}} + \underbrace{\sum_{t \in \mathcal{T}} C_t \sum_{s \in \mathcal{S}} b_{st}}_{\text{plant treatment}} + \underbrace{\sum_{s \in \mathcal{S}} \sum_{t \in \mathcal{T}} C_{st} b_{st} + \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} C_{tz} c_{tz}}_{\text{transfer}}.
 \end{equation}
 
 \section{Constraints}
