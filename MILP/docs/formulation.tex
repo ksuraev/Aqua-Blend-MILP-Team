@@ -89,7 +89,7 @@ A subscript is an index; an overbar/underbar is an upper/lower bound.
 \end{center}
 Costs and limits are treated as fixed.
 All costs, capacities, and demands are assumed non-negative.
-The units of a water quality parameter depend on $p$.
+The units of a water quality parameter depend on $p$ (e.g.\ mg/L, NTU).
 Parameters that are not linear in their natural units are stored in $Q_{sp}$ as a transformed value that blends approximately linearly.
 
 \subsection{Decision variables}
@@ -145,6 +145,7 @@ Parameters that are not linear in their natural units are stored in $Q_{sp}$ as 
 	\end{tikzpicture}
 	\captionof{figure}{One example of the network structure (sources $\to$ treatment plants $\to$ demand zones).
 		Each source-plant arc has an activation binary $\gamma_{st}$ and a flow variable $b_{st}$; each plant-zone arc has $\delta_{tz}$ and $c_{tz}$.
+		The formulation is generic over any number of sources, plants, zones and links.
 	}
 \end{center}
 
