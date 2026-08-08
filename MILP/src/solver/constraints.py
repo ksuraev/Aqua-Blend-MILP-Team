@@ -1,234 +1,214 @@
 """Demand, source-activation, and source-capacity constraints.
 
-This module implements the source-side constraints in the AquaBlend Sprint 1
-toy MILP. It accepts either the formulation-ready ``ModelParameters`` object
-created by ``preprocessing.py`` or the simplified ``SolverInput`` interface
-used by the solver modules.
+The constraints in this module use the formulation-ready ModelParameters
+object produced by preprocessing.py. Decision variables are created by the
+model-building layer and passed into add_constraints().
 """
 
 from __future__ import annotations
 
-import math
 import re
-from collections.abc import Mapping, Sequence
-from numbers import Real
-from typing import Any
+from collections.abc import Mapping
+from typing import Protocol
 
 import pulp
 
+from ..preprocessing import ModelParameters
 
-VariableGroup = Mapping[str, pulp.LpVariable]
+
+Arc = tuple[str, str]
+ArcVariableGroup = Mapping[Arc, pulp.LpVariable]
+SourceVariableGroup = Mapping[str, pulp.LpVariable]
+
+
+class ModelVariables(Protocol):
+    """Decision-variable groups required by these constraints."""
+
+    source_to_plant_flow: ArcVariableGroup
+    plant_to_zone_flow: ArcVariableGroup
+    source_active: SourceVariableGroup
 
 
 def add_constraints(
     model: pulp.LpProblem,
-    data: Any,
-    variables: Any,
+    parameters: ModelParameters,
+    variables: ModelVariables,
 ) -> None:
-    """Add demand and source withdrawal/activation constraints to ``model``.
+    """Add demand, source-activation and source-capacity constraints.
 
-    The variables must contain ``flow`` and ``active`` groups, either as
-    mapping entries or object attributes. Existing variables are reused; this
-    function never creates a second set of decision variables.
+    Demand is enforced separately for every demand zone. Source withdrawal
+    is calculated as the sum of all outgoing source-to-plant flows. The
+    binary source-activation variable links each source to its optional
+    minimum withdrawal and maximum capacity.
+
+    This function reuses decision variables created by the model-building
+    layer and does not create duplicate variables.
+
+    Args:
+        model: PuLP optimisation model receiving the constraints.
+        parameters: Validated parameters produced by preprocessing.
+        variables: Existing source-to-plant flow, plant-to-zone flow and
+            source-activation variables.
+
+    Raises:
+        TypeError: If model or variable groups have an invalid type.
+        KeyError: If a required decision variable is missing.
     """
-
     if not isinstance(model, pulp.LpProblem):
         raise TypeError("model must be a pulp.LpProblem instance.")
 
-    source_names, demand, minimums, maximums = _normalise_input(data)
-    flow = _get_variable_group(variables, "flow")
-    active = _get_variable_group(variables, "active")
-
-    _validate_variable_coverage(flow, source_names, "flow")
-    _validate_variable_coverage(active, source_names, "active")
-
-    model += (
-        pulp.lpSum(flow[source] for source in source_names) >= demand,
-        "Demand_Satisfaction",
+    source_to_plant_flow = _get_variable_group(
+        variables,
+        "source_to_plant_flow",
+    )
+    plant_to_zone_flow = _get_variable_group(
+        variables,
+        "plant_to_zone_flow",
+    )
+    source_active = _get_variable_group(
+        variables,
+        "source_active",
     )
 
-    for source in source_names:
-        safe_source = _safe_name(source)
+    _validate_arc_variable_coverage(
+        source_to_plant_flow,
+        parameters.source_plant_arcs,
+        "source_to_plant_flow",
+    )
+    _validate_arc_variable_coverage(
+        plant_to_zone_flow,
+        parameters.plant_zone_arcs,
+        "plant_to_zone_flow",
+    )
+    _validate_source_variable_coverage(
+        source_active,
+        parameters.source_ids,
+        "source_active",
+    )
+
+    _add_zone_demand_constraints(
+        model,
+        parameters,
+        plant_to_zone_flow,
+    )
+    _add_source_activation_constraints(
+        model,
+        parameters,
+        source_to_plant_flow,
+        source_active,
+    )
+
+
+def _add_zone_demand_constraints(
+    model: pulp.LpProblem,
+    parameters: ModelParameters,
+    plant_to_zone_flow: ArcVariableGroup,
+) -> None:
+    """Add one demand-satisfaction constraint for each demand zone."""
+    for zone_index, zone_id in enumerate(parameters.zone_ids):
+        incoming_arcs = tuple(
+            arc for arc in parameters.plant_zone_arcs if arc[1] == zone_id
+        )
+
         model += (
-            flow[source] >= minimums[source] * active[source],
-            f"Source_Min_Withdrawal_{safe_source}",
+            pulp.lpSum(plant_to_zone_flow[arc] for arc in incoming_arcs)
+            >= parameters.demand_by_zone[zone_id],
+            f"Demand_Satisfaction_{zone_index}_{_safe_name(zone_id)}",
         )
+
+
+def _add_source_activation_constraints(
+    model: pulp.LpProblem,
+    parameters: ModelParameters,
+    source_to_plant_flow: ArcVariableGroup,
+    source_active: SourceVariableGroup,
+) -> None:
+    """Link total source withdrawal to source activation and capacity."""
+    for source_index, source_id in enumerate(parameters.source_ids):
+        outgoing_arcs = tuple(
+            arc for arc in parameters.source_plant_arcs if arc[0] == source_id
+        )
+        total_withdrawal = pulp.lpSum(
+            source_to_plant_flow[arc] for arc in outgoing_arcs
+        )
+        safe_source = _safe_name(source_id)
+
         model += (
-            flow[source] <= maximums[source] * active[source],
-            f"Source_Max_Withdrawal_{safe_source}",
+            total_withdrawal
+            >= parameters.source_min_withdrawal[source_id]
+            * source_active[source_id],
+            f"Source_Min_Withdrawal_{source_index}_{safe_source}",
+        )
+
+        model += (
+            total_withdrawal
+            <= parameters.source_max_withdrawal[source_id]
+            * source_active[source_id],
+            f"Source_Max_Withdrawal_{source_index}_{safe_source}",
         )
 
 
-def _normalise_input(
-    data: Any,
-) -> tuple[list[str], float, dict[str, float], dict[str, float]]:
-    """Convert either supported processed-input shape into common values."""
-
-    if hasattr(data, "source_ids") and hasattr(data, "demand_by_zone"):
-        return _from_model_parameters(data)
-
-    if hasattr(data, "reservoirs") and hasattr(data, "demand"):
-        return _from_solver_input(data)
-
-    raise TypeError(
-        "Unsupported solver input. Expected ModelParameters or SolverInput."
-    )
-
-
-def _from_model_parameters(
-    data: Any,
-) -> tuple[list[str], float, dict[str, float], dict[str, float]]:
-    """Read Archit's formulation-ready ``ModelParameters`` interface."""
-
-    source_names = _validate_source_names(data.source_ids)
-    demand_by_zone = _validate_numeric_mapping(
-        data.demand_by_zone,
-        "demand_by_zone",
-    )
-    maximums = _validate_source_mapping(
-        data.source_max_withdrawal,
-        source_names,
-        "source_max_withdrawal",
-    )
-
-    # The current preprocessing branch does not yet expose W_s lower bounds.
-    # Zero is the formulation's documented default. Once the field is added,
-    # it is consumed automatically without another constraints change.
-    raw_minimums = getattr(data, "source_min_withdrawal", None)
-    minimums = (
-        {source: 0.0 for source in source_names}
-        if raw_minimums is None
-        else _validate_source_mapping(
-            raw_minimums,
-            source_names,
-            "source_min_withdrawal",
-        )
-    )
-
-    _validate_bounds(source_names, minimums, maximums)
-    return source_names, sum(demand_by_zone.values()), minimums, maximums
-
-
-def _from_solver_input(
-    data: Any,
-) -> tuple[list[str], float, dict[str, float], dict[str, float]]:
-    """Read Meet's simplified reservoir-based solver input interface."""
-
-    reservoirs: Sequence[Any] = data.reservoirs
-    if not reservoirs:
-        raise ValueError("At least one source is required.")
-
-    source_names = _validate_source_names(
-        [reservoir.name for reservoir in reservoirs]
-    )
-    demand = _nonnegative_number(
-        data.demand.required_volume,
-        "demand.required_volume",
-    )
-    minimums = {
-        reservoir.name: _nonnegative_number(
-            reservoir.minimum_flow_if_active,
-            f"{reservoir.name}.minimum_flow_if_active",
-        )
-        for reservoir in reservoirs
-    }
-    maximums = {
-        reservoir.name: _nonnegative_number(
-            reservoir.max_flow,
-            f"{reservoir.name}.max_flow",
-        )
-        for reservoir in reservoirs
-    }
-
-    _validate_bounds(source_names, minimums, maximums)
-    return source_names, demand, minimums, maximums
-
-
-def _get_variable_group(variables: Any, group_name: str) -> VariableGroup:
-    if isinstance(variables, Mapping):
-        group = variables.get(group_name)
-    else:
-        group = getattr(variables, group_name, None)
+def _get_variable_group(
+    variables: ModelVariables,
+    group_name: str,
+) -> Mapping[object, pulp.LpVariable]:
+    """Return a required variable group from the model variable container."""
+    group = getattr(variables, group_name, None)
 
     if group is None:
         raise KeyError(f"Missing decision-variable group: {group_name}.")
+
     if not isinstance(group, Mapping):
-        raise TypeError(f"Decision-variable group '{group_name}' must be a mapping.")
+        raise TypeError(
+            f"Decision-variable group '{group_name}' must be a mapping."
+        )
+
     return group
 
 
-def _validate_source_names(names: Sequence[str]) -> list[str]:
-    source_names = list(names)
-    if not source_names:
-        raise ValueError("At least one source is required.")
-    if any(not isinstance(name, str) or not name.strip() for name in source_names):
-        raise ValueError("Every source must have a non-empty string identifier.")
-    if len(source_names) != len(set(source_names)):
-        raise ValueError("Source identifiers must be unique.")
-    if len({_safe_name(name) for name in source_names}) != len(source_names):
-        raise ValueError("Source identifiers produce duplicate constraint names.")
-    return source_names
-
-
-def _validate_numeric_mapping(
-    values: Mapping[str, Any],
-    field_name: str,
-) -> dict[str, float]:
-    if not isinstance(values, Mapping):
-        raise TypeError(f"{field_name} must be a mapping.")
-    return {
-        key: _nonnegative_number(value, f"{field_name}[{key!r}]")
-        for key, value in values.items()
-    }
-
-
-def _validate_source_mapping(
-    values: Mapping[str, Any],
-    source_names: Sequence[str],
-    field_name: str,
-) -> dict[str, float]:
-    validated = _validate_numeric_mapping(values, field_name)
-    missing = sorted(set(source_names).difference(validated))
-    if missing:
-        raise KeyError(f"{field_name} is missing: {', '.join(missing)}.")
-    return {source: validated[source] for source in source_names}
-
-
-def _validate_bounds(
-    source_names: Sequence[str],
-    minimums: Mapping[str, float],
-    maximums: Mapping[str, float],
+def _validate_arc_variable_coverage(
+    variables: Mapping[object, pulp.LpVariable],
+    required_arcs: tuple[Arc, ...],
+    group_name: str,
 ) -> None:
-    for source in source_names:
-        if minimums[source] > maximums[source]:
-            raise ValueError(
-                f"{source}: minimum withdrawal cannot exceed maximum withdrawal."
+    """Check that every enabled network arc has a PuLP variable."""
+    missing = [arc for arc in required_arcs if arc not in variables]
+
+    if missing:
+        raise KeyError(
+            f"Missing {group_name} variables for arcs: "
+            + ", ".join(str(arc) for arc in missing)
+        )
+
+    for arc in required_arcs:
+        if not isinstance(variables[arc], pulp.LpVariable):
+            raise TypeError(
+                f"{group_name}[{arc!r}] must be a PuLP variable."
             )
 
 
-def _validate_variable_coverage(
-    variables: VariableGroup,
-    source_names: Sequence[str],
+def _validate_source_variable_coverage(
+    variables: Mapping[object, pulp.LpVariable],
+    source_ids: tuple[str, ...],
     group_name: str,
 ) -> None:
-    missing = sorted(set(source_names).difference(variables))
+    """Check that every source has a binary activation variable."""
+    missing = [source_id for source_id in source_ids if source_id not in variables]
+
     if missing:
-        raise KeyError(f"Missing {group_name} variables for: {', '.join(missing)}.")
-    for source in source_names:
-        if not isinstance(variables[source], pulp.LpVariable):
-            raise TypeError(f"{group_name}[{source!r}] must be a PuLP variable.")
+        raise KeyError(
+            f"Missing {group_name} variables for sources: "
+            + ", ".join(missing)
+        )
 
-
-def _nonnegative_number(value: Any, field_name: str) -> float:
-    if isinstance(value, bool) or not isinstance(value, Real):
-        raise TypeError(f"{field_name} must be numeric.")
-    numeric_value = float(value)
-    if not math.isfinite(numeric_value):
-        raise ValueError(f"{field_name} must be finite.")
-    if numeric_value < 0:
-        raise ValueError(f"{field_name} cannot be negative.")
-    return numeric_value
+    for source_id in source_ids:
+        if not isinstance(variables[source_id], pulp.LpVariable):
+            raise TypeError(
+                f"{group_name}[{source_id!r}] must be a PuLP variable."
+            )
 
 
 def _safe_name(name: str) -> str:
-    return re.sub(r"[^A-Za-z0-9_]+", "_", name.strip()).strip("_")
+    """Convert an identifier into a PuLP-safe constraint-name component."""
+    safe = re.sub(r"[^A-Za-z0-9_]+", "_", name.strip())
+    return safe.strip("_") or "unnamed"

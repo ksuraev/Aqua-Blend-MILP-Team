@@ -1,96 +1,117 @@
-# Demand, Source Activation and Source Capacity
+# Demand, Source Activation and Source Capacity Constraints
 
 ## Purpose
 
-This component implements the source-side constraints for the AquaBlend
-Sprint 1 toy MILP using PuLP. It adds constraints to the model assembled in
-`MILP/src/solver/model.py` and reuses the `flow` and `active` variables created
-by `MILP/src/solver/variables.py`.
+This module implements the demand, source-activation and source-capacity
+constraints for the AquaBlend MILP model. It uses the formulation-ready
+`ModelParameters` object produced by `preprocessing.py`.
 
-## Mathematical formulation
+The implementation does not define a second input contract and does not
+create duplicate decision variables. The required variables are created by
+the shared model-building layer and passed to the constraint function.
 
-For sources `s` and demand zones `z`, the implemented constraints are:
+## Input contract
 
-```text
-sum(flow[s]) >= sum(demand[z])
+The constraint implementation accepts `ModelParameters` and uses the
+following fields:
 
-minimum_withdrawal[s] * active[s] <= flow[s]
-flow[s] <= maximum_withdrawal[s] * active[s]
-```
+- `source_ids`
+- `zone_ids`
+- `source_plant_arcs`
+- `plant_zone_arcs`
+- `demand_by_zone`
+- `source_min_withdrawal`
+- `source_max_withdrawal`
 
-The upper activation constraint forces source flow to zero when the source is
-inactive. When activated, its withdrawal remains between the configured lower
-and upper limits.
+Validation and normalisation of scenario data are handled by
+`data_loader.py` and `preprocessing.py`.
 
-## Files
+## Required decision variables
 
-- `MILP/src/solver/constraints.py`: constraint construction and validation.
-- `MILP/tests/test_constraints.py`: valid, invalid, boundary and infeasible tests.
+The model-building layer must provide these variable groups:
 
-## Compatibility
+- `source_to_plant_flow[(source_id, plant_id)]`
+- `plant_to_zone_flow[(plant_id, zone_id)]`
+- `source_active[source_id]`
 
-The entry point is:
+The flow variables are non-negative continuous variables. The source
+activation variables are binary.
 
-```python
-add_constraints(model, data, variables)
-```
+## Zone demand constraint
 
-It supports both solver input structures currently present in the team work:
+Demand is represented separately for every demand zone. For each zone
+\(z\), the total flow entering the zone must satisfy its demand:
 
-1. The formulation-ready `ModelParameters` produced by `preprocessing.py`.
-2. The reservoir-based `SolverInput` proposed by the modular solver branch.
+\[
+\sum_{t:(t,z)\in A_{TZ}} x_{tz} \geq D_z
+\]
 
-Variables may be supplied as a dictionary or as a dataclass/object containing
-`flow` and `active` attributes. No decision variables are recreated.
+where:
 
-The current preprocessing branch does not expose `source_min_withdrawal` in
-`ModelParameters`. Until that field is added, the documented default of zero
-is used. The input contract already contains
-`minimum_withdrawal_ml_per_day`, so preprocessing should eventually carry it
-through as `source_min_withdrawal`.
+- \(x_{tz}\) is the flow from treatment plant \(t\) to demand zone \(z\);
+- \(A_{TZ}\) is the set of enabled plant-to-zone arcs;
+- \(D_z\) is the demand of zone \(z\).
 
-## Scope boundaries
+Demand values are not aggregated into one system-wide value. This prevents
+one zone from receiving excess flow while another zone remains
+under-supplied.
 
-This component does not implement the objective, decision-variable creation,
-plant throughput, water quality, pH transformation, solver execution or result
-formatting. Those remain separate components.
+## Source activation and capacity constraints
 
-## Environment
+For each source \(s\), total withdrawal is calculated from its outgoing
+source-to-plant arcs:
 
-Use the team-standard Python version and a project-specific environment:
+\[
+W_s = \sum_{t:(s,t)\in A_{ST}} x_{st}
+\]
 
-```bash
-py -3.11 -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
-python -m pip install pulp highspy pytest
-```
+The withdrawal is linked to the binary source-activation variable:
 
-On macOS or Linux, activate with:
+\[
+W_s \geq \underline{W}_s y_s
+\]
 
-```bash
-source .venv/bin/activate
-```
+\[
+W_s \leq \overline{W}_s y_s
+\]
 
-## Run the tests
+where:
 
-From the repository root:
+- \(x_{st}\) is the flow from source \(s\) to plant \(t\);
+- \(y_s\) is 1 when source \(s\) is active and 0 otherwise;
+- \(\underline{W}_s\) is the optional minimum withdrawal;
+- \(\overline{W}_s\) is the maximum source capacity.
+
+If a source is inactive, its withdrawal must be zero. If it is active, its
+withdrawal must remain between its configured minimum and maximum values.
+
+## Responsibility boundaries
+
+This module is responsible only for:
+
+- zone-level demand satisfaction;
+- source activation;
+- optional minimum source withdrawal;
+- maximum source capacity.
+
+Plant throughput, plant flow balance, water-quality constraints, objective
+terms and solver invocation are handled by their corresponding model
+components.
+
+## Tests
+
+The test suite checks:
+
+- expected constraint creation;
+- feasible multi-zone demand;
+- separate enforcement of demand for each zone;
+- zero withdrawal from an inactive source;
+- minimum withdrawal from an active source;
+- maximum source capacity;
+- clear errors for missing arc variables;
+- clear errors for missing activation variables.
+
+Run the tests with:
 
 ```bash
 python -m pytest MILP/tests/test_constraints.py -v
-```
-
-Expected result: all tests pass. HiGHS must be available through the
-`highspy` package.
-
-## Integration checklist
-
-- Use the final formulation in `MILP/docs/formulation.pdf`.
-- Keep the existing solver filenames and imports unchanged.
-- Confirm that `flow` and `active` use the same source identifiers as the
-  processed input.
-- Carry minimum source withdrawal from the input contract into preprocessing.
-- Do not create duplicate variables or objective terms.
-- Run this component's tests and the complete team test suite.
-- Check the HiGHS status before reporting results.
-- Record assumptions, tests and limitations in the pull request description.
