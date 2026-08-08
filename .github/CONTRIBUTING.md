@@ -51,7 +51,8 @@ git push -u origin feature/short-description
 - On GitHub, go to this fork and click **Pull requests > New pull request**.
 - **Important:** the "base repository" box defaults to the original repo. Change it to
   `ksuraev/Aqua-Blend-MILP-Team` (this fork). Set **base = main**, **compare = your branch**.
-- Add a short description of what you changed and why.
+- GitHub will auto-fill the description with our
+  [PR template](.github/pull_request_template.md) — fill it out, don't delete it.
 
 **4. Get it merged**
 
@@ -80,4 +81,3 @@ git push
 - Do not open a PR against the original repo (not until the end of the trimester).
 - Do not force-push `main`.
 - Do not merge your own PR without 2 approvals.
-
