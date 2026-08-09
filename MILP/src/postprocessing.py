@@ -112,3 +112,87 @@ def _variable_value(variable: Any, label: str) -> float | None:
             "and the variable is not a plain number."
         ) from exc
 
+
+def _clean_flow_value(
+    variable: Any,
+    label: str,
+    warnings: list[str],
+) -> float:
+    """Read one solved flow/withdrawal value and apply solver-tolerance cleaning."""
+    raw = _variable_value(variable, label)
+
+    if raw is None:
+        warnings.append(f"{label} was unset by the solver (None); treated as 0.0.")
+        return 0.0
+
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise PostprocessingError(
+            f"{label} solved value {raw!r} could not be converted to a float."
+        ) from exc
+
+    if not math.isfinite(value):
+        raise PostprocessingError(f"{label} solved to a non-finite value: {value!r}.")
+
+    if value < -_SOLVER_TOLERANCE:
+        raise PostprocessingError(
+            f"{label} solved to an invalid negative value ({value:g}); "
+            "expected a non-negative flow or withdrawal."
+        )
+    if value < 0:
+        # Within tolerance of zero but not exactly zero: solver noise.
+        value = 0.0
+    if abs(value) < _SOLVER_TOLERANCE:
+        value = 0.0
+
+    return value
+
+
+def _clean_binary_value(
+    variable: Any,
+    label: str,
+    warnings: list[str],
+) -> bool:
+    """Read one solved activation value and snap it to a boolean within tolerance."""
+    raw = _variable_value(variable, label)
+
+    if raw is None:
+        warnings.append(f"{label} was unset by the solver (None); treated as inactive.")
+        return False
+
+    try:
+        value = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise PostprocessingError(
+            f"{label} solved value {raw!r} could not be converted to a float."
+        ) from exc
+
+    if not math.isfinite(value):
+        raise PostprocessingError(f"{label} solved to a non-finite value: {value!r}.")
+
+    if abs(value) <= _SOLVER_TOLERANCE:
+        return False
+    if abs(value - 1.0) <= _SOLVER_TOLERANCE:
+        return True
+
+    raise PostprocessingError(
+        f"{label} solved to {value!r}, which is not within tolerance of 0 or 1."
+    )
+
+
+def _extract_solver_status(problem: Any) -> tuple[str, float | None]:
+    """Read the solver status label and objective value from a PuLP problem."""
+    try:
+        import pulp
+    except ImportError as exc:
+        raise PostprocessingError(
+            'Missing dependency "pulp". Install it with: pip install pulp'
+        ) from exc
+
+    status = pulp.LpStatus.get(problem.status, str(problem.status))
+    objective_value = pulp.value(problem.objective)
+    if objective_value is not None:
+        objective_value = float(objective_value)
+    return status, objective_value
+
