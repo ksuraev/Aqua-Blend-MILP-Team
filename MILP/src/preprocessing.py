@@ -40,6 +40,9 @@ class ModelParameters:
     objective terms, constraints, solver objects, or optimisation logic.
     """
 
+    # Id of scenario
+    scenario_id: str
+
     # Sets: S, T, Z and P.
     source_ids: tuple[str, ...]
     plant_ids: tuple[str, ...]
@@ -874,6 +877,7 @@ def preprocess_scenario(
     )
 
     parameters = ModelParameters(
+        scenario_id=scenario.scenario_id,
         source_ids=source_ids,
         plant_ids=plant_ids,
         zone_ids=zone_ids,
