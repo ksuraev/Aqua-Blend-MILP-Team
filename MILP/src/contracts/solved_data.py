@@ -99,7 +99,6 @@ class SolvedScenario:
     """Validated output contract for a single scenario."""
 
     scenario_id: str
-    status: str
 
     solver_status: str
     objective_value: float | None
