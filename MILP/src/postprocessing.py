@@ -19,12 +19,12 @@ from typing import Any
 
 try:
     from .contracts import (
-        ScenarioData,
         BlendedQualityResult,
         CostBreakdown,
         DemandZoneResult,
         PlantResult,
         PlantZoneFlowResult,
+        ScenarioData,
         SolvedScenario,
         SourcePlantFlowResult,
         SourceResult,
@@ -32,12 +32,12 @@ try:
     from .preprocessing import ModelParameters
 except ImportError:
     from contracts import (
-        ScenarioData,
         BlendedQualityResult,
         CostBreakdown,
         DemandZoneResult,
         PlantResult,
         PlantZoneFlowResult,
+        ScenarioData,
         SolvedScenario,
         SourcePlantFlowResult,
         SourceResult,
@@ -509,14 +509,7 @@ def _model_quality_name(
     raw_name: str,
     transform: str,
 ) -> str:
-    """Resolve the raw quality-parameter name to its model-space identifier.
-
-    Mirrors the default naming used by ``preprocessing._normalise_quality_rules``:
-    ``hydrogen_ion_concentration_mol_l`` for a pH transform, otherwise the raw
-    name unchanged. ``ModelParameters.quality_parameter_ids`` is trusted as the
-    source of truth so this stays correct even if a scenario overrides
-    ``model_name`` explicitly.
-    """
+    """Resolve the raw quality-parameter name to its model-space identifier."""
     default_model_name = (
         "hydrogen_ion_concentration_mol_l" if transform == "ph_to_hydrogen_ion" else raw_name
     )
@@ -631,7 +624,7 @@ def postprocess_solution(
 
 
 def print_solution_summary(solved: SolvedScenario) -> None:
-    """Print a compact solved-scenario summary for local verification."""
+    """Print a solved-scenario summary - for dev/test only, not needed in the pipeline."""
     print(f"\nSolved scenario: {solved.scenario_name}")
     print(f"Solver status: {solved.solver_status}")
     print(
