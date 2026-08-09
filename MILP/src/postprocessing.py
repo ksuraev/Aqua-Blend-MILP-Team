@@ -24,7 +24,6 @@ try:
         DemandZoneResult,
         PlantResult,
         PlantZoneFlowResult,
-        ScenarioData,
         SolvedScenario,
         SourcePlantFlowResult,
         SourceResult,
@@ -37,7 +36,6 @@ except ImportError:
         DemandZoneResult,
         PlantResult,
         PlantZoneFlowResult,
-        ScenarioData,
         SolvedScenario,
         SourcePlantFlowResult,
         SourceResult,
@@ -198,13 +196,11 @@ def _extract_solver_status(problem: Any) -> tuple[str, float | None]:
 
 
 def _build_source_results(
-    scenario: ScenarioData,
     parameters: ModelParameters,
     variables: SolverVariables,
     total_delivered_ml_per_day: float,
     warnings: list[str],
 ) -> tuple[tuple[SourceResult, ...], float, float]:
-    sources_by_id = {source.source_id: source for source in scenario.sources}
     results: list[SourceResult] = []
     total_fixed_cost = 0.0
     total_withdrawal_cost = 0.0
@@ -253,7 +249,6 @@ def _build_source_results(
         results.append(
             SourceResult(
                 source_id=source_id,
-                name=sources_by_id[source_id].name,
                 is_selected=is_selected,
                 withdrawal_ml_per_day=withdrawal,
                 blend_ratio=blend_ratio,
@@ -334,14 +329,12 @@ def _build_plant_zone_flow_results(
 
 
 def _build_plant_results(
-    scenario: ScenarioData,
     parameters: ModelParameters,
     variables: SolverVariables,
     inflow_by_plant: dict[str, float],
     outflow_by_plant: dict[str, float],
     warnings: list[str],
 ) -> tuple[tuple[PlantResult, ...], float, float]:
-    plants_by_id = {plant.plant_id: plant for plant in scenario.plants}
     results: list[PlantResult] = []
     total_fixed_cost = 0.0
     total_treatment_cost = 0.0
@@ -382,7 +375,6 @@ def _build_plant_results(
         results.append(
             PlantResult(
                 plant_id=plant_id,
-                name=plants_by_id[plant_id].name,
                 is_active=is_active,
                 throughput_ml_per_day=throughput,
                 fixed_cost_contribution=fixed_cost_contribution,
@@ -394,12 +386,10 @@ def _build_plant_results(
 
 
 def _build_demand_zone_results(
-    scenario: ScenarioData,
     parameters: ModelParameters,
     inflow_by_zone: dict[str, float],
     warnings: list[str],
 ) -> tuple[DemandZoneResult, ...]:
-    zones_by_id = {zone.zone_id: zone for zone in scenario.demand_zones}
     results: list[DemandZoneResult] = []
 
     for zone_id in parameters.zone_ids:
@@ -413,7 +403,6 @@ def _build_demand_zone_results(
         results.append(
             DemandZoneResult(
                 zone_id=zone_id,
-                name=zones_by_id[zone_id].name,
                 demand_ml_per_day=demand,
                 delivered_ml_per_day=delivered,
             )
@@ -423,7 +412,6 @@ def _build_demand_zone_results(
 
 
 def _build_blended_quality_results(
-    scenario: ScenarioData,
     parameters: ModelParameters,
     source_plant_flows: tuple[SourcePlantFlowResult, ...],
     inflow_by_plant: dict[str, float],
@@ -566,7 +554,6 @@ def _build_cost_breakdown(
 
 
 def postprocess_solution(
-    scenario: ScenarioData,
     parameters: ModelParameters,
     problem: Any,
     variables: SolverVariables,
@@ -586,16 +573,16 @@ def postprocess_solution(
     total_delivered = sum(inflow_by_zone.values())
 
     sources, total_source_fixed_cost, total_source_withdrawal_cost = _build_source_results(
-        scenario, parameters, variables, total_delivered, warnings
+        parameters, variables, total_delivered, warnings
     )
     plants, total_plant_fixed_cost, total_plant_treatment_cost = _build_plant_results(
-        scenario, parameters, variables, inflow_by_plant, outflow_by_plant, warnings
+        parameters, variables, inflow_by_plant, outflow_by_plant, warnings
     )
     demand_zones = _build_demand_zone_results(
-        scenario, parameters, inflow_by_zone, warnings
+        parameters, inflow_by_zone, warnings
     )
     blended_quality = _build_blended_quality_results(
-        scenario, parameters, source_plant_flows, inflow_by_plant, warnings
+        parameters, source_plant_flows, inflow_by_plant, warnings
     )
     cost_breakdown = _build_cost_breakdown(
         total_source_fixed_cost,
@@ -607,9 +594,7 @@ def postprocess_solution(
     )
 
     return SolvedScenario(
-        scenario_id=scenario.scenario_id,
-        scenario_name=scenario.scenario_name,
-        status=scenario.status,
+        scenario_id=parameters.scenario_id,
         solver_status=solver_status,
         objective_value=objective_value,
         sources=sources,
@@ -625,7 +610,7 @@ def postprocess_solution(
 
 def print_solution_summary(solved: SolvedScenario) -> None:
     """Print a solved-scenario summary - for dev/test only, not needed in the pipeline."""
-    print(f"\nSolved scenario: {solved.scenario_name}")
+    print(f"\nSolved scenario: {solved.scenario_id}")
     print(f"Solver status: {solved.solver_status}")
     print(
         "Objective value: "
@@ -635,12 +620,12 @@ def print_solution_summary(solved: SolvedScenario) -> None:
     print("\nSelected sources:")
     for source in solved.selected_sources:
         ratio = f"{source.blend_ratio:.2%}" if source.blend_ratio is not None else "n/a"
-        print(f"- {source.name}: {source.withdrawal_ml_per_day:g} ML/day ({ratio})")
+        print(f"- {source.source_id}: {source.withdrawal_ml_per_day:g} ML/day ({ratio})")
 
     if solved.unused_sources:
         print("\nUnused sources:")
         for source in solved.unused_sources:
-            print(f"- {source.name}")
+            print(f"- {source.source_id}")
 
     print("\nCost breakdown:")
     breakdown = solved.cost_breakdown
