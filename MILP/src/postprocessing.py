@@ -672,3 +672,11 @@ def print_solution_summary(solved: SolvedScenario) -> None:
         for warning in solved.warnings:
             print(f"- {warning}")
 
+
+__all__ = [
+    "PostprocessingError",
+    "SolverVariables",
+    "hydrogen_concentration_to_ph",
+    "postprocess_solution",
+    "print_solution_summary",
+]
