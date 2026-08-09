@@ -24,6 +24,7 @@ try:
         DemandZoneResult,
         PlantResult,
         PlantZoneFlowResult,
+        ScenarioData,
         SolvedScenario,
         SourcePlantFlowResult,
         SourceResult,
@@ -36,6 +37,7 @@ except ImportError:
         DemandZoneResult,
         PlantResult,
         PlantZoneFlowResult,
+        ScenarioData,
         SolvedScenario,
         SourcePlantFlowResult,
         SourceResult,
@@ -412,6 +414,7 @@ def _build_demand_zone_results(
 
 
 def _build_blended_quality_results(
+    scenario: ScenarioData,
     parameters: ModelParameters,
     source_plant_flows: tuple[SourcePlantFlowResult, ...],
     inflow_by_plant: dict[str, float],
@@ -554,6 +557,7 @@ def _build_cost_breakdown(
 
 
 def postprocess_solution(
+    scenario: ScenarioData,
     parameters: ModelParameters,
     problem: Any,
     variables: SolverVariables,
@@ -582,7 +586,7 @@ def postprocess_solution(
         parameters, inflow_by_zone, warnings
     )
     blended_quality = _build_blended_quality_results(
-        parameters, source_plant_flows, inflow_by_plant, warnings
+        scenario, parameters, source_plant_flows, inflow_by_plant, warnings
     )
     cost_breakdown = _build_cost_breakdown(
         total_source_fixed_cost,
@@ -594,7 +598,7 @@ def postprocess_solution(
     )
 
     return SolvedScenario(
-        scenario_id=parameters.scenario_id,
+        scenario_id=scenario.scenario_id,
         solver_status=solver_status,
         objective_value=objective_value,
         sources=sources,
