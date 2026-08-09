@@ -11,7 +11,6 @@ class SourceResult:
     """
 
     source_id: str
-    name: str
     is_selected: bool
     withdrawal_ml_per_day: float
     blend_ratio: float | None
@@ -24,7 +23,6 @@ class PlantResult:
     """Solved activation and cost for one treatment plant."""
 
     plant_id: str
-    name: str
     is_active: bool
     throughput_ml_per_day: float
     fixed_cost_contribution: float
@@ -36,7 +34,6 @@ class DemandZoneResult:
     """Solved delivery for one demand zone."""
 
     zone_id: str
-    name: str
     demand_ml_per_day: float
     delivered_ml_per_day: float
 
@@ -102,7 +99,6 @@ class SolvedScenario:
     """Validated output contract for a single scenario."""
 
     scenario_id: str
-    scenario_name: str
     status: str
 
     solver_status: str
