@@ -629,3 +629,46 @@ def postprocess_solution(
         warnings=tuple(dict.fromkeys(warnings)),
     )
 
+
+def print_solution_summary(solved: SolvedScenario) -> None:
+    """Print a compact solved-scenario summary for local verification."""
+    print(f"\nSolved scenario: {solved.scenario_name}")
+    print(f"Solver status: {solved.solver_status}")
+    print(
+        "Objective value: "
+        f"{solved.objective_value:g}" if solved.objective_value is not None else "n/a"
+    )
+
+    print("\nSelected sources:")
+    for source in solved.selected_sources:
+        ratio = f"{source.blend_ratio:.2%}" if source.blend_ratio is not None else "n/a"
+        print(f"- {source.name}: {source.withdrawal_ml_per_day:g} ML/day ({ratio})")
+
+    if solved.unused_sources:
+        print("\nUnused sources:")
+        for source in solved.unused_sources:
+            print(f"- {source.name}")
+
+    print("\nCost breakdown:")
+    breakdown = solved.cost_breakdown
+    print(f"- Source fixed cost: {breakdown.total_source_fixed_cost:g}")
+    print(f"- Source withdrawal cost: {breakdown.total_source_withdrawal_cost:g}")
+    print(f"- Plant fixed cost: {breakdown.total_plant_fixed_cost:g}")
+    print(f"- Plant treatment cost: {breakdown.total_plant_treatment_cost:g}")
+    print(f"- Reconstructed total: {breakdown.reconstructed_total_cost:g}")
+    print(f"- Reconciles with solver objective: {breakdown.cost_reconciles}")
+
+    if solved.binding_quality_limits:
+        print("\nBinding quality limits:")
+        for result in solved.binding_quality_limits:
+            print(
+                f"- {result.plant_id}.{result.parameter_id}: "
+                f"{result.blended_value:g} {result.unit} "
+                f"(limits {result.lower_limit:g}-{result.upper_limit:g})"
+            )
+
+    if solved.warnings:
+        print("\nPostprocessing warnings:")
+        for warning in solved.warnings:
+            print(f"- {warning}")
+
