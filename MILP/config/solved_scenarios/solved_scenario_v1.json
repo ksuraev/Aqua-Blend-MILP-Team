@@ -1,6 +1,5 @@
 {
   "scenario_id": "base_scenarios_test_v1",
-  "scenario_name": "Aqua Blend Base Scenarios V1",
   "status": "draft",
   "description": "Solved output for the deterministic Sprint 1 test scenario with one treatment plant, one demand zone, and three candidate water sources.",
   "solver": {
@@ -11,7 +10,6 @@
     "selected": [
       {
         "source_id": "225103",
-        "name": "Thomson Reservoir",
         "is_selected": true,
         "withdrawal_ml_per_day": 700.0,
         "blend_ratio": 0.5833333333333334,
@@ -20,7 +18,6 @@
       },
       {
         "source_id": "229421",
-        "name": "O'Shannassy Reservoir",
         "is_selected": true,
         "withdrawal_ml_per_day": 300.0,
         "blend_ratio": 0.25,
@@ -29,7 +26,6 @@
       },
       {
         "source_id": "233217",
-        "name": "Barwon River at Geelong",
         "is_selected": true,
         "withdrawal_ml_per_day": 200.0,
         "blend_ratio": 0.16666666666666666,
@@ -43,7 +39,6 @@
     "plants": [
       {
         "plant_id": "plant_1",
-        "name": "Toy Treatment Plant",
         "is_active": true,
         "throughput_ml_per_day": 1200.0,
         "fixed_cost_contribution": 0.0,
@@ -53,7 +48,6 @@
     "demand_zones": [
       {
         "zone_id": "zone_1",
-        "name": "Toy Demand Zone",
         "demand_ml_per_day": 1200.0,
         "delivered_ml_per_day": 1200.0
       }
