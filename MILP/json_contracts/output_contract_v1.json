@@ -1,0 +1,451 @@
+{
+  "schema_version": "1.0",
+  "scenario": {
+    "scenario_id": "scenario_2026_07_17_001",
+    "scenario_name": "Toy model — single plant, single zone",
+    "status": "draft",
+    "description": "Sprint 1 toy case of the network formulation: three sources feed one treatment plant serving one demand zone. Source attributes are read from the configured Supabase view; the scenario selects which sources are in play and defines the network around them.",
+    "data_source": {
+      "type": "supabase",
+      "view": "public.source_model_inputs",
+      "allow_estimated_values": true
+    }
+  },
+  "validation": {
+    "input_policy": {
+      "fail_if_source_missing_from_database": true,
+      "fail_if_daily_availability_missing": true,
+      "fail_if_required_quality_value_missing": true,
+      "fail_if_demand_missing": true
+    },
+    "loader": {
+      "status": "NOT_RUN",
+      "scenario_ready": null,
+      "validation_issues": [],
+      "checks": [
+        {
+          "check": "scenario_identity",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "source_ids_present_and_unique",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "source_exists_in_configured_data_source",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "source_withdrawal_bounds_present",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "source_withdrawal_bounds_non_negative_and_ordered",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "source_cost_present_finite_and_non_negative",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "estimated_values_allowed_by_policy",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "source_quality_keys_match_quality_limits",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "source_quality_values_numeric_and_finite",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "plant_ids_present_and_unique",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "plant_capacity_bounds_finite_non_negative_and_ordered",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "plant_costs_finite_and_non_negative",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "demand_zone_ids_present_and_unique",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "demand_present_finite_and_non_negative",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "source_to_plant_links_unique_and_valid",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "plant_to_zone_links_unique_and_valid",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "link_capacities_finite_and_non_negative",
+          "required": true,
+          "passed": null
+        },
+        {
+          "check": "quality_limit_definition_valid",
+          "required": true,
+          "passed": null
+        }
+      ]
+    },
+    "preprocessing": {
+      "status": "NOT_RUN",
+      "warnings": [],
+      "checks": [
+        {
+          "check": "model_parameter_completeness",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_lower_upper_bound_consistency",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_lower_upper_bound_consistency",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "capacity_feasibility",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "necessary_quality_feasibility",
+          "enabled": true,
+          "passed": null
+        }
+      ]
+    },
+    "output_consistency": {
+      "status": "NOT_RUN",
+      "tolerance": 1e-06,
+      "checks": [
+        {
+          "check": "decision_values_non_negative",
+          "passed": null
+        },
+        {
+          "check": "source_activation_and_withdrawal_bounds",
+          "passed": null
+        },
+        {
+          "check": "plant_activation_and_throughput_bounds",
+          "passed": null
+        },
+        {
+          "check": "source_flow_conservation",
+          "passed": null
+        },
+        {
+          "check": "plant_flow_conservation",
+          "passed": null
+        },
+        {
+          "check": "source_to_plant_link_capacity",
+          "passed": null
+        },
+        {
+          "check": "plant_to_zone_link_capacity",
+          "passed": null
+        },
+        {
+          "check": "demand_satisfaction",
+          "passed": null
+        },
+        {
+          "check": "plant_inflow_quality_limits",
+          "passed": null
+        },
+        {
+          "check": "objective_cost_reconciliation",
+          "passed": null
+        },
+        {
+          "check": "summary_total_reconciliation",
+          "passed": null
+        },
+        {
+          "check": "reported_ids_and_arcs_match_model_parameters",
+          "passed": null
+        }
+      ]
+    }
+  },
+  "solver": {
+    "status": "NOT_SOLVED",
+    "is_feasible": null,
+    "is_optimal": null,
+    "objective_value": null
+  },
+  "summary": {
+    "total_demand_ml_per_day": 500.0,
+    "total_withdrawal_ml_per_day": null,
+    "total_treated_ml_per_day": null,
+    "total_delivered_ml_per_day": null,
+    "selected_source_count": null,
+    "active_plant_count": null,
+    "costs": {
+      "source_fixed_cost": null,
+      "source_variable_cost": null,
+      "plant_fixed_cost": null,
+      "plant_treatment_cost": null,
+      "total_cost": null
+    }
+  },
+  "sources": [
+    {
+      "source_id": "silvan_reservoir",
+      "source_name": null,
+      "source_type": null,
+      "enabled_in_scenario": true,
+      "forced_inactive": false,
+      "model_included": null,
+      "activated": null,
+      "withdrawal_ml_per_day": null,
+      "minimum_withdrawal_ml_per_day": 0.0,
+      "maximum_withdrawal_ml_per_day": null,
+      "withdrawal_bounds_origin": null,
+      "utilisation_percent": null,
+      "fixed_activation_cost": 0.0,
+      "cost_per_ml": null,
+      "variable_withdrawal_cost": null,
+      "total_source_cost": null,
+      "database_model_ready": null,
+      "availability_status": null,
+      "has_estimated_values": null,
+      "provenance": {},
+      "selection_status": "PENDING",
+      "exclusion_reason_code": null,
+      "decision_evidence": {
+        "unit_cost_rank": null,
+        "at_minimum_withdrawal": null,
+        "at_maximum_withdrawal": null,
+        "binding_constraints": []
+      }
+    },
+    {
+      "source_id": "yarra_kew",
+      "source_name": null,
+      "source_type": null,
+      "enabled_in_scenario": true,
+      "forced_inactive": false,
+      "model_included": null,
+      "activated": null,
+      "withdrawal_ml_per_day": null,
+      "minimum_withdrawal_ml_per_day": 0.0,
+      "maximum_withdrawal_ml_per_day": null,
+      "withdrawal_bounds_origin": null,
+      "utilisation_percent": null,
+      "fixed_activation_cost": 0.0,
+      "cost_per_ml": null,
+      "variable_withdrawal_cost": null,
+      "total_source_cost": null,
+      "database_model_ready": null,
+      "availability_status": null,
+      "has_estimated_values": null,
+      "provenance": {},
+      "selection_status": "PENDING",
+      "exclusion_reason_code": null,
+      "decision_evidence": {
+        "unit_cost_rank": null,
+        "at_minimum_withdrawal": null,
+        "at_maximum_withdrawal": null,
+        "binding_constraints": []
+      }
+    },
+    {
+      "source_id": "groundwater_bore_1",
+      "source_name": null,
+      "source_type": null,
+      "enabled_in_scenario": true,
+      "forced_inactive": false,
+      "model_included": null,
+      "activated": null,
+      "withdrawal_ml_per_day": null,
+      "minimum_withdrawal_ml_per_day": 0.0,
+      "maximum_withdrawal_ml_per_day": null,
+      "withdrawal_bounds_origin": null,
+      "utilisation_percent": null,
+      "fixed_activation_cost": 0.0,
+      "cost_per_ml": null,
+      "variable_withdrawal_cost": null,
+      "total_source_cost": null,
+      "database_model_ready": null,
+      "availability_status": null,
+      "has_estimated_values": null,
+      "provenance": {},
+      "selection_status": "PENDING",
+      "exclusion_reason_code": null,
+      "decision_evidence": {
+        "unit_cost_rank": null,
+        "at_minimum_withdrawal": null,
+        "at_maximum_withdrawal": null,
+        "binding_constraints": []
+      }
+    }
+  ],
+  "plants": [
+    {
+      "plant_id": "facility_1",
+      "plant_name": "Treatment Facility 1",
+      "enabled_in_scenario": true,
+      "activated": null,
+      "throughput_ml_per_day": null,
+      "minimum_processing_capacity_ml_per_day": 0.0,
+      "maximum_processing_capacity_ml_per_day": 600.0,
+      "utilisation_percent": null,
+      "fixed_activation_cost": 0.0,
+      "treatment_cost_per_ml": 64.0,
+      "variable_treatment_cost": null,
+      "total_plant_cost": null
+    }
+  ],
+  "flows": {
+    "source_to_plant": [
+      {
+        "source_id": "silvan_reservoir",
+        "plant_id": "facility_1",
+        "enabled_in_scenario": true,
+        "activated": null,
+        "flow_ml_per_day": null,
+        "maximum_flow_ml_per_day": 350.0,
+        "utilisation_percent": null
+      },
+      {
+        "source_id": "yarra_kew",
+        "plant_id": "facility_1",
+        "enabled_in_scenario": true,
+        "activated": null,
+        "flow_ml_per_day": null,
+        "maximum_flow_ml_per_day": 300.0,
+        "utilisation_percent": null
+      },
+      {
+        "source_id": "groundwater_bore_1",
+        "plant_id": "facility_1",
+        "enabled_in_scenario": true,
+        "activated": null,
+        "flow_ml_per_day": null,
+        "maximum_flow_ml_per_day": 60.0,
+        "utilisation_percent": null
+      }
+    ],
+    "plant_to_zone": [
+      {
+        "plant_id": "facility_1",
+        "zone_id": "zone_1",
+        "enabled_in_scenario": true,
+        "activated": null,
+        "flow_ml_per_day": null,
+        "maximum_flow_ml_per_day": 600.0,
+        "utilisation_percent": null
+      }
+    ]
+  },
+  "demand_zones": [
+    {
+      "zone_id": "zone_1",
+      "zone_name": "Zone 1",
+      "demand_ml_per_day": 500.0,
+      "delivered_ml_per_day": null,
+      "surplus_ml_per_day": null,
+      "demand_satisfied": null,
+      "demand_must_be_met": true,
+      "unmet_demand_ml_per_day": null
+    }
+  ],
+  "quality": {
+    "applies_to": "blend_at_plant_inflow",
+    "plant_inflow": [
+      {
+        "plant_id": "facility_1",
+        "flow_ml_per_day": null,
+        "parameters": [
+          {
+            "parameter_id": "pH",
+            "model_parameter_id": "hydrogen_ion_concentration_mol_l",
+            "transform": "ph_to_hydrogen_ion",
+            "input_unit": "pH",
+            "input_min": 6.5,
+            "input_max": 8.5,
+            "model_unit": "mol/L",
+            "model_value": null,
+            "model_min": 3.1622776601683795e-09,
+            "model_max": 3.162277660168379e-07,
+            "reported_value": null,
+            "reported_unit": "pH",
+            "within_limits": null,
+            "binding_lower": null,
+            "binding_upper": null
+          },
+          {
+            "parameter_id": "alkalinity",
+            "model_parameter_id": "alkalinity",
+            "transform": "identity",
+            "input_unit": "mg/L CaCO3",
+            "input_min": 20.0,
+            "input_max": 100.0,
+            "model_unit": "mg/L CaCO3",
+            "model_value": null,
+            "model_min": 20.0,
+            "model_max": 100.0,
+            "reported_value": null,
+            "reported_unit": "mg/L CaCO3",
+            "within_limits": null,
+            "binding_lower": null,
+            "binding_upper": null
+          },
+          {
+            "parameter_id": "turbidity",
+            "model_parameter_id": "turbidity",
+            "transform": "identity",
+            "input_unit": "NTU",
+            "input_min": 0.0,
+            "input_max": 8.0,
+            "model_unit": "NTU",
+            "model_value": null,
+            "model_min": 0.0,
+            "model_max": 8.0,
+            "reported_value": null,
+            "reported_unit": "NTU",
+            "within_limits": null,
+            "binding_lower": null,
+            "binding_upper": null
+          }
+        ]
+      }
+    ]
+  },
+  "binding_constraints_summary": [],
+  "warnings": []
+}
