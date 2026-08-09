@@ -421,3 +421,114 @@ def _build_demand_zone_results(
 
     return tuple(results)
 
+
+def _build_blended_quality_results(
+    scenario: ScenarioData,
+    parameters: ModelParameters,
+    source_plant_flows: tuple[SourcePlantFlowResult, ...],
+    inflow_by_plant: dict[str, float],
+    warnings: list[str],
+) -> tuple[BlendedQualityResult, ...]:
+    """Blend source quality by solved flow and recover raw (reported) units.
+
+    Model-space blending happens in the transformed units used by
+    ``ModelParameters`` (e.g. hydrogen-ion concentration), because that is the
+    space in which the transform is linear in volume. The result is then
+    converted back into the scenario's original units for reporting.
+    """
+    quality_parameters: dict[str, dict[str, Any]] = scenario.quality_limits["parameters"]
+    inflow_by_plant_source: dict[str, list[SourcePlantFlowResult]] = {
+        plant_id: [] for plant_id in parameters.plant_ids
+    }
+    for flow in source_plant_flows:
+        if flow.is_active:
+            inflow_by_plant_source[flow.plant_id].append(flow)
+
+    results: list[BlendedQualityResult] = []
+
+    for plant_id in parameters.plant_ids:
+        total_inflow = inflow_by_plant[plant_id]
+        contributing_flows = inflow_by_plant_source[plant_id]
+
+        for raw_name, specification in quality_parameters.items():
+            transform = str(specification.get("transform", "identity"))
+            model_name = _model_quality_name(parameters, raw_name, transform)
+
+            if total_inflow <= _EPSILON:
+                warnings.append(
+                    f"Plant '{plant_id}' has no inflow; blended '{raw_name}' quality "
+                    "could not be computed and was omitted."
+                )
+                continue
+
+            blended_model_value = sum(
+                parameters.source_quality[(flow.source_id, model_name)]
+                * flow.flow_ml_per_day
+                for flow in contributing_flows
+            ) / total_inflow
+
+            inverse_transform = _SUPPORTED_QUALITY_INVERSE_TRANSFORMS.get(transform)
+            if inverse_transform is None:
+                raise PostprocessingError(
+                    f"Unsupported quality transform '{transform}' for '{raw_name}'."
+                )
+            blended_raw_value = inverse_transform(blended_model_value)
+            if not math.isfinite(blended_raw_value):
+                raise PostprocessingError(
+                    f"Blended '{raw_name}' quality at plant '{plant_id}' could not be "
+                    "converted back to its reported unit."
+                )
+
+            lower_limit = float(specification["min"])
+            upper_limit = float(specification["max"])
+            lower_margin = blended_raw_value - lower_limit
+            upper_margin = upper_limit - blended_raw_value
+            is_binding = (
+                lower_margin <= _SOLVER_TOLERANCE or upper_margin <= _SOLVER_TOLERANCE
+            )
+
+            results.append(
+                BlendedQualityResult(
+                    plant_id=plant_id,
+                    parameter_id=raw_name,
+                    unit=str(specification.get("unit", "")),
+                    blended_value=blended_raw_value,
+                    lower_limit=lower_limit,
+                    upper_limit=upper_limit,
+                    lower_margin=lower_margin,
+                    upper_margin=upper_margin,
+                    is_binding=is_binding,
+                )
+            )
+
+    return tuple(results)
+
+
+def _model_quality_name(
+    parameters: ModelParameters,
+    raw_name: str,
+    transform: str,
+) -> str:
+    """Resolve the raw quality-parameter name to its model-space identifier.
+
+    Mirrors the default naming used by ``preprocessing._normalise_quality_rules``:
+    ``hydrogen_ion_concentration_mol_l`` for a pH transform, otherwise the raw
+    name unchanged. ``ModelParameters.quality_parameter_ids`` is trusted as the
+    source of truth so this stays correct even if a scenario overrides
+    ``model_name`` explicitly.
+    """
+    default_model_name = (
+        "hydrogen_ion_concentration_mol_l" if transform == "ph_to_hydrogen_ion" else raw_name
+    )
+    if default_model_name in parameters.quality_parameter_ids:
+        return default_model_name
+
+    # Fall back to a direct match, covering scenarios with a custom model_name.
+    for candidate in parameters.quality_parameter_ids:
+        if candidate == raw_name:
+            return candidate
+
+    raise PostprocessingError(
+        f"Could not resolve model-space quality identifier for '{raw_name}'."
+    )
+
