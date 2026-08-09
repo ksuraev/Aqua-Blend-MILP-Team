@@ -585,7 +585,9 @@ def postprocess_solution(
     demand_zones = _build_demand_zone_results(
         parameters, inflow_by_zone, warnings
     )
-    blended_quality = _build_blended_quality_results(
+    # To Fix? Currently still relies on ScenarioData. I guess this isn't a problem,
+    # it just means that data source would need to be reread from the database.
+    blended_quality = _build_blended_quality_results( 
         scenario, parameters, source_plant_flows, inflow_by_plant, warnings
     )
     cost_breakdown = _build_cost_breakdown(
