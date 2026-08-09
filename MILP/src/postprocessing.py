@@ -532,3 +532,100 @@ def _model_quality_name(
         f"Could not resolve model-space quality identifier for '{raw_name}'."
     )
 
+
+def _build_cost_breakdown(
+    total_source_fixed_cost: float,
+    total_source_withdrawal_cost: float,
+    total_plant_fixed_cost: float,
+    total_plant_treatment_cost: float,
+    objective_value: float | None,
+    warnings: list[str],
+) -> CostBreakdown:
+    reconstructed_total_cost = (
+        total_source_fixed_cost
+        + total_source_withdrawal_cost
+        + total_plant_fixed_cost
+        + total_plant_treatment_cost
+    )
+
+    cost_reconciles = True
+    if objective_value is not None:
+        cost_reconciles = (
+            abs(reconstructed_total_cost - objective_value)
+            <= _COST_RECONCILIATION_TOLERANCE
+        )
+        if not cost_reconciles:
+            warnings.append(
+                "Reconstructed total cost "
+                f"({reconstructed_total_cost:g}) does not match the solver's "
+                f"objective value ({objective_value:g})."
+            )
+
+    return CostBreakdown(
+        total_source_fixed_cost=total_source_fixed_cost,
+        total_source_withdrawal_cost=total_source_withdrawal_cost,
+        total_plant_fixed_cost=total_plant_fixed_cost,
+        total_plant_treatment_cost=total_plant_treatment_cost,
+        reconstructed_total_cost=reconstructed_total_cost,
+        solver_objective_value=objective_value,
+        cost_reconciles=cost_reconciles,
+    )
+
+
+def postprocess_solution(
+    scenario: ScenarioData,
+    parameters: ModelParameters,
+    problem: Any,
+    variables: SolverVariables,
+) -> SolvedScenario:
+    """Convert one solved PuLP model into a validated SolvedScenario."""
+    warnings: list[str] = []
+
+    solver_status, objective_value = _extract_solver_status(problem)
+
+    inflow_by_plant, source_plant_flows = _build_source_plant_flow_results(
+        parameters, variables, warnings
+    )
+    outflow_by_plant, inflow_by_zone, plant_zone_flows = _build_plant_zone_flow_results(
+        parameters, variables, warnings
+    )
+
+    total_delivered = sum(inflow_by_zone.values())
+
+    sources, total_source_fixed_cost, total_source_withdrawal_cost = _build_source_results(
+        scenario, parameters, variables, total_delivered, warnings
+    )
+    plants, total_plant_fixed_cost, total_plant_treatment_cost = _build_plant_results(
+        scenario, parameters, variables, inflow_by_plant, outflow_by_plant, warnings
+    )
+    demand_zones = _build_demand_zone_results(
+        scenario, parameters, inflow_by_zone, warnings
+    )
+    blended_quality = _build_blended_quality_results(
+        scenario, parameters, source_plant_flows, inflow_by_plant, warnings
+    )
+    cost_breakdown = _build_cost_breakdown(
+        total_source_fixed_cost,
+        total_source_withdrawal_cost,
+        total_plant_fixed_cost,
+        total_plant_treatment_cost,
+        objective_value,
+        warnings,
+    )
+
+    return SolvedScenario(
+        scenario_id=scenario.scenario_id,
+        scenario_name=scenario.scenario_name,
+        status=scenario.status,
+        solver_status=solver_status,
+        objective_value=objective_value,
+        sources=sources,
+        plants=plants,
+        demand_zones=demand_zones,
+        source_to_plant_flows=source_plant_flows,
+        plant_to_zone_flows=plant_zone_flows,
+        blended_quality=blended_quality,
+        cost_breakdown=cost_breakdown,
+        warnings=tuple(dict.fromkeys(warnings)),
+    )
+
