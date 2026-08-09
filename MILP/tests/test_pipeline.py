@@ -2,7 +2,7 @@ import json
 
 import pulp
 
-from contracts import (
+from src.contracts import (
     DemandZoneInput,
     PlantInput,
     ScenarioData,
@@ -10,8 +10,8 @@ from contracts import (
     SourcePlantLinkInput,
     PlantZoneLinkInput,
 )
-from preprocessing import preprocess_scenario
-from postprocessing import SolverVariables, postprocess_solution, print_solution_summary
+from src.preprocessing import preprocess_scenario
+from src.postprocessing import SolverVariables, postprocess_solution, print_solution_summary
 
 # Illustrative-only quality/cost values (the real scenario sources this from
 # Supabase; the JSON file only carries withdrawal overrides).
