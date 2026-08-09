@@ -196,3 +196,228 @@ def _extract_solver_status(problem: Any) -> tuple[str, float | None]:
         objective_value = float(objective_value)
     return status, objective_value
 
+
+def _build_source_results(
+    scenario: ScenarioData,
+    parameters: ModelParameters,
+    variables: SolverVariables,
+    total_delivered_ml_per_day: float,
+    warnings: list[str],
+) -> tuple[tuple[SourceResult, ...], float, float]:
+    sources_by_id = {source.source_id: source for source in scenario.sources}
+    results: list[SourceResult] = []
+    total_fixed_cost = 0.0
+    total_withdrawal_cost = 0.0
+
+    for source_id in parameters.source_ids:
+        if source_id not in variables.source_withdrawal:
+            raise PostprocessingError(
+                f"No solved withdrawal variable was supplied for source '{source_id}'."
+            )
+
+        withdrawal = _clean_flow_value(
+            variables.source_withdrawal[source_id],
+            f"Source '{source_id}' withdrawal",
+            warnings,
+        )
+
+        is_selected = withdrawal > _EPSILON
+        if source_id in variables.source_active:
+            active_flag = _clean_binary_value(
+                variables.source_active[source_id],
+                f"Source '{source_id}' activation indicator",
+                warnings,
+            )
+            if active_flag != is_selected:
+                warnings.append(
+                    f"Source '{source_id}' activation indicator ({active_flag}) "
+                    f"disagrees with its solved withdrawal ({withdrawal:g} ML/day); "
+                    "the withdrawal value was treated as authoritative."
+                )
+
+        fixed_cost_contribution = (
+            parameters.source_fixed_cost[source_id] if is_selected else 0.0
+        )
+        withdrawal_cost_contribution = (
+            parameters.source_unit_cost[source_id] * withdrawal
+        )
+        total_fixed_cost += fixed_cost_contribution
+        total_withdrawal_cost += withdrawal_cost_contribution
+
+        blend_ratio = (
+            withdrawal / total_delivered_ml_per_day
+            if total_delivered_ml_per_day > _EPSILON
+            else None
+        )
+
+        results.append(
+            SourceResult(
+                source_id=source_id,
+                name=sources_by_id[source_id].name,
+                is_selected=is_selected,
+                withdrawal_ml_per_day=withdrawal,
+                blend_ratio=blend_ratio,
+                fixed_cost_contribution=fixed_cost_contribution,
+                withdrawal_cost_contribution=withdrawal_cost_contribution,
+            )
+        )
+
+    return tuple(results), total_fixed_cost, total_withdrawal_cost
+
+
+def _build_source_plant_flow_results(
+    parameters: ModelParameters,
+    variables: SolverVariables,
+    warnings: list[str],
+) -> tuple[dict[str, float], tuple[SourcePlantFlowResult, ...]]:
+    inflow_by_plant: dict[str, float] = {plant_id: 0.0 for plant_id in parameters.plant_ids}
+    results: list[SourcePlantFlowResult] = []
+
+    for source_id, plant_id in parameters.source_plant_arcs:
+        key = (source_id, plant_id)
+        if key not in variables.source_plant_flow:
+            raise PostprocessingError(
+                f"No solved flow variable was supplied for source-to-plant arc {key!r}."
+            )
+
+        flow = _clean_flow_value(
+            variables.source_plant_flow[key],
+            f"Source-to-plant flow {source_id} -> {plant_id}",
+            warnings,
+        )
+        inflow_by_plant[plant_id] += flow
+        results.append(
+            SourcePlantFlowResult(
+                source_id=source_id,
+                plant_id=plant_id,
+                is_active=flow > _EPSILON,
+                flow_ml_per_day=flow,
+            )
+        )
+
+    return inflow_by_plant, tuple(results)
+
+
+def _build_plant_zone_flow_results(
+    parameters: ModelParameters,
+    variables: SolverVariables,
+    warnings: list[str],
+) -> tuple[dict[str, float], dict[str, float], tuple[PlantZoneFlowResult, ...]]:
+    outflow_by_plant: dict[str, float] = {plant_id: 0.0 for plant_id in parameters.plant_ids}
+    inflow_by_zone: dict[str, float] = {zone_id: 0.0 for zone_id in parameters.zone_ids}
+    results: list[PlantZoneFlowResult] = []
+
+    for plant_id, zone_id in parameters.plant_zone_arcs:
+        key = (plant_id, zone_id)
+        if key not in variables.plant_zone_flow:
+            raise PostprocessingError(
+                f"No solved flow variable was supplied for plant-to-zone arc {key!r}."
+            )
+
+        flow = _clean_flow_value(
+            variables.plant_zone_flow[key],
+            f"Plant-to-zone flow {plant_id} -> {zone_id}",
+            warnings,
+        )
+        outflow_by_plant[plant_id] += flow
+        inflow_by_zone[zone_id] += flow
+        results.append(
+            PlantZoneFlowResult(
+                plant_id=plant_id,
+                zone_id=zone_id,
+                is_active=flow > _EPSILON,
+                flow_ml_per_day=flow,
+            )
+        )
+
+    return outflow_by_plant, inflow_by_zone, tuple(results)
+
+
+def _build_plant_results(
+    scenario: ScenarioData,
+    parameters: ModelParameters,
+    variables: SolverVariables,
+    inflow_by_plant: dict[str, float],
+    outflow_by_plant: dict[str, float],
+    warnings: list[str],
+) -> tuple[tuple[PlantResult, ...], float, float]:
+    plants_by_id = {plant.plant_id: plant for plant in scenario.plants}
+    results: list[PlantResult] = []
+    total_fixed_cost = 0.0
+    total_treatment_cost = 0.0
+
+    for plant_id in parameters.plant_ids:
+        inflow = inflow_by_plant[plant_id]
+        outflow = outflow_by_plant[plant_id]
+        if abs(inflow - outflow) > _SOLVER_TOLERANCE:
+            warnings.append(
+                f"Plant '{plant_id}' solved inflow ({inflow:g} ML/day) does not match "
+                f"outflow ({outflow:g} ML/day); the mismatch exceeds solver tolerance."
+            )
+        throughput = inflow
+
+        is_active = throughput > _EPSILON
+        if plant_id in variables.plant_active:
+            active_flag = _clean_binary_value(
+                variables.plant_active[plant_id],
+                f"Plant '{plant_id}' activation indicator",
+                warnings,
+            )
+            if active_flag != is_active:
+                warnings.append(
+                    f"Plant '{plant_id}' activation indicator ({active_flag}) "
+                    f"disagrees with its solved throughput ({throughput:g} ML/day); "
+                    "the throughput value was treated as authoritative."
+                )
+
+        fixed_cost_contribution = (
+            parameters.plant_fixed_cost[plant_id] if is_active else 0.0
+        )
+        treatment_cost_contribution = (
+            parameters.plant_unit_treatment_cost[plant_id] * throughput
+        )
+        total_fixed_cost += fixed_cost_contribution
+        total_treatment_cost += treatment_cost_contribution
+
+        results.append(
+            PlantResult(
+                plant_id=plant_id,
+                name=plants_by_id[plant_id].name,
+                is_active=is_active,
+                throughput_ml_per_day=throughput,
+                fixed_cost_contribution=fixed_cost_contribution,
+                treatment_cost_contribution=treatment_cost_contribution,
+            )
+        )
+
+    return tuple(results), total_fixed_cost, total_treatment_cost
+
+
+def _build_demand_zone_results(
+    scenario: ScenarioData,
+    parameters: ModelParameters,
+    inflow_by_zone: dict[str, float],
+    warnings: list[str],
+) -> tuple[DemandZoneResult, ...]:
+    zones_by_id = {zone.zone_id: zone for zone in scenario.demand_zones}
+    results: list[DemandZoneResult] = []
+
+    for zone_id in parameters.zone_ids:
+        demand = parameters.demand_by_zone[zone_id]
+        delivered = inflow_by_zone[zone_id]
+        if abs(delivered - demand) > _SOLVER_TOLERANCE:
+            warnings.append(
+                f"Demand zone '{zone_id}' delivered volume ({delivered:g} ML/day) does "
+                f"not match its demand ({demand:g} ML/day)."
+            )
+        results.append(
+            DemandZoneResult(
+                zone_id=zone_id,
+                name=zones_by_id[zone_id].name,
+                demand_ml_per_day=demand,
+                delivered_ml_per_day=delivered,
+            )
+        )
+
+    return tuple(results)
+
