@@ -5,15 +5,15 @@ All docstrings including this one must be replaced with a description of the mod
 
 This file exists so the variable, constraint and objective work can be written against the same names instead of each guessing. It declares the sets and the order of assembly, but leaves the details to be filled in by the owner of each part of the formulation.
 
-Pyomo notes for anyone coming from PuLP:
+Pyomo notes:
 
   - Variables are attributes of the model. There is no dict of variables to pass
-    around: m.b[s, t] is reachable from anywhere that has m.
+    around: m.b[s, t] is reachable from anywhere that has m. https://pyomo.readthedocs.io/en/stable/explanation/modeling/math_programming/variables.html
   - A Var is declared over Pyomo Sets, so the sets have to exist first.
   - Constraints are declared as a family over an index set with a rule function
-    returning one expression per index.
+    returning one expression per index. https://pyomo.readthedocs.io/en/stable/explanation/modeling/math_programming/constraints.html
   - Names are taken from the declaration, so m.Demand is automatically named
-    "Demand" in the solver log. No f-strings needed.
+    "Demand" in the solver log. No need for safe name functions or strings.
 
 Parameter values are read straight out of ModelParameters rather than copied into pyo.Param objects. Pyomo does not require Params, and duplicating the data would give us two sources of truth for the same numbers.
 """
@@ -39,8 +39,7 @@ def define_sets(m: pyo.ConcreteModel, p: ModelParameters) -> None:
 def define_variables(m: pyo.ConcreteModel) -> None:
     """Owner: variables card.
 
-    Proposed names, for Monday. Constraint and objective code refers to these
-    attributes, so they need to be established first. Must map directly to the formulation document so it is clear what each variable is.
+    Constraint and objective code refers to these attributes, so they need to be established first. Must map directly to the formulation document so it is clear what each variable is.
 
     For example,
         m.alpha = pyo.Var(m.S, domain=pyo.Binary)          # source activated
@@ -72,6 +71,6 @@ def build_model(p: ModelParameters) -> pyo.ConcreteModel:
     return model
 
 
-def solve(p: ModelParameters, tee: bool = False) -> tuple[pyo.ConcreteModel, object]:
-    """Solve and return the model alongside the solver results object."""
+def solve(p: ModelParameters) -> tuple[pyo.ConcreteModel, object]:
+    """Owner: solver card. Need to consider what we are passing to postprocessing.py."""
     raise NotImplementedError
