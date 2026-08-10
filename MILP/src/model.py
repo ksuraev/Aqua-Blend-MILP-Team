@@ -71,6 +71,6 @@ def build_model(p: ModelParameters) -> pyo.ConcreteModel:
     return model
 
 
-def solve(p: ModelParameters) -> tuple[pyo.ConcreteModel, object]:
-    """Owner: solver card. Need to consider what we are passing to postprocessing.py."""
+def solve(p: ModelParameters, tee: bool = False) -> tuple[pyo.ConcreteModel, object]:
+    """Owner: solver card. Need to consider what we are passing to postprocessing.py. 'tee' is a Pyomo option to print the solver log to stdout."""
     raise NotImplementedError
