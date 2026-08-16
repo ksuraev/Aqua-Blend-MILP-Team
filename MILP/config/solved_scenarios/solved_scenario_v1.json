@@ -1,0 +1,137 @@
+{
+  "scenario_id": "base_scenarios_test_v1",
+  "description": "Solved output for the deterministic Sprint 1 test scenario with one treatment plant, one demand zone, and three candidate water sources.",
+  "solver": {
+    "status": "Optimal",
+    "objective_value": 533000.0
+  },
+  "sources": {
+    "selected": [
+      {
+        "source_id": "225103",
+        "is_selected": true,
+        "withdrawal_ml_per_day": 700.0,
+        "blend_ratio": 0.5833333333333334,
+        "fixed_cost_contribution": 0.0,
+        "withdrawal_cost_contribution": 315000.0
+      },
+      {
+        "source_id": "229421",
+        "is_selected": true,
+        "withdrawal_ml_per_day": 300.0,
+        "blend_ratio": 0.25,
+        "fixed_cost_contribution": 0.0,
+        "withdrawal_cost_contribution": 114000.0
+      },
+      {
+        "source_id": "233217",
+        "is_selected": true,
+        "withdrawal_ml_per_day": 200.0,
+        "blend_ratio": 0.16666666666666666,
+        "fixed_cost_contribution": 0.0,
+        "withdrawal_cost_contribution": 104000.0
+      }
+    ],
+    "unused": []
+  },
+  "network": {
+    "plants": [
+      {
+        "plant_id": "plant_1",
+        "is_active": true,
+        "throughput_ml_per_day": 1200.0,
+        "fixed_cost_contribution": 0.0,
+        "treatment_cost_contribution": 0.0
+      }
+    ],
+    "demand_zones": [
+      {
+        "zone_id": "zone_1",
+        "demand_ml_per_day": 1200.0,
+        "delivered_ml_per_day": 1200.0
+      }
+    ],
+    "source_to_plant_flows": [
+      {
+        "source_id": "225103",
+        "plant_id": "plant_1",
+        "is_active": true,
+        "flow_ml_per_day": 700.0
+      },
+      {
+        "source_id": "229421",
+        "plant_id": "plant_1",
+        "is_active": true,
+        "flow_ml_per_day": 300.0
+      },
+      {
+        "source_id": "233217",
+        "plant_id": "plant_1",
+        "is_active": true,
+        "flow_ml_per_day": 200.0
+      }
+    ],
+    "plant_to_zone_flows": [
+      {
+        "plant_id": "plant_1",
+        "zone_id": "zone_1",
+        "is_active": true,
+        "flow_ml_per_day": 1200.0
+      }
+    ]
+  },
+  "blended_quality": {
+    "applies_to": "blend_at_plant_inflow",
+    "results": [
+      {
+        "plant_id": "plant_1",
+        "parameter_id": "pH",
+        "unit": "pH",
+        "blended_value": 7.093586014879103,
+        "lower_limit": 6.5,
+        "upper_limit": 8.5,
+        "lower_margin": 0.5935860148791026,
+        "upper_margin": 1.4064139851208974,
+        "is_binding": false
+      },
+      {
+        "plant_id": "plant_1",
+        "parameter_id": "alkalinity",
+        "unit": "mg/L CaCO3",
+        "blended_value": 47.916666666666664,
+        "lower_limit": 20.0,
+        "upper_limit": 200.0,
+        "lower_margin": 27.916666666666664,
+        "upper_margin": 152.08333333333334,
+        "is_binding": false
+      },
+      {
+        "plant_id": "plant_1",
+        "parameter_id": "turbidity",
+        "unit": "NTU",
+        "blended_value": 1.3166666666666667,
+        "lower_limit": 0.0,
+        "upper_limit": 5.0,
+        "lower_margin": 1.3166666666666667,
+        "upper_margin": 3.6833333333333336,
+        "is_binding": false
+      }
+    ]
+  },
+  "cost_breakdown": {
+    "total_source_fixed_cost": 0.0,
+    "total_source_withdrawal_cost": 533000.0,
+    "total_plant_fixed_cost": 0.0,
+    "total_plant_treatment_cost": 0.0,
+    "reconstructed_total_cost": 533000.0,
+    "solver_objective_value": 533000.0,
+    "cost_reconciles": true
+  },
+  "warnings": [],
+  "notes": [
+    "This file is a deterministic test scenario and is not a source of verified operational data.",
+    "Fields for energy estimate, quality values after treatment, treatment removal quantities, and mineral/chemical addition quantities are intentionally absent because chemical dosing and batching are disabled for this scenario (see base_scenarios_v1.json treatment.notes) and no treatment formulation currently changes water quality.",
+    "'blended_quality' currently reports quality at plant inflow only, matching quality_limits.applies_to in base_scenarios_v1.json.",
+    "The scenario remains marked as draft until its expected MILP solution is independently verified."
+  ]
+}
