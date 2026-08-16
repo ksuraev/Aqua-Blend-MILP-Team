@@ -1,5 +1,7 @@
 """Unit tests for AquaBlend Pyomo sets, variables, and objective."""
 
+from dataclasses import replace
+
 import pyomo.environ as pyo
 import pytest
 
@@ -78,6 +80,58 @@ def test_shared_variables_have_exact_indexes(
     assert set(model.b) == set(parameters.source_plant_arcs)
     assert set(model.delta) == set(parameters.plant_zone_arcs)
     assert set(model.c) == set(parameters.plant_zone_arcs)
+
+
+def test_undeclared_source_plant_arc_does_not_create_variables(
+    parameters: ModelParameters,
+) -> None:
+    """Create variables only for explicitly declared source-plant arcs."""
+    sparse_parameters = replace(
+        parameters,
+        plant_ids=("plant_1", "plant_2"),
+        source_plant_arcs=(
+            ("source_1", "plant_1"),
+            ("source_1", "plant_2"),
+            ("source_2", "plant_1"),
+        ),
+        plant_zone_arcs=(
+            ("plant_1", "zone_1"),
+            ("plant_2", "zone_1"),
+        ),
+        plant_fixed_cost={
+            "plant_1": 50.0,
+            "plant_2": 60.0,
+        },
+        plant_unit_treatment_cost={
+            "plant_1": 0.5,
+            "plant_2": 0.6,
+        },
+        plant_min_throughput={
+            "plant_1": 0.0,
+            "plant_2": 0.0,
+        },
+        plant_max_throughput={
+            "plant_1": 200.0,
+            "plant_2": 200.0,
+        },
+        source_plant_link_capacity={
+            ("source_1", "plant_1"): 100.0,
+            ("source_1", "plant_2"): 100.0,
+            ("source_2", "plant_1"): 100.0,
+        },
+        plant_zone_link_capacity={
+            ("plant_1", "zone_1"): 200.0,
+            ("plant_2", "zone_1"): 200.0,
+        },
+    )
+
+    sparse_model = pyo.ConcreteModel(name="sparse_network_test")
+    define_sets(sparse_model, sparse_parameters)
+    define_variables(sparse_model)
+
+    assert set(sparse_model.b) == set(sparse_parameters.source_plant_arcs)
+    assert ("source_2", "plant_2") not in sparse_model.b
+    assert ("source_2", "plant_2") not in sparse_model.gamma
 
 
 def test_flow_variables_are_non_negative_and_continuous(
