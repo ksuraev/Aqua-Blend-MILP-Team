@@ -1,5 +1,6 @@
 {
   "scenario_id": "base_scenarios_test_v1",
+  "solution_id": "sol123",
   "description": "Solved output for the deterministic Sprint 1 test scenario with one treatment plant, one demand zone, and three candidate water sources.",
   "solver": {
     "status": "Optimal",
