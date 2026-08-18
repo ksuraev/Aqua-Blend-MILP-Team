@@ -30,6 +30,7 @@ costs, and plant treatment costs.
 from __future__ import annotations
 
 import pyomo.environ as pyo
+from pyomo.opt import TerminationCondition
 
 from src.preprocessing import ModelParameters
 
@@ -348,6 +349,48 @@ def build_model(p: ModelParameters) -> pyo.ConcreteModel:
     return model
 
 
-def solve(p: ModelParameters, tee: bool = False) -> tuple[pyo.ConcreteModel, object]:
-    """Owner: solver card. Need to consider what we are passing to postprocessing.py. 'tee' is a Pyomo option to print the solver log to stdout."""
-    raise NotImplementedError
+def solve(
+    p: ModelParameters,
+    tee: bool = False,
+) -> tuple[pyo.ConcreteModel, object]:
+    """Build and solve the complete AquaBlend model using HiGHS.
+
+    Parameters
+    ----------
+    p:
+        Validated formulation-ready model parameters.
+    tee:
+        When True, display the HiGHS solver log.
+
+    Returns
+    -------
+    tuple
+        The solved Pyomo model and the solver results object.
+
+    Raises
+    ------
+    RuntimeError
+        If the HiGHS solver is unavailable.
+    """
+    model = build_model(p)
+    solver = pyo.SolverFactory(SOLVER)
+
+    if not solver.available(exception_flag=False):
+        raise RuntimeError(
+            "HiGHS is unavailable. Install it using 'python -m pip install highspy'."
+        )
+
+    # Do not automatically load values from an infeasible or unbounded model.
+    results = solver.solve(
+        model,
+        tee=tee,
+        load_solutions=False,
+    )
+
+    termination = results.solver.termination_condition
+
+    # Load variable values only when an optimal solution exists.
+    if termination == TerminationCondition.optimal:
+        model.solutions.load_from(results)
+
+    return model, results
