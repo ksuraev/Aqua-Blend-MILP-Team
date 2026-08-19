@@ -10,7 +10,7 @@
 \usepackage{tikz}
 \usetikzlibrary{positioning}
 \usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
-
+\usepackage{xurl}
 
 \title{\textbf{Aquablend --- MILP Mathematical Formulation}\\[0.3em]
 \large Sprint 1 \quad Network formulation, applied to the toy model}
@@ -170,20 +170,6 @@ The total volume of water sent from all treatment plants to demand zone $z$ via 
 \begin{equation}
 	\sum_{t \in \mathcal{T}} c_{tz} \ge D_z, \qquad \forall z \in \mathcal{Z}.
 \end{equation}
-
-\paragraph{Oversupply Flexibility}
-
-The demand constraint uses $\geq$ rather than equality ($=$) to allow operational flexibility. 
-In principle, this permits the solution to exceed demand. However, cost minimization naturally 
-prevents oversupply: the optimizer has no incentive to draw more water than needed, as additional 
-volume incurs both variable and treatment costs.
-
-Oversupply may occur only if quality constraints require blending from multiple sources to meet 
-regulatory limits. For the toy scenario (demand 1200 ML/day, maximum available capacity 1680 ML/day), 
-the model produces exactly demand at minimum cost with zero excess.
-
-This formulation provides flexibility for future extensions. A multi-period model with storage 
-capacity could leverage this structure to allow demand smoothing across time periods.
 
 \paragraph{Source capacity and activation.}
 Water can only be drawn from a source if it has been activated.
