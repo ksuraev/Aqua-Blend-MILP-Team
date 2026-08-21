@@ -191,3 +191,57 @@ def test_source_balance_detects_unrouted_withdrawal(
     constraint = model.source_flow_balance["S1"]
 
     assert pyo.value(constraint.body) != pytest.approx(0.0)
+
+
+def test_demand_constraint_rejects_shortfall(
+    model: pyo.ConcreteModel,
+) -> None:
+    """Check that delivered flow cannot be lower than zone demand."""
+    model.c["T1", "Z1"].set_value(29.0)
+
+    constraint = model.demand_satisfaction["Z1"]
+
+    assert pyo.value(constraint.body) < pyo.value(constraint.lower)
+
+
+def test_plant_balance_rejects_unequal_flows(
+    model: pyo.ConcreteModel,
+) -> None:
+    """Check that plant inflow must equal plant outflow."""
+    model.b["S1", "T1"].set_value(30.0)
+    model.b["S2", "T1"].set_value(0.0)
+    model.c["T1", "Z1"].set_value(25.0)
+
+    constraint = model.plant_flow_balance["T1"]
+
+    assert pyo.value(constraint.body) != pytest.approx(0.0)
+
+
+def test_closed_source_link_rejects_positive_flow(
+    model: pyo.ConcreteModel,
+) -> None:
+    """Check that flow cannot use an inactive source-to-plant link."""
+    model.gamma["S1", "T1"].set_value(0)
+    model.b["S1", "T1"].set_value(1.0)
+
+    constraint = model.source_plant_link_capacity["S1", "T1"]
+
+    assert pyo.value(constraint.body) > pyo.value(constraint.upper)
+
+
+def test_solver_finds_expected_optimum(
+    model: pyo.ConcreteModel,
+) -> None:
+    """Solve the toy model and verify its cost and network flows."""
+    pytest.importorskip("highspy")
+    solver = pyo.SolverFactory("appsi_highs")
+
+    results = solver.solve(model)
+
+    assert results.solver.termination_condition == pyo.TerminationCondition.optimal
+    assert pyo.value(model.total_cost) == pytest.approx(60.0)
+    assert pyo.value(model.a["S1"]) == pytest.approx(30.0)
+    assert pyo.value(model.a["S2"]) == pytest.approx(0.0)
+    assert pyo.value(model.b["S1", "T1"]) == pytest.approx(30.0)
+    assert pyo.value(model.b["S2", "T1"]) == pytest.approx(0.0)
+    assert pyo.value(model.c["T1", "Z1"]) == pytest.approx(30.0)
