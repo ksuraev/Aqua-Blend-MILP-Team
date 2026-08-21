@@ -2,8 +2,8 @@
 
 The model is assembled from the canonical :class:`ModelParameters` produced by
 ``src.preprocessing``.  Sets are defined first, followed by decision variables,
-constraints, and the total-cost objective.  Constraint and solver sections are
-left for their assigned contributors; this file establishes the shared model
+constraints, and the total-cost objective. The solver integration is maintained
+in the stacked solver contribution; this file establishes the shared model
 components and their construction order.
 
 The shared decision variables are:
@@ -66,11 +66,26 @@ def define_variables(m: pyo.ConcreteModel) -> None:
 def set_constraints(m: pyo.ConcreteModel, p: ModelParameters) -> None:
     """Add demand, capacity, flow-balance, link and quality constraints."""
 
+    incoming_to_plant = {plant_id: [] for plant_id in p.plant_ids}
+    outgoing_from_source = {source_id: [] for source_id in p.source_ids}
+    outgoing_from_plant = {plant_id: [] for plant_id in p.plant_ids}
+    incoming_to_zone = {zone_id: [] for zone_id in p.zone_ids}
+
+    for source_id, plant_id in p.source_plant_arcs:
+        arc = (source_id, plant_id)
+        outgoing_from_source[source_id].append(arc)
+        incoming_to_plant[plant_id].append(arc)
+
+    for plant_id, zone_id in p.plant_zone_arcs:
+        arc = (plant_id, zone_id)
+        outgoing_from_plant[plant_id].append(arc)
+        incoming_to_zone[zone_id].append(arc)
+
     def demand_satisfaction_rule(
         model: pyo.ConcreteModel,
         zone_id: str,
     ):
-        incoming_arcs = [arc for arc in model.TZ if arc[1] == zone_id]
+        incoming_arcs = incoming_to_zone[zone_id]
 
         if not incoming_arcs:
             if p.demand_by_zone[zone_id] == 0:
@@ -118,7 +133,7 @@ def set_constraints(m: pyo.ConcreteModel, p: ModelParameters) -> None:
         model: pyo.ConcreteModel,
         source_id: str,
     ):
-        outgoing_arcs = [arc for arc in model.ST if arc[0] == source_id]
+        outgoing_arcs = outgoing_from_source[source_id]
 
         outgoing_flow = pyo.quicksum(model.b[arc] for arc in outgoing_arcs)
 
@@ -133,7 +148,7 @@ def set_constraints(m: pyo.ConcreteModel, p: ModelParameters) -> None:
         model: pyo.ConcreteModel,
         plant_id: str,
     ):
-        incoming_arcs = [arc for arc in model.ST if arc[1] == plant_id]
+        incoming_arcs = incoming_to_plant[plant_id]
 
         inflow = pyo.quicksum(model.b[arc] for arc in incoming_arcs)
 
@@ -148,7 +163,7 @@ def set_constraints(m: pyo.ConcreteModel, p: ModelParameters) -> None:
         model: pyo.ConcreteModel,
         plant_id: str,
     ):
-        incoming_arcs = [arc for arc in model.ST if arc[1] == plant_id]
+        incoming_arcs = incoming_to_plant[plant_id]
 
         inflow = pyo.quicksum(model.b[arc] for arc in incoming_arcs)
 
@@ -163,9 +178,9 @@ def set_constraints(m: pyo.ConcreteModel, p: ModelParameters) -> None:
         model: pyo.ConcreteModel,
         plant_id: str,
     ):
-        incoming_arcs = [arc for arc in model.ST if arc[1] == plant_id]
+        incoming_arcs = incoming_to_plant[plant_id]
 
-        outgoing_arcs = [arc for arc in model.TZ if arc[0] == plant_id]
+        outgoing_arcs = outgoing_from_plant[plant_id]
 
         if not incoming_arcs and not outgoing_arcs:
             return pyo.Constraint.Skip
@@ -242,7 +257,7 @@ def set_constraints(m: pyo.ConcreteModel, p: ModelParameters) -> None:
         plant_id: str,
         parameter_id: str,
     ):
-        incoming_arcs = [arc for arc in model.ST if arc[1] == plant_id]
+        incoming_arcs = incoming_to_plant[plant_id]
 
         if not incoming_arcs:
             return pyo.Constraint.Skip
@@ -267,7 +282,7 @@ def set_constraints(m: pyo.ConcreteModel, p: ModelParameters) -> None:
         plant_id: str,
         parameter_id: str,
     ):
-        incoming_arcs = [arc for arc in model.ST if arc[1] == plant_id]
+        incoming_arcs = incoming_to_plant[plant_id]
 
         if not incoming_arcs:
             return pyo.Constraint.Skip
