@@ -8,7 +8,7 @@
 
 ## 1. Why this output contract exists
 
-AquaBlend has several technical streams that need to consume the optimisation result without depending on the internal implementation of the PuLP model.
+AquaBlend has several technical streams that need to consume the optimisation result without depending on the internal implementation of the Pyomo model.
 
 The agreed pipeline is:
 
@@ -42,7 +42,7 @@ This contract does **not** define how post-processing code must be implemented. 
 
 The main design rule is:
 
-> Internal PuLP variable names may change. The external JSON field names should remain stable.
+> Internal Pyomo variable names may change. The external JSON field names should remain stable.
 
 This matters because the Backend, AI and App teams should not have to change every time `model.py` is refactored.
 
@@ -218,29 +218,29 @@ For example, if a scenario override and a database value were combined into the 
 
 The following canonical Python fields are the source of model-facing context:
 
-| Formulation role | `ModelParameters` field |
-|---|---|
-| Sources \(S\) | `source_ids` |
-| Plants \(T\) | `plant_ids` |
-| Zones \(Z\) | `zone_ids` |
-| Quality parameters \(P\) | `quality_parameter_ids` |
-| Source→plant arcs \(A_ST\) | `source_plant_arcs` |
-| Plant→zone arcs \(A_TZ\) | `plant_zone_arcs` |
-| Demand \(D_z\) | `demand_by_zone` |
-| Source fixed cost \(F_s\) | `source_fixed_cost` |
-| Plant fixed cost \(F_t\) | `plant_fixed_cost` |
-| Source unit cost \(C_s\) | `source_unit_cost` |
-| Plant treatment cost \(C_t\) | `plant_unit_treatment_cost` |
-| Source minimum withdrawal | `source_min_withdrawal` |
-| Source maximum withdrawal | `source_max_withdrawal` |
-| Plant minimum throughput | `plant_min_throughput` |
-| Plant maximum throughput | `plant_max_throughput` |
-| Source→plant capacity | `source_plant_link_capacity` |
-| Plant→zone capacity | `plant_zone_link_capacity` |
-| Source quality \(Q_sp\) | `source_quality` |
-| Quality lower bound | `quality_lower_bound` |
-| Quality upper bound | `quality_upper_bound` |
-| Quality unit | `quality_units` |
+| Formulation role             | `ModelParameters` field      |
+| ---------------------------- | ---------------------------- |
+| Sources \(S\)                | `source_ids`                 |
+| Plants \(T\)                 | `plant_ids`                  |
+| Zones \(Z\)                  | `zone_ids`                   |
+| Quality parameters \(P\)     | `quality_parameter_ids`      |
+| Source→plant arcs \(A_ST\)   | `source_plant_arcs`          |
+| Plant→zone arcs \(A_TZ\)     | `plant_zone_arcs`            |
+| Demand \(D_z\)               | `demand_by_zone`             |
+| Source fixed cost \(F_s\)    | `source_fixed_cost`          |
+| Plant fixed cost \(F_t\)     | `plant_fixed_cost`           |
+| Source unit cost \(C_s\)     | `source_unit_cost`           |
+| Plant treatment cost \(C_t\) | `plant_unit_treatment_cost`  |
+| Source minimum withdrawal    | `source_min_withdrawal`      |
+| Source maximum withdrawal    | `source_max_withdrawal`      |
+| Plant minimum throughput     | `plant_min_throughput`       |
+| Plant maximum throughput     | `plant_max_throughput`       |
+| Source→plant capacity        | `source_plant_link_capacity` |
+| Plant→zone capacity          | `plant_zone_link_capacity`   |
+| Source quality \(Q_sp\)      | `source_quality`             |
+| Quality lower bound          | `quality_lower_bound`        |
+| Quality upper bound          | `quality_upper_bound`        |
+| Quality unit                 | `quality_units`              |
 
 The output must treat these values as the final model-facing parameters.
 
@@ -248,23 +248,23 @@ It must not repeat preprocessing transformations inside the output contract.
 
 ---
 
-## 7. PuLP variable names are not fixed yet
+## 7. Pyomo variable names are not fixed yet
 
-The final internal PuLP variable names in `model.py` are **not fixed yet**.
+The final internal Pyomo variable names in `model.py` are **not fixed yet**.
 
 This must not block agreement on the external Output JSON.
 
 Until the final names are confirmed, the following descriptive convention should be used when discussing the mapping:
 
-| Formulation variable | Meaning | Provisional model convention |
-|---|---|---|
-| `alpha_s` | source activation | `source_active[source_id]` |
-| `a_s` | source withdrawal | `source_withdrawal[source_id]` |
-| `beta_t` | plant activation | `plant_active[plant_id]` |
-| `gamma_st` | source→plant activation | `source_plant_active[(source_id, plant_id)]` |
-| `b_st` | source→plant flow | `source_plant_flow[(source_id, plant_id)]` |
-| `delta_tz` | plant→zone activation | `plant_zone_active[(plant_id, zone_id)]` |
-| `c_tz` | plant→zone flow | `plant_zone_flow[(plant_id, zone_id)]` |
+| Formulation variable | Meaning                 | Provisional model convention                 |
+| -------------------- | ----------------------- | -------------------------------------------- |
+| `alpha_s`            | source activation       | `source_active[source_id]`                   |
+| `a_s`                | source withdrawal       | `source_withdrawal[source_id]`               |
+| `beta_t`             | plant activation        | `plant_active[plant_id]`                     |
+| `gamma_st`           | source→plant activation | `source_plant_active[(source_id, plant_id)]` |
+| `b_st`               | source→plant flow       | `source_plant_flow[(source_id, plant_id)]`   |
+| `delta_tz`           | plant→zone activation   | `plant_zone_active[(plant_id, zone_id)]`     |
+| `c_tz`               | plant→zone flow         | `plant_zone_flow[(plant_id, zone_id)]`       |
 
 Solver-level values are referred to descriptively as:
 
@@ -278,9 +278,9 @@ objective_value
 When `model.py` is finalised, the team may either:
 
 1. follow this provisional naming convention; or
-2. use different internal PuLP names and map those names to the fields in this Output JSON.
+2. use different internal Pyomo names and map those names to the fields in this Output JSON.
 
-The JSON must **not** be renamed simply to mirror internal PuLP identifiers.
+The JSON must **not** be renamed simply to mirror internal Pyomo identifiers.
 
 For example, regardless of whether `model.py` calls a source withdrawal variable `a`, `draw`, `withdrawal`, or `source_draw`, the external field remains:
 
@@ -313,7 +313,7 @@ Each section has one responsibility.
 
 ---
 
-## 9. `scenario`
+### 8.1. `scenario`
 
 The scenario section identifies the exact input that produced the result.
 
@@ -337,7 +337,7 @@ The solver result lives separately in `solver.status`.
 
 ---
 
-## 10. `validation`
+### 8.2. `validation`
 
 Validation is retained in the Output JSON because downstream systems need to know whether the result came through the expected data and mathematical readiness gates.
 
@@ -350,7 +350,7 @@ validation.preprocessing
 validation.output_consistency
 ```
 
-### 10.1 Input policy
+#### 8.2.1 Input policy
 
 The scenario currently enables these blocking policies:
 
@@ -371,7 +371,7 @@ inside `scenario.data_source`.
 
 These fields describe the policy used to construct the scenario. They are not solver decisions.
 
-### 10.2 Loader validation
+#### 8.2.2 Loader validation
 
 `validation.loader` records whether the external input passed the loader contract.
 
@@ -398,7 +398,7 @@ The listed checks cover the existing loader responsibilities:
 
 The Output JSON should **record the result of these upstream checks**. It should not bypass `data_loader.py` and attempt to validate raw database data independently.
 
-### 10.3 Preprocessing validation
+#### 8.2.3 Preprocessing validation
 
 `validation.preprocessing` records the mathematical-readiness checks performed before model construction:
 
@@ -412,7 +412,7 @@ Preprocessing warnings are kept separately from blocking failures.
 
 Passing the preliminary capacity and quality screens does **not** prove full MILP feasibility. The solver remains the final authority on whether all constraints can be satisfied simultaneously.
 
-### 10.4 Output consistency validation
+#### 8.2.4 Output consistency validation
 
 The final output should be checked against the solved formulation before it is handed downstream.
 
@@ -445,7 +445,7 @@ The final implementation may centralise this tolerance if the solver integration
 
 ---
 
-## 11. `solver`
+### 8.3. `solver`
 
 ```json
 "solver": {
@@ -466,9 +466,9 @@ NOT_SOLVED
 UNDEFINED
 ```
 
-Raw PuLP or HiGHS status values should be normalised into this field.
+Raw Pyomo or HiGHS status values should be normalised into this field.
 
-### Feasibility gate
+#### Feasibility gate
 
 Backend, AI and App consumers should use `is_feasible` and `is_optimal` rather than interpreting solver-specific integer codes.
 
@@ -480,7 +480,7 @@ If the result is infeasible or unsolved:
 
 ---
 
-## 12. `summary`
+### 8.4. `summary`
 
 The summary provides a compact result for consumers that do not need every model entity.
 
@@ -502,7 +502,7 @@ total_demand_ml_per_day = 500
 
 The remaining totals depend on the solved model and remain `null` in the contract template.
 
-### Cost breakdown
+#### Cost breakdown
 
 The current objective contains four cost components:
 
@@ -523,7 +523,7 @@ total_cost
 
 ---
 
-## 13. `sources`
+### 8.5. `sources`
 
 The output contains one record per scenario source so source identity remains stable from input to result.
 
@@ -537,7 +537,7 @@ groundwater_bore_1
 
 Each source contains four categories of information.
 
-### 13.1 Scenario/input context
+#### 8.5.1 Scenario/input context
 
 ```text
 source_id
@@ -548,7 +548,7 @@ forced_inactive
 fixed_activation_cost
 ```
 
-### 13.2 Resolved model context
+#### 8.5.2 Resolved model context
 
 ```text
 model_included
@@ -588,7 +588,7 @@ silvan_reservoir -> facility_1 maximum flow = 350 ML/day
 
 are different parameters and may have different values.
 
-### 13.3 Solver decision
+#### 8.5.3 Solver decision
 
 ```text
 activated
@@ -614,7 +614,7 @@ Meaning:
 
 An excluded source is not a source the solver "rejected". The solver never considered it.
 
-### 13.4 Derived reporting/evidence
+#### 8.5.4 Derived reporting/evidence
 
 ```text
 utilisation_percent
@@ -636,7 +636,7 @@ binding_constraints
 
 ---
 
-## 14. `plants`
+### 8.6. `plants`
 
 The current plant is:
 
@@ -678,7 +678,7 @@ treatment_cost_per_ml = 64
 
 ---
 
-## 15. `flows.source_to_plant`
+### 8.7. `flows.source_to_plant`
 
 Every item corresponds to an arc in the model set `A_ST`.
 
@@ -713,7 +713,7 @@ The solved flow must never exceed the corresponding link capacity.
 
 ---
 
-## 16. `flows.plant_to_zone`
+### 8.8. `flows.plant_to_zone`
 
 The current scenario contains:
 
@@ -743,7 +743,7 @@ utilisation_percent
 
 ---
 
-## 17. `demand_zones`
+### 8.9. `demand_zones`
 
 The current demand-zone result uses:
 
@@ -786,7 +786,7 @@ max(0, delivered - demand)
 
 ---
 
-## 18. `quality`
+### 8.10. `quality`
 
 Quality is evaluated at:
 
@@ -805,7 +805,7 @@ plant
 
 rather than by demand zone.
 
-### pH
+#### pH
 
 The output keeps both:
 
@@ -842,7 +842,7 @@ transform = ph_to_hydrogen_ion
 
 The model-facing value must be calculated from the same transformed values already used in `ModelParameters`. The output layer must not apply a second independent preprocessing transform.
 
-### Alkalinity and turbidity
+#### Alkalinity and turbidity
 
 These use:
 
@@ -861,101 +861,7 @@ turbidity: 0 to 8 NTU
 
 ---
 
-## 19. Formulation consistency checks
-
-The final runtime Output JSON should agree with the mathematical model.
-
-### 19.1 Non-negativity
-
-All continuous solved volumes must be non-negative within tolerance:
-
-```text
-withdrawal >= 0
-source_to_plant flow >= 0
-plant_to_zone flow >= 0
-```
-
-### 19.2 Source activation and bounds
-
-For each model source:
-
-```text
-minimum_withdrawal * activated
-    <= withdrawal
-    <= maximum_withdrawal * activated
-```
-
-When a source is inactive, its withdrawal should be zero within tolerance.
-
-### 19.3 Plant activation and bounds
-
-For each model plant:
-
-```text
-minimum_throughput * activated
-    <= incoming throughput
-    <= maximum_throughput * activated
-```
-
-### 19.4 Source flow conservation
-
-For each source:
-
-```text
-withdrawal[source]
-=
-sum(source_to_plant_flow[source, plant])
-```
-
-### 19.5 Plant flow conservation
-
-For each plant:
-
-```text
-sum(source_to_plant_flow[source, plant])
-=
-sum(plant_to_zone_flow[plant, zone])
-```
-
-### 19.6 Link capacities
-
-For each model arc:
-
-```text
-flow <= maximum_flow * activated
-```
-
-### 19.7 Demand
-
-For each zone:
-
-```text
-delivered >= demand
-```
-
-### 19.8 Quality
-
-For each plant and model quality parameter, the blended incoming value must remain between the transformed lower and upper limits.
-
-### 19.9 Objective reconciliation
-
-The reported cost breakdown must reconcile to:
-
-```text
-solver.objective_value
-```
-
-within numerical tolerance.
-
-### 19.10 Identifier and arc consistency
-
-Every reported model source, plant, zone and active arc must correspond to the final `ModelParameters` sets and arc sets.
-
-The output must not invent a route that was not part of the model.
-
----
-
-## 20. `binding_constraints_summary`
+### 8.11. `binding_constraints_summary`
 
 This section provides deterministic evidence about active limits where solver/constraint information is available.
 
@@ -993,7 +899,7 @@ The source was selected because it is the cheapest.
 
 ---
 
-## 21. `warnings`
+## 8.12. `warnings`
 
 `warnings` carries non-blocking information that is still relevant to downstream interpretation.
 
@@ -1005,6 +911,100 @@ It may include:
 - output/reporting warnings that do not invalidate the solved result.
 
 Blocking loader or preprocessing failures should prevent normal model execution rather than appear as an otherwise-valid optimal result.
+
+---
+
+## 9. Formulation consistency checks
+
+The final runtime Output JSON should agree with the mathematical model.
+
+### 9.1 Non-negativity
+
+All continuous solved volumes must be non-negative within tolerance:
+
+```text
+withdrawal >= 0
+source_to_plant flow >= 0
+plant_to_zone flow >= 0
+```
+
+### 9.2 Source activation and bounds
+
+For each model source:
+
+```text
+minimum_withdrawal * activated
+    <= withdrawal
+    <= maximum_withdrawal * activated
+```
+
+When a source is inactive, its withdrawal should be zero within tolerance.
+
+### 9.3 Plant activation and bounds
+
+For each model plant:
+
+```text
+minimum_throughput * activated
+    <= incoming throughput
+    <= maximum_throughput * activated
+```
+
+### 9.4 Source flow conservation
+
+For each source:
+
+```text
+withdrawal[source]
+=
+sum(source_to_plant_flow[source, plant])
+```
+
+### 9.5 Plant flow conservation
+
+For each plant:
+
+```text
+sum(source_to_plant_flow[source, plant])
+=
+sum(plant_to_zone_flow[plant, zone])
+```
+
+### 9.6 Link capacities
+
+For each model arc:
+
+```text
+flow <= maximum_flow * activated
+```
+
+### 9.7 Demand
+
+For each zone:
+
+```text
+delivered >= demand
+```
+
+### 9.8 Quality
+
+For each plant and model quality parameter, the blended incoming value must remain between the transformed lower and upper limits.
+
+### 9.9 Objective reconciliation
+
+The reported cost breakdown must reconcile to:
+
+```text
+solver.objective_value
+```
+
+within numerical tolerance.
+
+### 9.10 Identifier and arc consistency
+
+Every reported model source, plant, zone and active arc must correspond to the final `ModelParameters` sets and arc sets.
+
+The output must not invent a route that was not part of the model.
 
 ---
 
@@ -1038,7 +1038,7 @@ Using one stable shape reduces special-case logic in the Backend, AI and App lay
 
 ### Backend
 
-The Backend receives one predictable result structure rather than PuLP objects or mathematical notation.
+The Backend receives one predictable result structure rather than Pyomo objects or mathematical notation.
 
 ### AI
 
@@ -1107,7 +1107,7 @@ The team implementing `model.py` / result serialization should use this document
 
 Before the Output JSON is treated as production-ready, confirm:
 
-- [ ] final `model.py` PuLP variable names are known;
+- [ ] final `model.py` Pyomo variable names are known;
 - [ ] those variables are mapped to the stable JSON fields;
 - [ ] solver status is normalised;
 - [ ] loader validation status/issues are carried forward;
@@ -1133,4 +1133,4 @@ The purpose of this file is not to freeze the internal implementation of the MIL
 
 It freezes the **boundary between the MILP and the rest of AquaBlend**.
 
-That boundary should remain stable even while the formulation, PuLP variable names, solver configuration and internal model structure continue to evolve.
+That boundary should remain stable even while the formulation, Pyomo variable names, solver configuration and internal model structure continue to evolve.
