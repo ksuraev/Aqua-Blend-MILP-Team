@@ -25,92 +25,92 @@
       "checks": [
         {
           "check": "scenario_identity",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_ids_present_and_unique",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_exists_in_configured_data_source",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_withdrawal_bounds_present",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_withdrawal_bounds_non_negative_and_ordered",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_cost_present_finite_and_non_negative",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "estimated_values_allowed_by_policy",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_quality_keys_match_quality_limits",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_quality_values_numeric_and_finite",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "plant_ids_present_and_unique",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "plant_capacity_bounds_finite_non_negative_and_ordered",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "plant_costs_finite_and_non_negative",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "demand_zone_ids_present_and_unique",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "demand_present_finite_and_non_negative",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_to_plant_links_unique_and_valid",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "plant_to_zone_links_unique_and_valid",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "link_capacities_finite_and_non_negative",
-          "required": true,
+          "enabled": true,
           "passed": null
         },
         {
           "check": "quality_limit_definition_valid",
-          "required": true,
+          "enabled": true,
           "passed": null
         }
       ]
@@ -152,50 +152,62 @@
       "checks": [
         {
           "check": "decision_values_non_negative",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_activation_and_withdrawal_bounds",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "plant_activation_and_throughput_bounds",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_flow_conservation",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "plant_flow_conservation",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "source_to_plant_link_capacity",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "plant_to_zone_link_capacity",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "demand_satisfaction",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "plant_inflow_quality_limits",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "objective_cost_reconciliation",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "summary_total_reconciliation",
+          "enabled": true,
           "passed": null
         },
         {
           "check": "reported_ids_and_arcs_match_model_parameters",
+          "enabled": true,
           "passed": null
         }
       ]
@@ -205,7 +217,8 @@
     "status": "NOT_SOLVED",
     "is_feasible": null,
     "is_optimal": null,
-    "objective_value": null
+    "objective_value": null,
+    "version": 0.1
   },
   "summary": {
     "total_demand_ml_per_day": 500.0,
