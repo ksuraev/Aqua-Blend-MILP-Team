@@ -452,7 +452,8 @@ The final implementation may centralise this tolerance if the solver integration
   "status": "NOT_SOLVED",
   "is_feasible": null,
   "is_optimal": null,
-  "objective_value": null
+  "objective_value": null,
+  "version": 0.1
 }
 ```
 
@@ -504,13 +505,16 @@ The remaining totals depend on the solved model and remain `null` in the contrac
 
 #### Cost breakdown
 
-The current objective contains four cost components:
+The current objective contains seven cost components:
 
 ```text
-source_fixed_cost
-source_variable_cost
-plant_fixed_cost
-plant_treatment_cost
+total_source_fixed_cost
+total_source_variable_cost
+total_plant_fixed_cost
+total_plant_variable_cost
+reconstructed_total_cost
+total_cost
+cost_reconciles
 ```
 
 The JSON reports them separately and also reports:
@@ -627,9 +631,8 @@ decision_evidence
 
 ```text
 unit_cost_rank
-at_minimum_withdrawal
-at_maximum_withdrawal
-binding_constraints
+binding_lower
+binding_upper
 ```
 
 `unit_cost_rank` is context only. It must not be presented as proof that cost alone caused selection.
@@ -678,72 +681,7 @@ treatment_cost_per_ml = 64
 
 ---
 
-### 8.7. `flows.source_to_plant`
-
-Every item corresponds to an arc in the model set `A_ST`.
-
-The current scenario has:
-
-```text
-silvan_reservoir -> facility_1       capacity 350
-yarra_kew -> facility_1              capacity 300
-groundwater_bore_1 -> facility_1     capacity 60
-```
-
-Each result reports:
-
-```text
-source_id
-plant_id
-enabled_in_scenario
-activated
-flow_ml_per_day
-maximum_flow_ml_per_day
-utilisation_percent
-```
-
-This maps directly to the source→plant binary/continuous formulation pair:
-
-```text
-gamma_st
-b_st
-```
-
-The solved flow must never exceed the corresponding link capacity.
-
----
-
-### 8.8. `flows.plant_to_zone`
-
-The current scenario contains:
-
-```text
-facility_1 -> zone_1
-maximum_flow_ml_per_day = 600
-```
-
-Each result maps to:
-
-```text
-delta_tz
-c_tz
-```
-
-and reports:
-
-```text
-plant_id
-zone_id
-enabled_in_scenario
-activated
-flow_ml_per_day
-maximum_flow_ml_per_day
-utilisation_percent
-```
-
----
-
-### 8.9. `demand_zones`
+### 8.7. `demand_zones`
 
 The current demand-zone result uses:
 
@@ -783,6 +721,71 @@ max(0, delivered - demand)
 ```
 
 `unmet_demand_ml_per_day` should be `0` for a valid feasible result under the current hard-demand formulation.
+
+---
+
+### 8.8. `flows.source_to_plant`
+
+Every item corresponds to an arc in the model set `A_ST`.
+
+The current scenario has:
+
+```text
+silvan_reservoir -> facility_1       capacity 350
+yarra_kew -> facility_1              capacity 300
+groundwater_bore_1 -> facility_1     capacity 60
+```
+
+Each result reports:
+
+```text
+source_id
+plant_id
+enabled_in_scenario
+activated
+flow_ml_per_day
+maximum_flow_ml_per_day
+utilisation_percent
+```
+
+This maps directly to the source→plant binary/continuous formulation pair:
+
+```text
+gamma_st
+b_st
+```
+
+The solved flow must never exceed the corresponding link capacity.
+
+---
+
+### 8.9. `flows.plant_to_zone`
+
+The current scenario contains:
+
+```text
+facility_1 -> zone_1
+maximum_flow_ml_per_day = 600
+```
+
+Each result maps to:
+
+```text
+delta_tz
+c_tz
+```
+
+and reports:
+
+```text
+plant_id
+zone_id
+enabled_in_scenario
+activated
+flow_ml_per_day
+maximum_flow_ml_per_day
+utilisation_percent
+```
 
 ---
 

@@ -228,11 +228,13 @@
     "selected_source_count": null,
     "active_plant_count": null,
     "costs": {
-      "source_fixed_cost": null,
-      "source_variable_cost": null,
-      "plant_fixed_cost": null,
-      "plant_treatment_cost": null,
-      "total_cost": null
+      "total_source_fixed_cost": null,
+      "total_source_variable_cost": null,
+      "total_plant_fixed_cost": null,
+      "total_plant_variable_cost": null,
+      "reconstructed_total_cost": null,
+      "total_cost": null,
+      "cost_reconciles": null
     }
   },
   "sources": [
@@ -321,9 +323,8 @@
       "exclusion_reason_code": null,
       "decision_evidence": {
         "unit_cost_rank": null,
-        "at_minimum_withdrawal": null,
-        "at_maximum_withdrawal": null,
-        "binding_constraints": []
+        "binding_lower": null,
+        "binding_upper": null
       }
     }
   ],
@@ -341,6 +342,18 @@
       "treatment_cost_per_ml": 64.0,
       "variable_treatment_cost": null,
       "total_plant_cost": null
+    }
+  ],
+  "demand_zones": [
+    {
+      "zone_id": "zone_1",
+      "zone_name": "Zone 1",
+      "demand_ml_per_day": 500.0,
+      "delivered_ml_per_day": null,
+      "surplus_ml_per_day": null,
+      "demand_satisfied": null,
+      "demand_must_be_met": true,
+      "unmet_demand_ml_per_day": null
     }
   ],
   "flows": {
@@ -385,18 +398,6 @@
       }
     ]
   },
-  "demand_zones": [
-    {
-      "zone_id": "zone_1",
-      "zone_name": "Zone 1",
-      "demand_ml_per_day": 500.0,
-      "delivered_ml_per_day": null,
-      "surplus_ml_per_day": null,
-      "demand_satisfied": null,
-      "demand_must_be_met": true,
-      "unmet_demand_ml_per_day": null
-    }
-  ],
   "quality": {
     "applies_to": "blend_at_plant_inflow",
     "plant_inflow": [
