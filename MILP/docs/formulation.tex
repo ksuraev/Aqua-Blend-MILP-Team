@@ -274,7 +274,7 @@ It is equivalent to requiring the volume-weighted average quality at each treatm
 \subsection{Turbidity}
 
 Turbidity measures the cloudiness of water and is associated with suspended particles such as sediment, organic matter, algae, clay, or runoff material.
-In water supply modelling, turbidity is important because high turbidity may increase treatment requirements and affect disinfection performance \cite{WHO2011Turbidity, ScienceDirect2024Turbidity, Nephelometric2025NTU}.
+In water supply modelling, turbidity is important because high turbidity may increase treatment requirements and affect disinfection performance \cite{WHO2007pH, Matos2024Turbidity, ScienceInsightsNTU}.
 
 For turbidity, the quality parameter is represented by setting $p=\mathrm{turb}$.
 Thus, $Q_{s,\mathrm{turb}}$ denotes the turbidity value of source $s$, while $\underline{Q}_{\mathrm{turb}}$ and $\overline{Q}_{\mathrm{turb}}$ denote the lower and upper turbidity limits.
@@ -284,8 +284,8 @@ This avoids redefining the same load form constraint using separate turbidity sp
 
 \subsection{Alkalinity}
 
-Alkalinity measures the ability of water to neutralise acid \cite{ADWG2022, TestNeeds2025Alkalinity, PerfectWater2026Alkalinity}.
-It represents the buffering capacity of water and is relevant to $\mathrm{pH}$ stability, corrosion control, treatment performance, remineralisation, and water stability in distribution systems \cite{ADWG2022, PerfectWater2026Alkalinity}.
+Alkalinity measures the ability of water to neutralise acid \cite{ADWG2025, TestNeeds2025Alkalinity, PerfectWater2025Alkalinity}.
+It represents the buffering capacity of water and is relevant to $\mathrm{pH}$ stability, corrosion control, treatment performance, remineralisation, and water stability in distribution systems \cite{ADWG2025, PerfectWater2025Alkalinity}.
 
 For alkalinity, the quality parameter is represented by setting $p=\mathrm{alk}$.
 Thus, $Q_{s,\mathrm{alk}}$ denotes the alkalinity value of source $s$, while $\underline{Q}_{\mathrm{alk}}$ and $\overline{Q}_{\mathrm{alk}}$ denote the lower and upper alkalinity limits.
@@ -303,7 +303,7 @@ $\mathrm{pH}$ is defined as \cite{WHO2007pH}:
 \begin{equation}\label{eq:ph_definition}
     \mathrm{pH} = -\log_{10}([\mathrm{H}^{+}]),
 \end{equation}
-where $[\mathrm{H}^{+}]$ represents hydrogen ion concentration \cite{EPA2023pH}.
+where $[\mathrm{H}^{+}]$ represents hydrogen ion concentration \cite{EPA2026pH}.
 
 To keep the MILP linear, $\mathrm{pH}$ is handled as a preprocessing transformation \cite{WHO2007pH}.
 For the $\mathrm{pH}$ quality parameter, $Q_{s,\mathrm{pH}}$ stores the transformed hydrogen ion concentration obtained from the raw source $\mathrm{pH}$ value:
@@ -422,7 +422,7 @@ Every term of the general model is inherited unchanged.
 The toy can therefore be built and tested first, then scaled up without reformulating.
 
 \clearpage
-\bibliographystyle{plain}
+\bibliographystyle{plainurl}
 \bibliography{references}
 
 \end{document}
