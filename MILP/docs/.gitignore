@@ -20,6 +20,7 @@
 
 ## Generated PDF files:
 *.pdf
+!formulation.pdf
 
 ## Bibliography auxiliary files (bibtex/biblatex/biber):
 *.bbl
@@ -40,3 +41,6 @@
 *.pdfsync
 *.rubbercache
 rubber.cache
+
+## latexindent backups
+*.bak[0-9]*
