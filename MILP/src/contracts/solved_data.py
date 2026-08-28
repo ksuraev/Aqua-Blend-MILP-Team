@@ -83,7 +83,7 @@ class SolutionValidation:
 class SolverSummary:
     """A summary of the status of the solver and its objective value"""
     
-    solver_status: str
+    status: str
     is_feasible: bool
     is_optimal: bool
     objective_value: float | None
@@ -137,31 +137,15 @@ class SourceResult:
 
     Nb: ``blend_ratio`` is ``None`` when no water was delivered, to avoid a divide by zero.
     """
-    # Note this does not currently match the output contract as there is an open question about
-    # the design philosophy around duplicating scenario data in the solver data. Unresolved variables
-    # are currently commented out.
 
     source_id: str
-    #source_name: str,
-    #source_type: str
-    #enabled_in_scenario: bool
-    #forced_inactive: bool
     model_included: bool
     activated: bool
     withdrawal_ml_per_day: float
-    #minimum_withdrawal_ml_per_day: float
-    #maximum_withdrawal_ml_per_day: float
-    #withdrawal_bounds_origin: str
-    #utilisation_percent: float
+    utilisation_percent: float
     blend_ratio: float | None
-    fixed_activation_cost: float
-    cost_per_ml: float
     variable_withdrawal_cost: float
     total_source_cost: float
-    #database_model_ready: bool
-    #availability_status: str
-    #has_estimated_values: bool
-    #provenance: dict
     selection_status: str
     exclusion_reason_code: str
     decision_evidence: SourceDecisionEvidence
@@ -170,20 +154,11 @@ class SourceResult:
 @dataclass(frozen=True, slots=True)
 class PlantResult:
     """Solved activation and cost for one treatment plant."""
-    # Note this does not currently match the output contract as there is an open question about
-    # the design philosophy around duplicating scenario data in the solver data. Unresolved variables
-    # are currently commented out.
     
     plant_id: str
-    #plant_name: str
-    #enabled_in_scenario: bool
     activated: bool
     throughput_ml_per_day: float
-    #minimum_processing_capacity_ml_per_day: float
-    #maximum_processing_capacity_ml_per_day: float
-    #utilisation_percent: null
-    fixed_activation_cost: float
-    #treatment_cost_per_ml: float
+    utilisation_percent: float
     variable_treatment_cost: float
     total_plant_cost: float
 
@@ -191,49 +166,35 @@ class PlantResult:
 @dataclass(frozen=True, slots=True)
 class DemandZoneResult:
     """Solved delivery for one demand zone."""
-    # Note this does not currently match the output contract as there is an open question about
-    # the design philosophy around duplicating scenario data in the solver data. Unresolved variables
-    # are currently commented out.
     
     zone_id: str
-    #demand_ml_per_day: float
     delivered_ml_per_day: float
     surplus_ml_per_day: float
     demand_satisfied: bool
     demand_must_be_met: bool
-    unmet_demand_ml_per_day: bool
+    unmet_demand_ml_per_day: float
 
 
 @dataclass(frozen=True, slots=True)
 class SourcePlantFlowResult:
     """Solved flow on one source-to-plant arc."""
-    # Note this does not currently match the output contract as there is an open question about
-    # the design philosophy around duplicating scenario data in the solver data. Unresolved variables
-    # are currently commented out.
 
     source_id: str
     plant_id: str
-    #enabled_in_scenario: bool
     activated: bool
     flow_ml_per_day: float
-    #maximum_flow_ml_per_day: float
-    #utilisation_percent: float
+    utilisation_percent: float
 
 
 @dataclass(frozen=True, slots=True)
 class PlantZoneFlowResult:
     """Solved flow on one plant-to-zone arc."""
-    # Note this does not currently match the output contract as there is an open question about
-    # the design philosophy around duplicating scenario data in the solver data. Unresolved variables
-    # are currently commented out.
 
     plant_id: str
     zone_id: str
-    #enabled_in_scenario: bool
     activated: bool
     flow_ml_per_day: float
-    #maximum_flow_ml_per_day: float
-    #utilisation_percent: float
+    utilisation_percent: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,16 +213,10 @@ class QualityParameterResult:
     Values and limits are reported in the scenario's original (raw) units, 
      e.g. pH rather than the hydrogen-ion concentration.
     """
-    # Note this does not currently match the output contract as there is an open question about
-    # the design philosophy around duplicating scenario data in the solver data. Unresolved variables
-    # are currently commented out.
 
     parameter_id: str
     model_parameter_id: str
     transform: str
-    #input_unit: str
-    #input_min: float
-    #input_max: float
     model_unit: str
     model_value: float
     model_min: float
@@ -300,6 +255,7 @@ class SolvedScenario:
     validation: SolutionValidation
 
     solver: SolverSummary
+    summary: CostSummary
 
     sources: tuple[SourceResult, ...]
     plants: tuple[PlantResult, ...]

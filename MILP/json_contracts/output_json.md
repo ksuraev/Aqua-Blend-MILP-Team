@@ -3,6 +3,7 @@
 **Contract file:** `MILP/examples/results/output_contract_v1.json`  
 **Contract version:** `1.0`  
 **Purpose:** Define the stable machine-readable result that the AquaBlend MILP must expose after model construction and solver execution.
+**Author:** Archit Bhullar
 
 ---
 
@@ -92,23 +93,7 @@ Demand:
 - 500 ML/day
 ```
 
-The configured network capacities are preserved exactly:
-
-```text
-silvan_reservoir -> facility_1       350 ML/day
-yarra_kew -> facility_1              300 ML/day
-groundwater_bore_1 -> facility_1      60 ML/day
-facility_1 -> zone_1                 600 ML/day
-```
-
-The treatment plant keeps the scenario naming convention:
-
-```text
-minimum_processing_capacity_ml_per_day
-maximum_processing_capacity_ml_per_day
-fixed_activation_cost
-treatment_cost_per_ml
-```
+The configured network capacities (link capacities, plant processing bounds, plant/source fixed costs, etc.) live in the scenario configuration and flow through `ScenarioData` / `ModelParameters` as before. As of this contract revision they are **inputs to the model, not fields of the Output JSON** — see §5 for the rationale — so they are no longer echoed on `sources`, `plants`, or `flows` records. The network topology itself (which source feeds which plant, which plant feeds which zone) is still implied by which `source_to_plant` / `plant_to_zone` records exist.
 
 The three quality parameters are:
 
@@ -177,7 +162,7 @@ lower = 3.1622776601683795e-09 mol/L
 upper = 3.162277660168379e-07 mol/L
 ```
 
-The Output JSON reports both the input-space pH limits and model-space hydrogen-ion limits so downstream users can see what the model actually enforced.
+An earlier draft additionally reported the input-space limits (`input_unit`, `input_min`, `input_max`) alongside the model-space ones. As of contract version `1.0` those input-space limit fields are removed — the raw human-readable range (`6.5 <= pH <= 8.5`) is scenario configuration, not a solved value, and is available from `ScenarioData`/`ModelParameters` (see §5). The Output JSON reports only the model-space `model_min`/`model_max` hydrogen-ion limits, which is what the model actually enforced and what `within_limits`/`binding_lower`/`binding_upper` are evaluated against.
 
 ---
 
@@ -185,30 +170,38 @@ The Output JSON reports both the input-space pH limits and model-space hydrogen-
 
 `ScenarioData` is the validated boundary between `data_loader.py` and `preprocessing.py`.
 
-The Output JSON may reuse reporting/audit fields that are already present in the validated source records, including:
+An earlier draft of this contract duplicated a number of `ScenarioData` reporting/audit fields onto the `sources` and `plants` records, including:
 
 ```text
-source_id
-name
+source_name
 source_type
-enabled
+enabled_in_scenario
 forced_inactive
 minimum_withdrawal_ml_per_day
 maximum_withdrawal_ml_per_day
 withdrawal_bounds_origin
 fixed_activation_cost
 cost_per_ml
-has_estimated_values
 database_model_ready
 availability_status
+has_estimated_values
 provenance
+plant_name
+minimum_processing_capacity_ml_per_day
+maximum_processing_capacity_ml_per_day
+treatment_cost_per_ml
 ```
 
-These are not new optimisation decisions.
+**As of contract version `1.0`, these fields are removed from the Output JSON.** They are _inputs_ to the model — already validated and owned by `ScenarioData` — rather than solver outputs, and duplicating them here created two sources of truth for the same value. A consumer that needs a source's configured bounds, cost rates, provenance, or a plant's configured capacity should read `ScenarioData` (or the original scenario configuration) directly rather than the solved result.
 
-The output must not go back to raw database columns and independently reconstruct values that were already resolved by the loader.
+The Output JSON keeps only the identifiers needed to join back to `ScenarioData` (`source_id`, `plant_id`, `zone_id`) plus a small number of input values that are kept as **necessary context for interpreting the solved result**, not as a general-purpose echo of scenario inputs:
 
-For example, if a scenario override and a database value were combined into the effective source withdrawal bounds, the Output JSON should report the **effective validated bounds**, together with `withdrawal_bounds_origin`.
+```text
+demand_zones[].demand_ml_per_day   — needed to judge delivered vs. demand
+quality parameters' model_min / model_max — needed to judge within_limits
+```
+
+The output must not go back to raw database columns and independently reconstruct values that were already resolved by the loader. If a scenario override and a database value were combined into an effective bound upstream, that resolution belongs to `ScenarioData`/`ModelParameters` — the Output JSON does not re-report it.
 
 ---
 
@@ -302,8 +295,8 @@ solver
 summary
 sources
 plants
-flows
 demand_zones
+flows
 quality
 binding_constraints_summary
 warnings
@@ -539,60 +532,17 @@ yarra_kew
 groundwater_bore_1
 ```
 
-Each source contains four categories of information.
+Each source record now contains only model-membership and solver-decision fields. The scenario/input echo fields (`source_name`, `source_type`, `enabled_in_scenario`, `forced_inactive`, `minimum_withdrawal_ml_per_day`, `maximum_withdrawal_ml_per_day`, `withdrawal_bounds_origin`, `fixed_activation_cost`, `cost_per_ml`, `database_model_ready`, `availability_status`, `has_estimated_values`, `provenance`) that appeared in an earlier draft have been removed — see §5.
 
-#### 8.5.1 Scenario/input context
-
-```text
-source_id
-source_name
-source_type
-enabled_in_scenario
-forced_inactive
-fixed_activation_cost
-```
-
-#### 8.5.2 Resolved model context
+#### 8.5.1 Model membership
 
 ```text
 model_included
-minimum_withdrawal_ml_per_day
-maximum_withdrawal_ml_per_day
-withdrawal_bounds_origin
-cost_per_ml
-database_model_ready
-availability_status
-has_estimated_values
-provenance
 ```
 
-The current scenario specifies a minimum withdrawal of `0` for all three sources.
+`model_included` records whether the source entered the model at all, distinct from whether the solver chose to activate it.
 
-The maximum withdrawal is intentionally left `null` in the contract template because each scenario entry has:
-
-```text
-max_available_ml_per_day_override = null
-```
-
-Therefore, the effective upper withdrawal must come from the configured source data and then flow through `ScenarioData` and `ModelParameters`.
-
-It must **not** be copied from the source→plant link capacity.
-
-For example:
-
-```text
-source maximum withdrawal
-```
-
-and:
-
-```text
-silvan_reservoir -> facility_1 maximum flow = 350 ML/day
-```
-
-are different parameters and may have different values.
-
-#### 8.5.3 Solver decision
+#### 8.5.2 Solver decision
 
 ```text
 activated
@@ -618,14 +568,19 @@ Meaning:
 
 An excluded source is not a source the solver "rejected". The solver never considered it.
 
-#### 8.5.4 Derived reporting/evidence
+Whether a source was excluded because it was disabled, forced inactive, or missing required data is a fact about `ScenarioData`/the loader outcome, and should be read from there — the Output JSON's `exclusion_reason_code` records the reason as known to the solved result, not a copy of the input flags.
+
+#### 8.5.3 Derived reporting/evidence
 
 ```text
 utilisation_percent
+blend_ratio
 variable_withdrawal_cost
 total_source_cost
 decision_evidence
 ```
+
+`blend_ratio` is the source's share of a plant's total inflow. It is `null` when no water was delivered, to avoid a divide-by-zero.
 
 `decision_evidence` contains deterministic facts that can support the AI explanation layer:
 
@@ -637,6 +592,8 @@ binding_upper
 
 `unit_cost_rank` is context only. It must not be presented as proof that cost alone caused selection.
 
+`binding_lower` / `binding_upper` indicate whether the solved withdrawal sits at its lower or upper bound. This replaces the earlier, more verbose `at_minimum_withdrawal` / `at_maximum_withdrawal` / `binding_constraints` fields with a pair of booleans that mirrors the naming already used for the quality parameters.
+
 ---
 
 ### 8.6. `plants`
@@ -647,20 +604,17 @@ The current plant is:
 facility_1
 ```
 
-The output preserves the scenario's capacity naming:
-
-```text
-minimum_processing_capacity_ml_per_day
-maximum_processing_capacity_ml_per_day
-```
-
-and reports solved:
+Plant records now report only the solved decision and its derived cost:
 
 ```text
 activated
 throughput_ml_per_day
 utilisation_percent
+variable_treatment_cost
+total_plant_cost
 ```
+
+`plant_name`, `enabled_in_scenario`, `minimum_processing_capacity_ml_per_day`, `maximum_processing_capacity_ml_per_day`, `fixed_activation_cost` and `treatment_cost_per_ml` that appeared in an earlier draft are removed — they are scenario inputs and belong to `ScenarioData`/`ModelParameters` (see §5), not the solved output.
 
 Plant throughput is derived from source→plant inflow:
 
@@ -668,16 +622,7 @@ Plant throughput is derived from source→plant inflow:
 throughput[t] = sum(source_plant_flow[s, t])
 ```
 
-When the plant is active, its solved throughput must satisfy the lower and upper plant bounds used by the final formulation.
-
-The current scenario has:
-
-```text
-minimum_processing_capacity_ml_per_day = 0
-maximum_processing_capacity_ml_per_day = 600
-fixed_activation_cost = 0
-treatment_cost_per_ml = 64
-```
+When the plant is active, its solved throughput must satisfy the lower and upper plant bounds used by the final formulation, even though those bounds are no longer echoed in this record. For the current scenario those input bounds are `minimum_processing_capacity_ml_per_day = 0`, `maximum_processing_capacity_ml_per_day = 600`, `fixed_activation_cost = 0`, `treatment_cost_per_ml = 64` — available from `ModelParameters`, and used by output-consistency checks such as `plant_activation_and_throughput_bounds` (§8.2.4) even though they are not repeated in the `plants` record itself.
 
 ---
 
@@ -687,7 +632,6 @@ The current demand-zone result uses:
 
 ```text
 zone_id
-zone_name
 demand_must_be_met
 demand_ml_per_day
 delivered_ml_per_day
@@ -695,6 +639,8 @@ surplus_ml_per_day
 unmet_demand_ml_per_day
 demand_satisfied
 ```
+
+`zone_name` from an earlier draft is removed for the same reason as the other scenario-echo fields (§5). `demand_ml_per_day` is kept, unlike most other scenario inputs, because it is needed context: without it a consumer cannot tell whether `delivered_ml_per_day` satisfies demand.
 
 For the current scenario:
 
@@ -741,12 +687,12 @@ Each result reports:
 ```text
 source_id
 plant_id
-enabled_in_scenario
 activated
 flow_ml_per_day
-maximum_flow_ml_per_day
 utilisation_percent
 ```
+
+`enabled_in_scenario` and `maximum_flow_ml_per_day` from an earlier draft are removed — link capacity is a scenario/`ModelParameters` input (see §5), not a solved value, so it is not echoed here. `utilisation_percent` (flow relative to that capacity) is still reported because it is a derived, solver-dependent value.
 
 This maps directly to the source→plant binary/continuous formulation pair:
 
@@ -755,7 +701,7 @@ gamma_st
 b_st
 ```
 
-The solved flow must never exceed the corresponding link capacity.
+The solved flow must never exceed the corresponding link capacity, and this is verified by the `source_to_plant_link_capacity` output-consistency check (§8.2.4) against `ModelParameters.source_plant_link_capacity`, even though the capacity itself is not repeated on this record.
 
 ---
 
@@ -780,12 +726,12 @@ and reports:
 ```text
 plant_id
 zone_id
-enabled_in_scenario
 activated
 flow_ml_per_day
-maximum_flow_ml_per_day
 utilisation_percent
 ```
+
+As with `flows.source_to_plant`, `enabled_in_scenario` and `maximum_flow_ml_per_day` are no longer part of this record; the capacity used to compute `utilisation_percent` and enforced by `plant_to_zone_link_capacity` (§8.2.4) comes from `ModelParameters.plant_zone_link_capacity`.
 
 ---
 
@@ -821,9 +767,6 @@ Fields include:
 parameter_id
 model_parameter_id
 transform
-input_unit
-input_min
-input_max
 model_unit
 model_value
 model_min
@@ -871,17 +814,10 @@ This section provides deterministic evidence about active limits where solver/co
 Example runtime item:
 
 ```json
-{
-  "constraint_type": "source_max_withdrawal",
-  "source_id": "silvan_reservoir",
-  "plant_id": null,
-  "zone_id": null,
-  "parameter_id": null,
-  "current_value": 350.0,
-  "bound_value": 350.0,
-  "slack": 0.0,
-  "is_binding": true
-}
+[
+  "Source X is operating at its maximum withdrawal bound",
+  "Source Y is not activated"
+]
 ```
 
 This section is useful to the AI layer because it allows explanations to be grounded in actual optimisation evidence.

@@ -218,7 +218,7 @@
     "is_feasible": null,
     "is_optimal": null,
     "objective_value": null,
-    "version": 0.1
+    "version": "0.1"
   },
   "summary": {
     "total_demand_ml_per_day": 500.0,
@@ -240,85 +240,47 @@
   "sources": [
     {
       "source_id": "silvan_reservoir",
-      "source_name": null,
-      "source_type": null,
-      "enabled_in_scenario": true,
-      "forced_inactive": false,
       "model_included": null,
       "activated": null,
       "withdrawal_ml_per_day": null,
-      "minimum_withdrawal_ml_per_day": 0.0,
-      "maximum_withdrawal_ml_per_day": null,
-      "withdrawal_bounds_origin": null,
       "utilisation_percent": null,
-      "fixed_activation_cost": 0.0,
-      "cost_per_ml": null,
+      "blend_ratio": null,
       "variable_withdrawal_cost": null,
       "total_source_cost": null,
-      "database_model_ready": null,
-      "availability_status": null,
-      "has_estimated_values": null,
-      "provenance": {},
       "selection_status": "PENDING",
       "exclusion_reason_code": null,
       "decision_evidence": {
         "unit_cost_rank": null,
-        "at_minimum_withdrawal": null,
-        "at_maximum_withdrawal": null,
-        "binding_constraints": []
+        "binding_lower": null,
+        "binding_upper": null
       }
     },
     {
       "source_id": "yarra_kew",
-      "source_name": null,
-      "source_type": null,
-      "enabled_in_scenario": true,
-      "forced_inactive": false,
       "model_included": null,
       "activated": null,
       "withdrawal_ml_per_day": null,
-      "minimum_withdrawal_ml_per_day": 0.0,
-      "maximum_withdrawal_ml_per_day": null,
-      "withdrawal_bounds_origin": null,
       "utilisation_percent": null,
-      "fixed_activation_cost": 0.0,
-      "cost_per_ml": null,
+      "blend_ratio": null,
       "variable_withdrawal_cost": null,
       "total_source_cost": null,
-      "database_model_ready": null,
-      "availability_status": null,
-      "has_estimated_values": null,
-      "provenance": {},
       "selection_status": "PENDING",
       "exclusion_reason_code": null,
       "decision_evidence": {
         "unit_cost_rank": null,
-        "at_minimum_withdrawal": null,
-        "at_maximum_withdrawal": null,
-        "binding_constraints": []
+        "binding_lower": null,
+        "binding_upper": null
       }
     },
     {
       "source_id": "groundwater_bore_1",
-      "source_name": null,
-      "source_type": null,
-      "enabled_in_scenario": true,
-      "forced_inactive": false,
       "model_included": null,
       "activated": null,
       "withdrawal_ml_per_day": null,
-      "minimum_withdrawal_ml_per_day": 0.0,
-      "maximum_withdrawal_ml_per_day": null,
-      "withdrawal_bounds_origin": null,
       "utilisation_percent": null,
-      "fixed_activation_cost": 0.0,
-      "cost_per_ml": null,
+      "blend_ratio": null,
       "variable_withdrawal_cost": null,
       "total_source_cost": null,
-      "database_model_ready": null,
-      "availability_status": null,
-      "has_estimated_values": null,
-      "provenance": {},
       "selection_status": "PENDING",
       "exclusion_reason_code": null,
       "decision_evidence": {
@@ -331,15 +293,9 @@
   "plants": [
     {
       "plant_id": "facility_1",
-      "plant_name": "Treatment Facility 1",
-      "enabled_in_scenario": true,
       "activated": null,
       "throughput_ml_per_day": null,
-      "minimum_processing_capacity_ml_per_day": 0.0,
-      "maximum_processing_capacity_ml_per_day": 600.0,
       "utilisation_percent": null,
-      "fixed_activation_cost": 0.0,
-      "treatment_cost_per_ml": 64.0,
       "variable_treatment_cost": null,
       "total_plant_cost": null
     }
@@ -347,8 +303,6 @@
   "demand_zones": [
     {
       "zone_id": "zone_1",
-      "zone_name": "Zone 1",
-      "demand_ml_per_day": 500.0,
       "delivered_ml_per_day": null,
       "surplus_ml_per_day": null,
       "demand_satisfied": null,
@@ -361,28 +315,22 @@
       {
         "source_id": "silvan_reservoir",
         "plant_id": "facility_1",
-        "enabled_in_scenario": true,
         "activated": null,
         "flow_ml_per_day": null,
-        "maximum_flow_ml_per_day": 350.0,
         "utilisation_percent": null
       },
       {
         "source_id": "yarra_kew",
         "plant_id": "facility_1",
-        "enabled_in_scenario": true,
         "activated": null,
         "flow_ml_per_day": null,
-        "maximum_flow_ml_per_day": 300.0,
         "utilisation_percent": null
       },
       {
         "source_id": "groundwater_bore_1",
         "plant_id": "facility_1",
-        "enabled_in_scenario": true,
         "activated": null,
         "flow_ml_per_day": null,
-        "maximum_flow_ml_per_day": 60.0,
         "utilisation_percent": null
       }
     ],
@@ -390,10 +338,8 @@
       {
         "plant_id": "facility_1",
         "zone_id": "zone_1",
-        "enabled_in_scenario": true,
         "activated": null,
         "flow_ml_per_day": null,
-        "maximum_flow_ml_per_day": 600.0,
         "utilisation_percent": null
       }
     ]
@@ -409,9 +355,6 @@
             "parameter_id": "pH",
             "model_parameter_id": "hydrogen_ion_concentration_mol_l",
             "transform": "ph_to_hydrogen_ion",
-            "input_unit": "pH",
-            "input_min": 6.5,
-            "input_max": 8.5,
             "model_unit": "mol/L",
             "model_value": null,
             "model_min": 3.1622776601683795e-09,
@@ -426,9 +369,6 @@
             "parameter_id": "alkalinity",
             "model_parameter_id": "alkalinity",
             "transform": "identity",
-            "input_unit": "mg/L CaCO3",
-            "input_min": 20.0,
-            "input_max": 100.0,
             "model_unit": "mg/L CaCO3",
             "model_value": null,
             "model_min": 20.0,
@@ -443,9 +383,6 @@
             "parameter_id": "turbidity",
             "model_parameter_id": "turbidity",
             "transform": "identity",
-            "input_unit": "NTU",
-            "input_min": 0.0,
-            "input_max": 8.0,
             "model_unit": "NTU",
             "model_value": null,
             "model_min": 0.0,
