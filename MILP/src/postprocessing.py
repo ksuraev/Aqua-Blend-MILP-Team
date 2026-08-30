@@ -94,25 +94,17 @@ _EPSILON = 1e-9
 _SOLVER_TOLERANCE = 1e-6
 _COST_RECONCILIATION_TOLERANCE = 1e-3
 
-# Hydrogen-ion concentration in the model is expressed in nmol/L (1 nmol/L ==
-# 1e-9 mol/L), not mol/L. pH = -log10(mol/L) = -log10(nmol/L * 1e-9)
-#             = 9 - log10(nmol/L)
-#
-# NOTE: ``preprocessing.ph_to_hydrogen_ion`` (the forward transform) currently
-# still returns mol/L (``10.0 ** (-ph)``). For this inverse transform to be
-# dimensionally correct, the forward transform needs to be updated to return
-# nmol/L (i.e. multiplied by 1e9) as well. That change lives in
-# preprocessing.py and is out of scope for this file, but the two must be
-# kept in sync or blended pH/quality results will be wrong by a factor of
-# 1e9.
+# Hydrogen-ion concentration in the model is expressed in nmol/L. Defining here
+# so its easy to tell why the calculation exists as it does.
+# pH = -log10(mol/L) = -log10(nmol/L * 1e-9) = 9 - log10(nmol/L)
+
 _NMOL_PER_MOL = 1e9
 
 
 def hydrogen_concentration_to_ph(concentration_nmol_per_l: float) -> float:
     """Convert hydrogen-ion concentration in nmol/L back into pH.
 
-    Inverse of ``preprocessing.ph_to_hydrogen_ion`` (once that function is
-    updated to emit nmol/L rather than mol/L).
+    Inverse of preprocessing.ph_to_hydrogen_ion.
     """
     if not math.isfinite(concentration_nmol_per_l) or concentration_nmol_per_l <= 0:
         raise PostprocessingError(
@@ -120,7 +112,7 @@ def hydrogen_concentration_to_ph(concentration_nmol_per_l: float) -> float:
             f"{concentration_nmol_per_l!r}."
         )
 
-    value = math.log10(_NMOL_PER_MOL) - math.log10(concentration_nmol_per_l)
+    value = math.log10(_NMOL_PER_MOL) - math.log10(concentration_nmol_per_l) # math.log10(1e9) is to convert from nmol/L to mol/L
     if not math.isfinite(value):
         raise PostprocessingError(
             f"Hydrogen-ion concentration {concentration_nmol_per_l!r} could not "
@@ -600,7 +592,7 @@ def _model_quality_name(
 ) -> str:
     """Resolve the raw quality-parameter name to its model-space identifier."""
     default_model_name = (
-        "hydrogen_ion_concentration_mol_l" if transform == "ph_to_hydrogen_ion" else raw_name
+        "hydrogen_ion_concentration_nmol_l" if transform == "ph_to_hydrogen_ion" else raw_name
     )
     if default_model_name in parameters.quality_parameter_ids:
         return default_model_name
@@ -623,10 +615,10 @@ def _build_quality_result(
 ) -> QualityResult:
     """Blend source quality by solved flow at each plant's inflow.
 
-    Model-space blending happens in the transformed units used by
-    ``ModelParameters`` (e.g. hydrogen-ion concentration in nmol/L) because
-    that is the space in which the transform is linear in volume. The result
-    is then converted back into the scenario's original (reported) units.
+    Model-space blending happens in the transformed units used by ModelParameters 
+    (e.g. hydrogen-ion concentration in nmol/L) because that is the space in which 
+    the transform is linear in volume. The result is then converted back into the 
+    scenario's original (reported) units.
     """
     quality_parameters: dict[str, dict[str, Any]] = scenario.quality_limits["parameters"]
 

@@ -27,6 +27,12 @@ _SUPPORTED_QUALITY_TRANSFORMS = {
     "ph_to_hydrogen_ion",
 }
 
+# Hydrogen-ion concentration in the model is expressed in nmol/L (1 nmol/L ==
+# 1e-9 mol/L), not mol/L. pH = -log10(mol/L) = -log10(nmol/L * 1e-9)
+#             = 9 - log10(nmol/L)
+
+_NMOL_PER_MOL = 1e9
+
 _MILP_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_SCENARIO_PATH = _MILP_ROOT / "config" / "scenarios" / "base_scenarios_v1.json"
 
@@ -217,7 +223,7 @@ def ph_to_hydrogen_ion(ph: float) -> float:
     if not math.isfinite(ph) or not 0.0 <= ph <= 14.0:
         raise PreprocessingError("pH must be finite and between 0 and 14.")
 
-    value = 10.0 ** (-ph)
+    value = 10.0 ** (-ph) * _NMOL_PER_MOL
     if not math.isfinite(value) or value <= 0:
         raise PreprocessingError(f"pH {ph!r} could not be transformed safely.")
 
