@@ -3,9 +3,7 @@
   "run_id": null,
   "scenario": {
     "scenario_id": "scenario_2026_07_17_001",
-    "scenario_name": "Toy model — single plant, single zone",
     "status": "draft",
-    "description": "Sprint 1 toy case of the network formulation: three sources feed one treatment plant serving one demand zone. Source attributes are read from the configured Supabase view; the scenario selects which sources are in play and defines the network around them.",
     "data_source": {
       "type": "supabase",
       "view": "public.source_model_inputs",

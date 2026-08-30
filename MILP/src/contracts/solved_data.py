@@ -16,9 +16,7 @@ class InputScenario:
     """Information about the scenario that was entered into the solver."""
 
     scenario_id: str
-    scenario_name: str
     status: str
-    description: str
     data_source: DataSource
 
 

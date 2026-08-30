@@ -76,7 +76,6 @@ The contract is aligned to the supplied scenario:
 
 ```text
 scenario_id: scenario_2026_07_17_001
-scenario_name: Toy model — single plant, single zone
 
 Sources:
 - silvan_reservoir
@@ -314,9 +313,7 @@ The scenario section identifies the exact input that produced the result.
 ```json
 "scenario": {
   "scenario_id": "scenario_2026_07_17_001",
-  "scenario_name": "Toy model — single plant, single zone",
   "status": "draft",
-  "description": "...",
   "data_source": {
     "type": "supabase",
     "view": "public.source_model_inputs",
