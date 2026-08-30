@@ -1,5 +1,6 @@
 {
   "schema_version": "1.0",
+  "run_id": null,
   "scenario": {
     "scenario_id": "scenario_2026_07_17_001",
     "scenario_name": "Toy model — single plant, single zone",
@@ -355,10 +356,10 @@
             "parameter_id": "pH",
             "model_parameter_id": "hydrogen_ion_concentration_mol_l",
             "transform": "ph_to_hydrogen_ion",
-            "model_unit": "mol/L",
+            "model_unit": "nmol/L",
             "model_value": null,
-            "model_min": 3.1622776601683795e-09,
-            "model_max": 3.162277660168379e-07,
+            "model_min": 3.1623,
+            "model_max": 316.23,
             "reported_value": null,
             "reported_unit": "pH",
             "within_limits": null,

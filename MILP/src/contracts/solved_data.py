@@ -250,6 +250,7 @@ class SolvedScenario:
     """Validated output contract for a single scenario."""
 
     schema_version: str
+    run_id: str
 
     scenario: InputScenario
     validation: SolutionValidation

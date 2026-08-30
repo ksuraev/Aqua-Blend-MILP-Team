@@ -1,6 +1,6 @@
 # AquaBlend MILP Output JSON Contract
 
-**Contract file:** `MILP/examples/results/output_contract_v1.json`  
+**Contract file:** `MILP/json_contracts/output_contract_v1.json`  
 **Contract version:** `1.0`  
 **Purpose:** Define the stable machine-readable result that the AquaBlend MILP must expose after model construction and solver execution.
 **Author:** Archit Bhullar
@@ -158,8 +158,8 @@ and reorders the transformed endpoints because hydrogen-ion concentration decrea
 For the current pH limits the model-space bounds are approximately:
 
 ```text
-lower = 3.1622776601683795e-09 mol/L
-upper = 3.162277660168379e-07 mol/L
+lower = 3.1623 nmol/L
+upper = 316.23 nmol/L
 ```
 
 An earlier draft additionally reported the input-space limits (`input_unit`, `input_min`, `input_max`) alongside the model-space ones. As of contract version `1.0` those input-space limit fields are removed — the raw human-readable range (`6.5 <= pH <= 8.5`) is scenario configuration, not a solved value, and is available from `ScenarioData`/`ModelParameters` (see §5). The Output JSON reports only the model-space `model_min`/`model_max` hydrogen-ion limits, which is what the model actually enforced and what `within_limits`/`binding_lower`/`binding_upper` are evaluated against.
@@ -289,6 +289,7 @@ Version `1.0` uses these top-level keys:
 
 ```text
 schema_version
+run_id
 scenario
 validation
 solver
