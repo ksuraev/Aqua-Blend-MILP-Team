@@ -45,6 +45,8 @@ def test_all_keys_present():
     """Every key in output_contract_v1.json must match a field on the
     corresponding solved_data.py dataclass, at every nested level."""
 
+    assert isinstance(CONTRACT_PATHS, list) and bool(CONTRACT_PATHS)
+
     for contract_path in CONTRACT_PATHS:
         with contract_path.open() as f:
             contract = json.load(f)
