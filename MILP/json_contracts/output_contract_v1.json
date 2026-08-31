@@ -1,0 +1,401 @@
+{
+  "schema_version": "1.0",
+  "run_id": null,
+  "scenario": {
+    "scenario_id": "scenario_2026_07_17_001",
+    "status": "draft",
+    "data_source": {
+      "type": "supabase",
+      "view": "public.source_model_inputs",
+      "allow_estimated_values": true
+    }
+  },
+  "validation": {
+    "input_policy": {
+      "fail_if_source_missing_from_database": true,
+      "fail_if_daily_availability_missing": true,
+      "fail_if_required_quality_value_missing": true,
+      "fail_if_demand_missing": true
+    },
+    "loader": {
+      "status": "NOT_RUN",
+      "scenario_ready": null,
+      "validation_issues": [],
+      "checks": [
+        {
+          "check": "scenario_identity",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_ids_present_and_unique",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_exists_in_configured_data_source",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_withdrawal_bounds_present",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_withdrawal_bounds_non_negative_and_ordered",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_cost_present_finite_and_non_negative",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "estimated_values_allowed_by_policy",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_quality_keys_match_quality_limits",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_quality_values_numeric_and_finite",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_ids_present_and_unique",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_capacity_bounds_finite_non_negative_and_ordered",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_costs_finite_and_non_negative",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "demand_zone_ids_present_and_unique",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "demand_present_finite_and_non_negative",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_to_plant_links_unique_and_valid",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_to_zone_links_unique_and_valid",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "link_capacities_finite_and_non_negative",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "quality_limit_definition_valid",
+          "enabled": true,
+          "passed": null
+        }
+      ]
+    },
+    "preprocessing": {
+      "status": "NOT_RUN",
+      "warnings": [],
+      "checks": [
+        {
+          "check": "model_parameter_completeness",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_lower_upper_bound_consistency",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_lower_upper_bound_consistency",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "capacity_feasibility",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "necessary_quality_feasibility",
+          "enabled": true,
+          "passed": null
+        }
+      ]
+    },
+    "output_consistency": {
+      "status": "NOT_RUN",
+      "tolerance": 1e-06,
+      "checks": [
+        {
+          "check": "decision_values_non_negative",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_activation_and_withdrawal_bounds",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_activation_and_throughput_bounds",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_flow_conservation",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_flow_conservation",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "source_to_plant_link_capacity",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_to_zone_link_capacity",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "demand_satisfaction",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "plant_inflow_quality_limits",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "objective_cost_reconciliation",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "summary_total_reconciliation",
+          "enabled": true,
+          "passed": null
+        },
+        {
+          "check": "reported_ids_and_arcs_match_model_parameters",
+          "enabled": true,
+          "passed": null
+        }
+      ]
+    }
+  },
+  "solver": {
+    "status": "NOT_SOLVED",
+    "is_feasible": null,
+    "is_optimal": null,
+    "objective_value": null,
+    "version": "0.1"
+  },
+  "summary": {
+    "total_demand_ml_per_day": 500.0,
+    "total_withdrawal_ml_per_day": null,
+    "total_treated_ml_per_day": null,
+    "total_delivered_ml_per_day": null,
+    "selected_source_count": null,
+    "active_plant_count": null,
+    "costs": {
+      "total_source_fixed_cost": null,
+      "total_source_variable_cost": null,
+      "total_plant_fixed_cost": null,
+      "total_plant_variable_cost": null,
+      "reconstructed_total_cost": null,
+      "total_cost": null,
+      "cost_reconciles": null
+    }
+  },
+  "sources": [
+    {
+      "source_id": "silvan_reservoir",
+      "model_included": null,
+      "activated": null,
+      "withdrawal_ml_per_day": null,
+      "utilisation_percent": null,
+      "blend_ratio": null,
+      "variable_withdrawal_cost": null,
+      "total_source_cost": null,
+      "selection_status": "PENDING",
+      "exclusion_reason_code": null,
+      "decision_evidence": {
+        "unit_cost_rank": null,
+        "binding_lower": null,
+        "binding_upper": null
+      }
+    },
+    {
+      "source_id": "yarra_kew",
+      "model_included": null,
+      "activated": null,
+      "withdrawal_ml_per_day": null,
+      "utilisation_percent": null,
+      "blend_ratio": null,
+      "variable_withdrawal_cost": null,
+      "total_source_cost": null,
+      "selection_status": "PENDING",
+      "exclusion_reason_code": null,
+      "decision_evidence": {
+        "unit_cost_rank": null,
+        "binding_lower": null,
+        "binding_upper": null
+      }
+    },
+    {
+      "source_id": "groundwater_bore_1",
+      "model_included": null,
+      "activated": null,
+      "withdrawal_ml_per_day": null,
+      "utilisation_percent": null,
+      "blend_ratio": null,
+      "variable_withdrawal_cost": null,
+      "total_source_cost": null,
+      "selection_status": "PENDING",
+      "exclusion_reason_code": null,
+      "decision_evidence": {
+        "unit_cost_rank": null,
+        "binding_lower": null,
+        "binding_upper": null
+      }
+    }
+  ],
+  "plants": [
+    {
+      "plant_id": "facility_1",
+      "activated": null,
+      "throughput_ml_per_day": null,
+      "utilisation_percent": null,
+      "variable_treatment_cost": null,
+      "total_plant_cost": null
+    }
+  ],
+  "demand_zones": [
+    {
+      "zone_id": "zone_1",
+      "delivered_ml_per_day": null,
+      "surplus_ml_per_day": null,
+      "demand_satisfied": null,
+      "demand_must_be_met": true,
+      "unmet_demand_ml_per_day": null
+    }
+  ],
+  "flows": {
+    "source_to_plant": [
+      {
+        "source_id": "silvan_reservoir",
+        "plant_id": "facility_1",
+        "activated": null,
+        "flow_ml_per_day": null,
+        "utilisation_percent": null
+      },
+      {
+        "source_id": "yarra_kew",
+        "plant_id": "facility_1",
+        "activated": null,
+        "flow_ml_per_day": null,
+        "utilisation_percent": null
+      },
+      {
+        "source_id": "groundwater_bore_1",
+        "plant_id": "facility_1",
+        "activated": null,
+        "flow_ml_per_day": null,
+        "utilisation_percent": null
+      }
+    ],
+    "plant_to_zone": [
+      {
+        "plant_id": "facility_1",
+        "zone_id": "zone_1",
+        "activated": null,
+        "flow_ml_per_day": null,
+        "utilisation_percent": null
+      }
+    ]
+  },
+  "quality": {
+    "applies_to": "blend_at_plant_inflow",
+    "plant_inflow": [
+      {
+        "plant_id": "facility_1",
+        "flow_ml_per_day": null,
+        "parameters": [
+          {
+            "parameter_id": "pH",
+            "model_parameter_id": "hydrogen_ion_concentration_mol_l",
+            "transform": "ph_to_hydrogen_ion",
+            "model_unit": "nmol/L",
+            "model_value": null,
+            "model_min": 3.1623,
+            "model_max": 316.23,
+            "reported_value": null,
+            "reported_unit": "pH",
+            "within_limits": null,
+            "binding_lower": null,
+            "binding_upper": null
+          },
+          {
+            "parameter_id": "alkalinity",
+            "model_parameter_id": "alkalinity",
+            "transform": "identity",
+            "model_unit": "mg/L CaCO3",
+            "model_value": null,
+            "model_min": 20.0,
+            "model_max": 100.0,
+            "reported_value": null,
+            "reported_unit": "mg/L CaCO3",
+            "within_limits": null,
+            "binding_lower": null,
+            "binding_upper": null
+          },
+          {
+            "parameter_id": "turbidity",
+            "model_parameter_id": "turbidity",
+            "transform": "identity",
+            "model_unit": "NTU",
+            "model_value": null,
+            "model_min": 0.0,
+            "model_max": 8.0,
+            "reported_value": null,
+            "reported_unit": "NTU",
+            "within_limits": null,
+            "binding_lower": null,
+            "binding_upper": null
+          }
+        ]
+      }
+    ]
+  },
+  "binding_constraints_summary": [],
+  "warnings": []
+}
