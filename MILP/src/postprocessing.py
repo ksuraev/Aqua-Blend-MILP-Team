@@ -2,6 +2,7 @@
 This script is used for post processing after the solver is run.
 
 - Extracts the solver status, objective value, active sources and draw values
+  from a solved Pyomo model.
 - Cleans results and checks for Nones, near-zero values and invalid values.
 - Calculates the total delivered volume and source/plant level cost contributions
 - Calculates blended turbidity, alkalinity, and hydrogen-ion concentration/pH
@@ -13,10 +14,14 @@ This script is used for post processing after the solver is run.
 
 Postprocessing does NOT run loader or preprocessing validation. Those are the
 responsibility of the data-loading and preprocessing stages respectively, and
-their results (InputScenario, InputValidationPolicy, LoaderValidation, 
-PreprocessingValidation) are expected to be handed to postprocess_solution as 
-pass-through arguments, unchanged. Currently neither ScenarioData (scenario_data.py) 
-nor ModelParameters (preprocessing.py) carry these objects.
+their results (InputValidationPolicy, LoaderValidation, PreprocessingValidation) 
+are expected to be handed to postprocess_solution as pass-through arguments, 
+unchanged. Currently neither ScenarioData (scenario_data.py) nor ModelParameters 
+(preprocessing.py) carry these objects, so they need to be implemented upstream.
+
+The solver is Pyomo (see model.py / model.solve()). postprocess_solution
+takes the solved pyo.ConcreteModel plus the pyo.SolverResults returned by
+SolverFactory(...).solve(model).
 
 For the purpose of the toy model, we are assuming linear blending.
 """
@@ -27,15 +32,19 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+import pyomo.environ as pyo
+from pyomo.opt import SolverStatus, TerminationCondition, SolverResults
+
 try:
-    from .scenario_data import ScenarioData
+    from .contracts.scenario_data import ScenarioData
     from .preprocessing import ModelParameters
-    from .solved_data import (
+    from .contracts.solved_data import (
         CostBreakdown,
         CostSummary,
         DemandZoneResult,
         FlowResult,
         InflowQualityPlantResult,
+        DataSource,
         InputScenario,
         InputValidationPolicy,
         LoaderValidation,
@@ -54,14 +63,15 @@ try:
         ValidationCheck,
     )
 except ImportError:
-    from scenario_data import ScenarioData
+    from contracts.scenario_data import ScenarioData
     from preprocessing import ModelParameters
-    from solved_data import (
+    from contracts.solved_data import (
         CostBreakdown,
         CostSummary,
         DemandZoneResult,
         FlowResult,
         InflowQualityPlantResult,
+        DataSource,
         InputScenario,
         InputValidationPolicy,
         LoaderValidation,
@@ -97,6 +107,10 @@ _COST_RECONCILIATION_TOLERANCE = 1e-3
 
 _NMOL_PER_MOL = 1e9
 
+# defaults for schema_version and solver_version
+schema_version = "0.1"
+solver_version = "0.1"
+
 
 def hydrogen_concentration_to_ph(concentration_nmol_per_l: float) -> float:
     """Convert hydrogen-ion concentration in nmol/L back into pH.
@@ -131,7 +145,7 @@ _SUPPORTED_QUALITY_INVERSE_TRANSFORMS = {
 @dataclass(frozen=True, slots=True)
 class SolverVariables:
     """Class for the decision variable objects produced by the solver.
-    Values can be Pyomo variable objects or plain numbers (for testing).
+    Values are expected to be Pyomo VarData objects or plain numbers (for testing purposes). 
     """
 
     source_active: dict[str, Any]
@@ -141,27 +155,44 @@ class SolverVariables:
     plant_zone_flow: dict[tuple[str, str], Any]
 
 
+def _build_solver_variables(
+        model: pyo.ConcreteModel,
+        is_feasible: bool
+        ) -> SolverVariables:
+    """
+    Builds a SolverVariables data object from a Pyomo model. Expects a
+    Pyomo ConcreteModel input. 
+    Outputs a dictionary of Nones if the model is infeasible.
+    """
+
+    if not is_feasible:
+        return SolverVariables(
+            source_active={s: None for s in model.S}, # type: ignore
+            plant_active={t: None for t in model.T}, # type: ignore
+            source_withdrawal={s: None for s in model.S}, # type: ignore
+            source_plant_flow={(s, t): None for (s, t) in model.ST}, # type: ignore
+            plant_zone_flow={(t, z): None for (t, z) in model.TZ}, # type: ignore
+        )
+    
+    return SolverVariables(
+        source_active={s: model.alpha[s] for s in model.S}, # type: ignore
+        plant_active={t: model.beta[t] for t in model.T}, # type: ignore
+        source_withdrawal={s: model.a[s] for s in model.S}, # type: ignore
+        source_plant_flow={(s, t): model.b[s, t] for (s, t) in model.ST}, # type: ignore
+        plant_zone_flow={(t, z): model.c[t, z] for (t, z) in model.TZ}, # type: ignore
+    )
+
 def _variable_value(variable: Any, label: str) -> float | None:
-    """Extract a raw solved value from either a PuLP/Pyomo variable or a plain number."""
+    """Extract a raw solved value from a Pyomo variable or a plain number."""
     if isinstance(variable, (int, float)):
         return float(variable)
 
-    value_method = getattr(variable, "value", None)
-    if callable(value_method):
-        return value_method()
-    if isinstance(value_method, (int, float)):
-        # Pyomo variables expose .value as a plain attribute, not a method.
-        return float(value_method)
+    value_attr = getattr(variable, "value", None)
+    if isinstance(value_attr, (int, float)):
+        # Pyomo VarData exposes .value as a plain attribute (None until solved).
+        return float(value_attr)
 
-    try:
-        import pulp
-
-        return pulp.value(variable)
-    except ImportError as exc:
-        raise PostprocessingError(
-            f"Could not read a solved value for {label}: pulp is not installed "
-            "and the variable is not a plain number."
-        ) from exc
+    return pyo.value(variable, exception=False)
 
 
 def _clean_flow_value(
@@ -231,79 +262,38 @@ def _clean_binary_value(
     )
 
 
-def _extract_solver_status(problem: Any) -> tuple[str, bool | None, bool | None, float | None]:
-    """Read the Pyomo solver status, feasibility/optimality, and objective value.
+def _extract_solver_status(
+    model: pyo.ConcreteModel,
+    results: SolverResults,
+) -> tuple[str, bool, bool, float | None]:
+    """Read the solver status, feasibility/optimality, and objective value.
 
-    problem is expected to be the :class:`pyomo.opt.SolverResults` object
-    returned by solver.solve(model). This is the first output (results) of the solve function from model.py.
-
-    Objective values are read from results.incumbent_objective when available.
+    model is the solved pyo.ConcreteModel (as built by model.build_model / returned by model.solve). 
+    results is the SolverResults object returned by SolverFactory(...).solve(model).
     """
-    assert hasattr(problem, "termination_condition") # ensure the right object has been passed in
+    solver_status = results.solver.status
+    termination_condition = results.solver.termination_condition
 
-    termination_condition = problem.termination_condition
-    solver_status = None
-    solution_status = getattr(problem, "solution_status", None)
+    is_optimal = (
+        solver_status == SolverStatus.ok
+        and termination_condition == TerminationCondition.optimal
+    )
+    is_feasible = is_optimal or termination_condition == TerminationCondition.feasible
+    status = str(termination_condition)
 
-    termination = str(termination_condition)
-
-    # These are the termination conditions Pyomo considers optimal.
-    optimal_conditions = {
-        "optimal",
-        "locallyOptimal",
-        "globallyOptimal",
-        "convergenceCriteriaSatisfied",
-    }
-    is_optimal = termination in optimal_conditions
-
-    # The solver can return a usable solution without proving optimality (e.g. when stopped by a time/iteration limit).
-    feasible_conditions = {
-        "feasible",
-        "maxTimeLimit",
-        "maxIterations",
-        "maxEvaluations",
-        "minFunctionValue",
-        "minStepLength",
-        "other",
-        "convergenceCriteriaSatisfied",
-    }
-
-    solution_status_text = str(solution_status) if solution_status is not None else None
-
-    if solution_status_text is not None:
-        is_feasible = solution_status_text in {
-            "optimal",
-            "feasible",
-            "stoppedByLimit",
-        }
-    else:
+    objective_value: float | None = None
+    if is_optimal or is_feasible:
         try:
-            has_solution = len(problem.solution) > 0
-        except (AttributeError, TypeError):
-            has_solution = False
+            active_objective = next(model.component_objects(pyo.Objective, active=True))
+            objective_value = pyo.value(active_objective, exception=False)
+        except StopIteration as exc:
+            raise PostprocessingError(
+                "The solved model has no active Pyomo Objective component."
+            ) from exc
+        if objective_value is not None:
+            objective_value = float(objective_value)
 
-        is_feasible = (
-            is_optimal
-            or (termination in feasible_conditions and has_solution)
-            or (
-                solver_status is not None
-                and str(solver_status) == "ok"
-                and has_solution
-            )
-        )
-
-    # New Pyomo solver interfaces expose the incumbent objective directly.
-    objective_value = getattr(problem, "incumbent_objective", None)
-
-    try:
-        objective_value = float(objective_value)
-    except (TypeError, ValueError) as exc:
-        raise PostprocessingError(
-            f"Solver objective value {objective_value!r} could not be "
-            "converted to a float."
-        ) from exc
-
-    return termination, is_feasible, is_optimal, objective_value
+    return status, is_feasible, is_optimal, objective_value
 
 
 def _build_source_plant_flows(
@@ -385,9 +375,9 @@ def _build_plant_zone_flows(
 
 
 def _exclusion_reason_code(scenario: ScenarioData, source_id: str) -> str:
-    """Best-effort reason a source never made it into the MILP.
+    """Guessed reason a source never made it into the MILP.
 
-    ScenarioData/ModelParameters don't currently expose *why*
+    ScenarioData/ModelParameters don't currently expose why
     preprocessing dropped a source, so this only distinguishes the reasons
     that are visible on SourceInput itself; anything else is reported as
     a generic preprocessing exclusion.
@@ -510,7 +500,7 @@ def _build_source_results(
                 variable_withdrawal_cost=variable_cost_contribution,
                 total_source_cost=variable_cost_contribution + fixed_cost_contribution,
                 selection_status="SELECTED" if is_selected else "NOT_SELECTED",
-                exclusion_reason_code=None,
+                exclusion_reason_code="N/A",
                 decision_evidence=SourceDecisionEvidence(
                     unit_cost_rank=unit_cost_rank[source_id],
                     binding_lower=(
@@ -841,6 +831,50 @@ def _build_binding_constraints_summary(
     return tuple(dict.fromkeys(summary))
 
 
+def _build_input_scenario_obj(scenario: ScenarioData) -> InputScenario:
+    """
+    Returns input scenario information from the ScenarioData object.
+    The data parameter is currently a placeholder as there is no passthrough from ScenarioData.
+    """
+    ds = DataSource(
+        type="placeholder",
+        view="placeholder",
+        allow_estimated_values=None
+    )
+    RuntimeWarning("Data Source is currently just a placeholder. Implement.")
+
+    return InputScenario(
+        scenario_id=scenario.scenario_id,
+        status=scenario.status,
+        data_source=ds
+    )
+
+
+def _get_input_validation_policy_obj(scenario: ScenarioData) -> InputValidationPolicy:
+    """
+    Passes through the input validation policy object from data_loader.py.
+    Currently not implemented, assuming it is passed through as input_policy_validation.
+    """
+    return scenario.input_policy_validation
+
+
+def _get_loader_validation_obj(scenario: ScenarioData) -> LoaderValidation:
+    """
+    Passes through the loader validation object from data_loader.py.
+    Currently not implemented, assuming it is passed through as loader_validation.
+    """
+    return scenario.loader_validation
+
+
+def _get_preprocessing_validation_obj(parameters: ModelParameters) -> PreprocessingValidation:
+    """
+    Passes through the preprocessing validation object from preprocessing.py.
+    Currently not implemented, assuming it is passed through as preprocessing_validation.
+    """
+    return parameters.preprocessing_validation
+
+    preprocessing_validation = _get_preprocessing_validation_obj(parameters)
+
 def _check(check: str, passed: bool) -> ValidationCheck:
     return ValidationCheck(check=check, enabled=True, passed=passed)
 
@@ -1005,28 +1039,27 @@ def _run_output_consistency_checks(
 def postprocess_solution(
     scenario: ScenarioData,
     parameters: ModelParameters,
-    problem: Any,
-    variables: SolverVariables,
-    *,
-    input_scenario: InputScenario,
-    input_validation_policy: InputValidationPolicy,
-    loader_validation: LoaderValidation,
-    preprocessing_validation: PreprocessingValidation,
-    schema_version: str = "1.0",
-    run_id: str | None = None,
-    solver_version: str = "0.1",
+    model: pyo.ConcreteModel,
+    results: SolverResults
 ) -> SolvedScenario:
-    """Convert one solved model into a validated SolvedScenario.
+    """Convert one solved Pyomo model into a validated SolvedScenario.
 
-    input_scenario, input_validation_policy, loader_validation,
-    and preprocessing_validation are built by earlier pipeline stages
-    (data loading and preprocessing) and are passed through into the result
-    unchanged. Postprocessing only computes and validates the *output*
-    (solver-stage) results - see _run_output_consistency_checks.
+    model is the solved pyo.ConcreteModel (e.g. from model.build_model / model.solve). 
+    results is the object returned by SolverFactory(...).solve(model).
     """
+
+    input_scenario = _build_input_scenario_obj(scenario)
+    input_validation_policy = _get_input_validation_policy_obj(scenario)
+    loader_validation = _get_loader_validation_obj(scenario)
+    preprocessing_validation = _get_preprocessing_validation_obj(parameters)
+    
     warnings: list[str] = []
 
-    solver_status, is_feasible, is_optimal, objective_value = _extract_solver_status(problem)
+    solver_status, is_feasible, is_optimal, objective_value = _extract_solver_status(
+        model, results
+    )
+
+    variables = _build_solver_variables(model, is_feasible)
 
     inflow_by_plant, source_plant_flows = _build_source_plant_flows(parameters, variables, warnings)
     outflow_by_plant, inflow_by_zone, plant_zone_flows = _build_plant_zone_flows(
@@ -1081,7 +1114,7 @@ def postprocess_solution(
 
     return SolvedScenario(
         schema_version=schema_version,
-        run_id=run_id,
+        run_id=parameters.run_id,
         scenario=input_scenario,
         validation=validation,
         solver=solver,
