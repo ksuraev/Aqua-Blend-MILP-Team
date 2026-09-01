@@ -13,13 +13,10 @@ This script is used for post processing after the solver is run.
 
 Postprocessing does NOT run loader or preprocessing validation. Those are the
 responsibility of the data-loading and preprocessing stages respectively, and
-their results (InputScenario, InputValidationPolicy,
-LoaderValidation, PreprocessingValidation) are expected to be handed
-to postprocess_solution as pass-through arguments, unchanged. Currently
-neither ScenarioData (scenario_data.py) nor ModelParameters
-(preprocessing.py) carry these objects, so callers must construct them
-upstream (in the loader/preprocessing stages) and pass them straight through
-here.
+their results (InputScenario, InputValidationPolicy, LoaderValidation, 
+PreprocessingValidation) are expected to be handed to postprocess_solution as 
+pass-through arguments, unchanged. Currently neither ScenarioData (scenario_data.py) 
+nor ModelParameters (preprocessing.py) carry these objects.
 
 For the purpose of the toy model, we are assuming linear blending.
 """
@@ -134,7 +131,7 @@ _SUPPORTED_QUALITY_INVERSE_TRANSFORMS = {
 @dataclass(frozen=True, slots=True)
 class SolverVariables:
     """Class for the decision variable objects produced by the solver.
-    Values can be PuLP/Pyomo variable objects or plain numbers (for testing).
+    Values can be Pyomo variable objects or plain numbers (for testing).
     """
 
     source_active: dict[str, Any]
@@ -153,7 +150,7 @@ def _variable_value(variable: Any, label: str) -> float | None:
     if callable(value_method):
         return value_method()
     if isinstance(value_method, (int, float)):
-        # Pyomo variables expose ``.value`` as a plain attribute, not a method.
+        # Pyomo variables expose .value as a plain attribute, not a method.
         return float(value_method)
 
     try:
@@ -235,35 +232,78 @@ def _clean_binary_value(
 
 
 def _extract_solver_status(problem: Any) -> tuple[str, bool | None, bool | None, float | None]:
-    """Read the solver status, feasibility/optimality, and objective value.
+    """Read the Pyomo solver status, feasibility/optimality, and objective value.
 
-    Supports both PuLP ``LpProblem`` objects and a simple duck-typed
-    fallback (any object exposing ``status``/``objective`` or already-plain
-    values), so this keeps working once the solver card lands with Pyomo.
+    problem is expected to be the :class:`pyomo.opt.SolverResults` object
+    returned by solver.solve(model). This is the first output (results) of the solve function from model.py.
+
+    Objective values are read from results.incumbent_objective when available.
     """
+    assert hasattr(problem, "termination_condition") # ensure the right object has been passed in
+
+    termination_condition = problem.termination_condition
+    solver_status = None
+    solution_status = getattr(problem, "solution_status", None)
+
+    termination = str(termination_condition)
+
+    # These are the termination conditions Pyomo considers optimal.
+    optimal_conditions = {
+        "optimal",
+        "locallyOptimal",
+        "globallyOptimal",
+        "convergenceCriteriaSatisfied",
+    }
+    is_optimal = termination in optimal_conditions
+
+    # The solver can return a usable solution without proving optimality (e.g. when stopped by a time/iteration limit).
+    feasible_conditions = {
+        "feasible",
+        "maxTimeLimit",
+        "maxIterations",
+        "maxEvaluations",
+        "minFunctionValue",
+        "minStepLength",
+        "other",
+        "convergenceCriteriaSatisfied",
+    }
+
+    solution_status_text = str(solution_status) if solution_status is not None else None
+
+    if solution_status_text is not None:
+        is_feasible = solution_status_text in {
+            "optimal",
+            "feasible",
+            "stoppedByLimit",
+        }
+    else:
+        try:
+            has_solution = len(problem.solution) > 0
+        except (AttributeError, TypeError):
+            has_solution = False
+
+        is_feasible = (
+            is_optimal
+            or (termination in feasible_conditions and has_solution)
+            or (
+                solver_status is not None
+                and str(solver_status) == "ok"
+                and has_solution
+            )
+        )
+
+    # New Pyomo solver interfaces expose the incumbent objective directly.
+    objective_value = getattr(problem, "incumbent_objective", None)
+
     try:
-        import pulp
-    except ImportError:
-        pulp = None
+        objective_value = float(objective_value)
+    except (TypeError, ValueError) as exc:
+        raise PostprocessingError(
+            f"Solver objective value {objective_value!r} could not be "
+            "converted to a float."
+        ) from exc
 
-    if pulp is not None and hasattr(problem, "status") and hasattr(problem, "objective"):
-        status = pulp.LpStatus.get(problem.status, str(problem.status))
-        objective_value = pulp.value(problem.objective)
-        if objective_value is not None:
-            objective_value = float(objective_value)
-        is_optimal = status == "Optimal"
-        # Keep feasibility simple and conservative: only "Optimal" is
-        # confidently both feasible and optimal for this toy model. PuLP's
-        # other statuses ("Infeasible", "Unbounded", "Not Solved",
-        # "Undefined") don't guarantee a usable feasible solution, so we
-        # don't try to distinguish "feasible but not optimal" here.
-        is_feasible = is_optimal
-        return status, is_feasible, is_optimal, objective_value
-
-    raise PostprocessingError(
-        "Could not determine solver status: unsupported problem object and "
-        "pulp is not installed."
-    )
+    return termination, is_feasible, is_optimal, objective_value
 
 
 def _build_source_plant_flows(
@@ -347,9 +387,9 @@ def _build_plant_zone_flows(
 def _exclusion_reason_code(scenario: ScenarioData, source_id: str) -> str:
     """Best-effort reason a source never made it into the MILP.
 
-    ``ScenarioData``/``ModelParameters`` don't currently expose *why*
+    ScenarioData/ModelParameters don't currently expose *why*
     preprocessing dropped a source, so this only distinguishes the reasons
-    that are visible on ``SourceInput`` itself; anything else is reported as
+    that are visible on SourceInput itself; anything else is reported as
     a generic preprocessing exclusion.
     """
     source_input = next(
@@ -819,7 +859,7 @@ def _run_output_consistency_checks(
 
     This is the only validation stage postprocessing is responsible for.
     Loader and preprocessing validation are passed through unchanged by the
-    caller (see ``postprocess_solution``).
+    caller (see postprocess_solution).
     """
     tol = _SOLVER_TOLERANCE
     checks: list[ValidationCheck] = []
@@ -978,11 +1018,11 @@ def postprocess_solution(
 ) -> SolvedScenario:
     """Convert one solved model into a validated SolvedScenario.
 
-    ``input_scenario``, ``input_validation_policy``, ``loader_validation``,
-    and ``preprocessing_validation`` are built by earlier pipeline stages
+    input_scenario, input_validation_policy, loader_validation,
+    and preprocessing_validation are built by earlier pipeline stages
     (data loading and preprocessing) and are passed through into the result
     unchanged. Postprocessing only computes and validates the *output*
-    (solver-stage) results - see ``_run_output_consistency_checks``.
+    (solver-stage) results - see _run_output_consistency_checks.
     """
     warnings: list[str] = []
 
