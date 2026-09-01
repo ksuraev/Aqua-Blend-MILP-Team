@@ -1,7 +1,5 @@
 import json
 
-import pulp
-
 from src.contracts import (
     DemandZoneInput,
     PlantInput,
@@ -11,6 +9,7 @@ from src.contracts import (
     PlantZoneLinkInput,
 )
 from src.preprocessing import preprocess_scenario
+from src.model import build_model, solve
 from src.postprocessing import SolverVariables, postprocess_solution, print_solution_summary
 
 # Illustrative-only quality/cost values (the real scenario sources this from
@@ -107,67 +106,9 @@ scenario = ScenarioData(
 
 parameters = preprocess_scenario(scenario)
 
-# --- Build and solve a small MILP mirroring ModelParameters ---
-problem = pulp.LpProblem("aquablend_toy", pulp.LpMinimize)
+model, results = solve(parameters)
 
-source_active = {s: pulp.LpVariable(f"source_active_{s}", cat="Binary") for s in parameters.source_ids}
-plant_active = {t: pulp.LpVariable(f"plant_active_{t}", cat="Binary") for t in parameters.plant_ids}
-source_withdrawal = {s: pulp.LpVariable(f"withdrawal_{s}", lowBound=0) for s in parameters.source_ids}
-source_plant_flow = {
-    (s, t): pulp.LpVariable(f"flow_st_{s}_{t}", lowBound=0) for (s, t) in parameters.source_plant_arcs
-}
-plant_zone_flow = {
-    (t, z): pulp.LpVariable(f"flow_tz_{t}_{z}", lowBound=0) for (t, z) in parameters.plant_zone_arcs
-}
-
-problem += pulp.lpSum(
-    parameters.source_fixed_cost[s] * source_active[s]
-    + parameters.source_unit_cost[s] * source_withdrawal[s]
-    for s in parameters.source_ids
-) + pulp.lpSum(
-    parameters.plant_fixed_cost[t] * plant_active[t]
-    + parameters.plant_unit_treatment_cost[t] * pulp.lpSum(
-        source_plant_flow[(s, t)] for (s, t2) in parameters.source_plant_arcs if t2 == t
-    )
-    for t in parameters.plant_ids
-)
-
-for s in parameters.source_ids:
-    problem += source_withdrawal[s] == pulp.lpSum(
-        source_plant_flow[(s, t)] for (s2, t) in parameters.source_plant_arcs if s2 == s
-    )
-    problem += source_withdrawal[s] >= parameters.source_min_withdrawal[s] * source_active[s]
-    problem += source_withdrawal[s] <= parameters.source_max_withdrawal[s] * source_active[s]
-
-for (s, t) in parameters.source_plant_arcs:
-    problem += source_plant_flow[(s, t)] <= parameters.source_plant_link_capacity[(s, t)]
-
-for t in parameters.plant_ids:
-    inflow = pulp.lpSum(source_plant_flow[(s, t2)] for (s, t2) in parameters.source_plant_arcs if t2 == t)
-    outflow = pulp.lpSum(plant_zone_flow[(t2, z)] for (t2, z) in parameters.plant_zone_arcs if t2 == t)
-    problem += inflow == outflow
-    problem += inflow >= parameters.plant_min_throughput[t] * plant_active[t]
-    problem += inflow <= parameters.plant_max_throughput[t] * plant_active[t]
-
-for (t, z) in parameters.plant_zone_arcs:
-    problem += plant_zone_flow[(t, z)] <= parameters.plant_zone_link_capacity[(t, z)]
-
-for z in parameters.zone_ids:
-    problem += pulp.lpSum(
-        plant_zone_flow[(t, z2)] for (t, z2) in parameters.plant_zone_arcs if z2 == z
-    ) == parameters.demand_by_zone[z]
-
-problem.solve(pulp.PULP_CBC_CMD(msg=0))
-
-variables = SolverVariables(
-    source_active=source_active,
-    plant_active=plant_active,
-    source_withdrawal=source_withdrawal,
-    source_plant_flow=source_plant_flow,
-    plant_zone_flow=plant_zone_flow,
-)
-
-solved = postprocess_solution(scenario, parameters, problem, variables)
+solved = postprocess_solution(scenario, parameters, model, results)
 print_solution_summary(solved)
 
 import json as _json
