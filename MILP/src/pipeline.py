@@ -78,7 +78,9 @@ except ImportError:  # pragma: no cover - supports direct script execution.
     from preprocessing import ModelParameters, PreprocessingError, preprocess_scenario
 
 
-_DEFAULT_SCENARIO_ID_COLUMN = "scenario_id"
+_DEFAULT_SCENARIO_TABLE = "public.Scenarios"
+_DEFAULT_SCENARIO_ID_COLUMN = "ExternalId"
+_DEFAULT_SCENARIO_JSON_COLUMN = "FormStateJson"
 
 _RELATION_PATTERN = re.compile(
     r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$"
@@ -143,26 +145,21 @@ class ScenarioStoreConfig:
     ) -> "ScenarioStoreConfig":
         _load_environment()
 
-        resolved_table = table or os.getenv("AQUABLEND_SCENARIO_TABLE")
+        resolved_table = (
+            table
+            or os.getenv("AQUABLEND_SCENARIO_TABLE")
+            or _DEFAULT_SCENARIO_TABLE
+        )
         resolved_id_column = (
             id_column
             or os.getenv("AQUABLEND_SCENARIO_ID_COLUMN")
             or _DEFAULT_SCENARIO_ID_COLUMN
         )
         resolved_json_column = (
-            json_column or os.getenv("AQUABLEND_SCENARIO_JSON_COLUMN")
+            json_column
+            or os.getenv("AQUABLEND_SCENARIO_JSON_COLUMN")
+            or _DEFAULT_SCENARIO_JSON_COLUMN
         )
-
-        if not resolved_table:
-            raise ScenarioFetchError(
-                "The Supabase scenario table is not configured. Set "
-                "AQUABLEND_SCENARIO_TABLE or pass table= explicitly."
-            )
-        if not resolved_json_column:
-            raise ScenarioFetchError(
-                "The Supabase scenario JSON/JSONB column is not configured. Set "
-                "AQUABLEND_SCENARIO_JSON_COLUMN or pass json_column= explicitly."
-            )
 
         # Validate identifiers now, before any SQL is constructed.
         _quote_relation(resolved_table)
@@ -315,6 +312,42 @@ def _normalise_scenario_document(
         raise ScenarioFetchError(
             f"Stored scenario {requested_scenario_id!r} is not JSON-safe."
         ) from exc
+
+    required_top_level = {
+        "scenario_id",
+        "scenario_name",
+        "status",
+        "data_source",
+        "validation",
+        "sources",
+        "network",
+        "quality_limits",
+    }
+    missing = sorted(required_top_level.difference(document))
+    if missing:
+        raise ScenarioFetchError(
+            "Scenario FormStateJson is not the canonical MILP contract. "
+            "Missing top-level field(s): " + ", ".join(missing) + ". "
+            "Deploy the canonical scenario builder/migration before running "
+            "optimisation for this scenario."
+        )
+
+    network = document.get("network")
+    if not isinstance(network, Mapping):
+        raise ScenarioFetchError("Scenario network must be a JSON object.")
+
+    required_network = {
+        "plants",
+        "demand_zones",
+        "source_to_plant_links",
+        "plant_to_zone_links",
+    }
+    missing_network = sorted(required_network.difference(network))
+    if missing_network:
+        raise ScenarioFetchError(
+            "Scenario network is incomplete. Missing field(s): "
+            + ", ".join(missing_network)
+        )
 
     return document
 
