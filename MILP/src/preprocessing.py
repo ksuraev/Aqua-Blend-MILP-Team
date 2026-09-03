@@ -210,14 +210,17 @@ class _Dinic:
 
 
 def ph_to_hydrogen_ion(ph: float) -> float:
-    """Convert pH into hydrogen-ion concentration in mol/L."""
+    """Convert pH into hydrogen-ion concentration in nmol/L."""
     if not math.isfinite(ph) or not 0.0 <= ph <= 14.0:
         raise PreprocessingError("pH must be finite and between 0 and 14.")
 
     value = 10.0 ** (-ph)
     if not math.isfinite(value) or value <= 0:
         raise PreprocessingError(f"pH {ph!r} could not be transformed safely.")
-    return value
+
+    # Scale from mol/L to nmol/L (multiply by 1e9) for solver numerical stability
+    scaled_value = value * 1e9
+    return scaled_value
 
 
 def _require_finite(value: float | None, label: str) -> float:
@@ -324,7 +327,7 @@ def _normalise_quality_rules(
             )
         model_names.add(model_name)
 
-        default_model_unit = "mol/L" if transform == "ph_to_hydrogen_ion" else raw_unit
+        default_model_unit = "nmol/L" if transform == "ph_to_hydrogen_ion" else raw_unit
         model_unit = str(specification.get("model_unit", default_model_unit)).strip()
         if not model_unit:
             raise PreprocessingError(
