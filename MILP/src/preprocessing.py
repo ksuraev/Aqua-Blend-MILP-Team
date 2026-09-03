@@ -27,6 +27,12 @@ _SUPPORTED_QUALITY_TRANSFORMS = {
     "ph_to_hydrogen_ion",
 }
 
+# Hydrogen-ion concentration in the model is expressed in nmol/L (1 nmol/L ==
+# 1e-9 mol/L), not mol/L. pH = -log10(mol/L) = -log10(nmol/L * 1e-9)
+#             = 9 - log10(nmol/L)
+
+_NMOL_PER_MOL = 1e9
+
 _MILP_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_SCENARIO_PATH = _MILP_ROOT / "config" / "scenarios" / "base_scenarios_v1.json"
 
@@ -39,6 +45,9 @@ class ModelParameters:
     the formulation document. This object contains no decision variables,
     objective terms, constraints, solver objects, or optimisation logic.
     """
+
+    # Id of scenario
+    scenario_id: str
 
     # Sets: S, T, Z and P.
     source_ids: tuple[str, ...]
@@ -210,11 +219,11 @@ class _Dinic:
 
 
 def ph_to_hydrogen_ion(ph: float) -> float:
-    """Convert pH into hydrogen-ion concentration in mol/L."""
+    """Convert pH into hydrogen-ion concentration in nmol/L."""
     if not math.isfinite(ph) or not 0.0 <= ph <= 14.0:
         raise PreprocessingError("pH must be finite and between 0 and 14.")
 
-    value = 10.0 ** (-ph)
+    value = 10.0 ** (-ph) * _NMOL_PER_MOL
     if not math.isfinite(value) or value <= 0:
         raise PreprocessingError(f"pH {ph!r} could not be transformed safely.")
     return value
@@ -309,7 +318,7 @@ def _normalise_quality_rules(
             )
 
         default_model_name = (
-            "hydrogen_ion_concentration_mol_l"
+            "hydrogen_ion_concentration_nmol_l"
             if transform == "ph_to_hydrogen_ion"
             else raw_name
         )
@@ -324,7 +333,7 @@ def _normalise_quality_rules(
             )
         model_names.add(model_name)
 
-        default_model_unit = "mol/L" if transform == "ph_to_hydrogen_ion" else raw_unit
+        default_model_unit = "nmol/L" if transform == "ph_to_hydrogen_ion" else raw_unit
         model_unit = str(specification.get("model_unit", default_model_unit)).strip()
         if not model_unit:
             raise PreprocessingError(
@@ -874,6 +883,7 @@ def preprocess_scenario(
     )
 
     parameters = ModelParameters(
+        scenario_id=scenario.scenario_id,
         source_ids=source_ids,
         plant_ids=plant_ids,
         zone_ids=zone_ids,

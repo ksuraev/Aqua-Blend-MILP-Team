@@ -352,7 +352,7 @@
         "parameters": [
           {
             "parameter_id": "pH",
-            "model_parameter_id": "hydrogen_ion_concentration_mol_l",
+            "model_parameter_id": "hydrogen_ion_concentration_nmol_l",
             "transform": "ph_to_hydrogen_ion",
             "model_unit": "nmol/L",
             "model_value": null,
