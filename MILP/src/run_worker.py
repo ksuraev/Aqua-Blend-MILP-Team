@@ -1,27 +1,56 @@
-"""Automatic Supabase run-queue worker for the AquaBlend MILP.
+"""AquaBlend automatic MILP worker wired to the live Supabase schema.
 
-This module watches a database run table for new queued optimisation runs.
-Each queued row is claimed atomically, exactly one worker executes it, and the
-final SolvedScenario JSON is written back to that same row.
+Live database contract
+----------------------
+public."Runs"
+    "Id"              integer PK
+    "ExternalId"      text          -> public MILP run ID (e.g. RUN-1001)
+    "ScenarioId"      integer FK    -> public."Scenarios"."Id"
+    "WorkflowStatus"  text
+    "SolverOutcome"   text nullable
+    "ProgressMessage" text nullable
+    "ErrorCode"       text nullable
+    "ErrorMessage"    text nullable
+    "SolveTimeMs"     float nullable
+    "ObjectiveValue"  numeric nullable
+    "CreatedAt"       timestamptz
+    "UpdatedAt"       timestamptz nullable
 
-Database flow
--------------
-Frontend / Backend
-    -> INSERT optimisation run row with status QUEUED
-    -> run_worker.py claims row atomically
-    -> reads run_id + scenario_id
-    -> pipeline.run_pipeline(scenario_id, run_id=run_id)
-    -> pipeline fetches Scenarios.FormStateJson
-    -> loader -> preprocessing -> HiGHS -> postprocessing
-    -> worker writes SolvedScenario JSON to run row
-    -> status COMPLETED
+public."Scenarios"
+    "Id"              integer PK
+    "ExternalId"      text
+    "FormStateJson"   jsonb
 
-If the MILP itself concludes that the scenario is infeasible, that is still a
-successfully executed run: the queue status is COMPLETED and the solver status
-inside the stored SolvedScenario explains infeasibility.
+public."OptimisationResults"
+    "Id"              integer PK
+    "ScenarioId"      integer FK
+    "Status"          text
+    "SolvedAt"        timestamptz
+    "ReceivedAt"      timestamptz
+    "ContractVersion" text
+    "ResultJson"      jsonb
+    "TotalCost"       numeric nullable
+    "Currency"        text nullable
+    "CreatedAt"       timestamptz
+    "UpdatedAt"       timestamptz nullable
+    "RunId"           integer FK -> public."Runs"."Id"
 
-The run-table schema is intentionally configurable because its exact column
-names were not available when this worker was written.
+Execution
+---------
+1. Find one run with WorkflowStatus='queued'.
+2. Atomically claim it using FOR UPDATE SKIP LOCKED.
+3. Set run -> running.
+4. Resolve Runs.ScenarioId -> Scenarios.ExternalId.
+5. Call pipeline.run_pipeline(scenario_external_id, run_id=Runs.ExternalId).
+6. Store the complete SolvedScenario JSON in OptimisationResults.ResultJson.
+7. Update Runs with outcome, objective and solve time.
+8. Mark workflow completed.
+
+A mathematically infeasible model is still a successfully executed run.  The
+workflow becomes 'completed'; SolverOutcome/OptimisationResults.Status carry the
+actual solver outcome (e.g. infeasible).
+
+Python/database/runtime failures become WorkflowStatus='failed'.
 """
 
 from __future__ import annotations
@@ -34,15 +63,15 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 try:
     from .pipeline import (
         PipelineError,
         PipelineOptions,
+        PipelineStageError,
         _database_url,
-        _quote_identifier,
-        _quote_relation,
         run_pipeline,
         solved_scenario_to_json,
     )
@@ -50,9 +79,8 @@ except ImportError:  # pragma: no cover
     from pipeline import (
         PipelineError,
         PipelineOptions,
+        PipelineStageError,
         _database_url,
-        _quote_identifier,
-        _quote_relation,
         run_pipeline,
         solved_scenario_to_json,
     )
@@ -60,127 +88,26 @@ except ImportError:  # pragma: no cover
 
 LOGGER = logging.getLogger("aquablend.milp.worker")
 
-_DEFAULT_PENDING_STATUS = "QUEUED"
-_DEFAULT_RUNNING_STATUS = "RUNNING"
-_DEFAULT_COMPLETED_STATUS = "COMPLETED"
-_DEFAULT_FAILED_STATUS = "FAILED"
+RUN_STATUS_QUEUED = "queued"
+RUN_STATUS_RUNNING = "running"
+RUN_STATUS_COMPLETED = "completed"
+RUN_STATUS_FAILED = "failed"
 
-_MAX_ERROR_LENGTH = 4000
+RESULT_CURRENCY = "AUD"
+DEFAULT_POLL_SECONDS = 2.0
+MAX_ERROR_MESSAGE_LENGTH = 4000
 
 
 class RunWorkerError(RuntimeError):
-    """Raised when the run queue cannot be configured or updated safely."""
-
-
-@dataclass(frozen=True, slots=True)
-class RunQueueConfig:
-    """Supabase/PostgreSQL queue schema.
-
-    Required:
-        table
-        run_id_column
-        scenario_id_column
-        status_column
-        result_json_column
-
-    Optional:
-        error_column
-        created_at_column
-        started_at_column
-        completed_at_column
-    """
-
-    table: str
-    run_id_column: str
-    scenario_id_column: str
-    status_column: str
-    result_json_column: str
-
-    error_column: str | None = None
-    created_at_column: str | None = None
-    started_at_column: str | None = None
-    completed_at_column: str | None = None
-
-    pending_status: str = _DEFAULT_PENDING_STATUS
-    running_status: str = _DEFAULT_RUNNING_STATUS
-    completed_status: str = _DEFAULT_COMPLETED_STATUS
-    failed_status: str = _DEFAULT_FAILED_STATUS
-
-    @classmethod
-    def resolve(cls) -> "RunQueueConfig":
-        """Resolve the actual run-table contract from environment variables."""
-
-        required = {
-            "table": os.getenv("AQUABLEND_RUN_TABLE"),
-            "run_id_column": os.getenv("AQUABLEND_RUN_ID_COLUMN"),
-            "scenario_id_column": os.getenv("AQUABLEND_RUN_SCENARIO_ID_COLUMN"),
-            "status_column": os.getenv("AQUABLEND_RUN_STATUS_COLUMN"),
-            "result_json_column": os.getenv("AQUABLEND_RUN_RESULT_JSON_COLUMN"),
-        }
-
-        missing = [name for name, value in required.items() if not value]
-        if missing:
-            env_names = {
-                "table": "AQUABLEND_RUN_TABLE",
-                "run_id_column": "AQUABLEND_RUN_ID_COLUMN",
-                "scenario_id_column": "AQUABLEND_RUN_SCENARIO_ID_COLUMN",
-                "status_column": "AQUABLEND_RUN_STATUS_COLUMN",
-                "result_json_column": "AQUABLEND_RUN_RESULT_JSON_COLUMN",
-            }
-            missing_env = ", ".join(env_names[name] for name in missing)
-            raise RunWorkerError(
-                "Run queue is not fully configured. Missing: " + missing_env
-            )
-
-        config = cls(
-            table=required["table"],  # type: ignore[arg-type]
-            run_id_column=required["run_id_column"],  # type: ignore[arg-type]
-            scenario_id_column=required["scenario_id_column"],  # type: ignore[arg-type]
-            status_column=required["status_column"],  # type: ignore[arg-type]
-            result_json_column=required["result_json_column"],  # type: ignore[arg-type]
-            error_column=os.getenv("AQUABLEND_RUN_ERROR_COLUMN") or None,
-            created_at_column=os.getenv("AQUABLEND_RUN_CREATED_AT_COLUMN") or None,
-            started_at_column=os.getenv("AQUABLEND_RUN_STARTED_AT_COLUMN") or None,
-            completed_at_column=os.getenv("AQUABLEND_RUN_COMPLETED_AT_COLUMN") or None,
-            pending_status=os.getenv(
-                "AQUABLEND_RUN_PENDING_STATUS", _DEFAULT_PENDING_STATUS
-            ),
-            running_status=os.getenv(
-                "AQUABLEND_RUN_RUNNING_STATUS", _DEFAULT_RUNNING_STATUS
-            ),
-            completed_status=os.getenv(
-                "AQUABLEND_RUN_COMPLETED_STATUS", _DEFAULT_COMPLETED_STATUS
-            ),
-            failed_status=os.getenv(
-                "AQUABLEND_RUN_FAILED_STATUS", _DEFAULT_FAILED_STATUS
-            ),
-        )
-        config._validate_identifiers()
-        return config
-
-    def _validate_identifiers(self) -> None:
-        _quote_relation(self.table)
-
-        columns = {
-            "run ID column": self.run_id_column,
-            "scenario ID column": self.scenario_id_column,
-            "status column": self.status_column,
-            "result JSON column": self.result_json_column,
-            "error column": self.error_column,
-            "created-at column": self.created_at_column,
-            "started-at column": self.started_at_column,
-            "completed-at column": self.completed_at_column,
-        }
-
-        for label, value in columns.items():
-            if value:
-                _quote_identifier(value, label)
+    """Run-queue orchestration failure."""
 
 
 @dataclass(frozen=True, slots=True)
 class ClaimedRun:
-    run_id: str
-    scenario_id: str
+    database_id: int
+    external_id: str
+    scenario_database_id: int
+    scenario_external_id: str
 
 
 def _connect() -> Any:
@@ -194,334 +121,501 @@ def _connect() -> Any:
     return psycopg.connect(_database_url(), connect_timeout=10)
 
 
-def _qcol(value: str, label: str) -> str:
-    return _quote_identifier(value, label)
+def _clean_text(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise RunWorkerError(f"{label} must be a non-empty string.")
+    return value.strip()
 
 
-def claim_next_run(config: RunQueueConfig) -> ClaimedRun | None:
-    """Atomically claim one QUEUED row.
+def claim_next_run() -> ClaimedRun | None:
+    """Atomically claim the oldest queued run.
 
-    PostgreSQL FOR UPDATE SKIP LOCKED makes this safe when multiple MILP workers
-    are running: a queued run can be claimed by only one worker.
+    FOR UPDATE OF r SKIP LOCKED means multiple worker processes may safely run
+    concurrently without solving the same run twice.
     """
 
-    table = _quote_relation(config.table)
-    run_id = _qcol(config.run_id_column, "run ID column")
-    scenario_id = _qcol(config.scenario_id_column, "scenario ID column")
-    status = _qcol(config.status_column, "status column")
-
-    order_column = (
-        _qcol(config.created_at_column, "created-at column")
-        if config.created_at_column
-        else run_id
-    )
-
-    set_parts = [f"{status} = %s"]
-    params: list[Any] = [
-        config.pending_status,
-        config.running_status,
-    ]
-
-    if config.started_at_column:
-        started_at = _qcol(config.started_at_column, "started-at column")
-        set_parts.append(f"{started_at} = %s")
-        params.append(datetime.now(timezone.utc))
-
-    # Parameters are intentionally arranged as:
-    # WHERE pending_status, then SET running_status / optional timestamp.
-    # Reorder for the SQL below.
-    pending = params.pop(0)
-    set_params = params
-
-    sql = f"""
+    sql = """
         WITH next_run AS (
-            SELECT {run_id}, {scenario_id}
-            FROM {table}
-            WHERE {status} = %s
-            ORDER BY {order_column} ASC
-            FOR UPDATE SKIP LOCKED
+            SELECT
+                r."Id" AS run_id,
+                r."ExternalId" AS run_external_id,
+                r."ScenarioId" AS scenario_id,
+                s."ExternalId" AS scenario_external_id
+            FROM public."Runs" AS r
+            JOIN public."Scenarios" AS s
+              ON s."Id" = r."ScenarioId"
+            WHERE lower(r."WorkflowStatus") = %s
+            ORDER BY r."CreatedAt" ASC, r."Id" ASC
+            FOR UPDATE OF r SKIP LOCKED
             LIMIT 1
         )
-        UPDATE {table} AS r
-        SET {", ".join(set_parts)}
+        UPDATE public."Runs" AS r
+        SET
+            "WorkflowStatus" = %s,
+            "SolverOutcome" = NULL,
+            "ProgressMessage" = %s,
+            "ErrorCode" = NULL,
+            "ErrorMessage" = NULL,
+            "SolveTimeMs" = NULL,
+            "ObjectiveValue" = NULL,
+            "UpdatedAt" = now()
         FROM next_run AS n
-        WHERE r.{run_id} = n.{run_id}
-        RETURNING r.{run_id}, r.{scenario_id};
+        WHERE r."Id" = n.run_id
+        RETURNING
+            r."Id",
+            r."ExternalId",
+            r."ScenarioId",
+            n.scenario_external_id;
     """
-
-    query_params = [pending, *set_params]
 
     try:
         with _connect() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(sql, tuple(query_params))
+                cursor.execute(
+                    sql,
+                    (
+                        RUN_STATUS_QUEUED,
+                        RUN_STATUS_RUNNING,
+                        "MILP optimisation started.",
+                    ),
+                )
                 row = cursor.fetchone()
     except Exception as exc:
-        raise RunWorkerError("Could not claim the next queued MILP run.") from exc
+        raise RunWorkerError("Could not claim the next queued run.") from exc
 
     if row is None:
         return None
 
-    claimed_run_id = str(row[0]).strip()
-    claimed_scenario_id = str(row[1]).strip()
-
-    if not claimed_run_id or not claimed_scenario_id:
-        raise RunWorkerError(
-            "Claimed run is missing a valid run ID or scenario ID."
-        )
+    run_db_id = int(row[0])
+    run_external_id = _clean_text(row[1], "Runs.ExternalId")
+    scenario_db_id = int(row[2])
+    scenario_external_id = _clean_text(
+        row[3],
+        "Scenarios.ExternalId",
+    )
 
     return ClaimedRun(
-        run_id=claimed_run_id,
-        scenario_id=claimed_scenario_id,
+        database_id=run_db_id,
+        external_id=run_external_id,
+        scenario_database_id=scenario_db_id,
+        scenario_external_id=scenario_external_id,
     )
 
 
-def _complete_run(
-    config: RunQueueConfig,
+def _solver_status(solved: Any) -> str:
+    value = getattr(getattr(solved, "solver", None), "status", None)
+    if value is None:
+        raise RunWorkerError("SolvedScenario is missing solver.status.")
+    status = str(value).strip()
+    if not status:
+        raise RunWorkerError("SolvedScenario solver.status is blank.")
+    return status
+
+
+def _objective_value(solved: Any) -> Decimal | None:
+    value = getattr(
+        getattr(solved, "solver", None),
+        "objective_value",
+        None,
+    )
+    if value is None:
+        return None
+
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError) as exc:
+        raise RunWorkerError(
+            "SolvedScenario solver.objective_value is not numeric."
+        ) from exc
+
+
+def _contract_version(solved: Any) -> str:
+    value = getattr(solved, "schema_version", None)
+    if value is None:
+        return "1.0"
+    text = str(value).strip()
+    return text or "1.0"
+
+
+def _preferred_solve_time_ms(solved: Any, elapsed_ms: float) -> float:
+    """Prefer solver-native timing if exposed; otherwise use worker wall time."""
+
+    solver = getattr(solved, "solver", None)
+    if solver is not None:
+        for attr in ("solve_time_ms", "solver_time_ms"):
+            value = getattr(solver, attr, None)
+            if value is not None:
+                try:
+                    return max(0.0, float(value))
+                except (TypeError, ValueError):
+                    pass
+
+        for attr in ("solve_time_seconds", "solver_time_seconds"):
+            value = getattr(solver, attr, None)
+            if value is not None:
+                try:
+                    return max(0.0, float(value) * 1000.0)
+                except (TypeError, ValueError):
+                    pass
+
+    return max(0.0, elapsed_ms)
+
+
+def _upsert_optimisation_result(
+    cursor: Any,
     *,
-    run_id_value: str,
+    run: ClaimedRun,
+    solver_status: str,
+    contract_version: str,
     result_json: str,
+    total_cost: Decimal | None,
 ) -> None:
-    """Persist a successful MILP result and mark the queue row COMPLETED."""
+    """Update the result for this RunId, or insert it if none exists.
 
-    table = _quote_relation(config.table)
-    run_id = _qcol(config.run_id_column, "run ID column")
-    status = _qcol(config.status_column, "status column")
-    result = _qcol(config.result_json_column, "result JSON column")
-
-    set_parts = [
-        f"{status} = %s",
-        f"{result} = %s::jsonb",
-    ]
-    params: list[Any] = [
-        config.completed_status,
-        result_json,
-    ]
-
-    if config.error_column:
-        error = _qcol(config.error_column, "error column")
-        set_parts.append(f"{error} = NULL")
-
-    if config.completed_at_column:
-        completed_at = _qcol(config.completed_at_column, "completed-at column")
-        set_parts.append(f"{completed_at} = %s")
-        params.append(datetime.now(timezone.utc))
-
-    params.extend([run_id_value, config.running_status])
-
-    sql = f"""
-        UPDATE {table}
-        SET {", ".join(set_parts)}
-        WHERE {run_id} = %s
-          AND {status} = %s;
+    OptimisationResults.RunId currently has no unique constraint, so ON CONFLICT
+    cannot safely be used.  The run row is already exclusively claimed by one
+    worker; locking any existing result row is sufficient here.
     """
+
+    cursor.execute(
+        """
+        SELECT "Id"
+        FROM public."OptimisationResults"
+        WHERE "RunId" = %s
+        ORDER BY "Id" ASC
+        FOR UPDATE;
+        """,
+        (run.database_id,),
+    )
+    rows = cursor.fetchall()
+
+    if len(rows) > 1:
+        raise RunWorkerError(
+            f"Run {run.external_id!r} has multiple OptimisationResults rows. "
+            "Refusing to choose one silently."
+        )
+
+    now = datetime.now(timezone.utc)
+    db_result_status = solver_status.upper()
+
+    if rows:
+        cursor.execute(
+            """
+            UPDATE public."OptimisationResults"
+            SET
+                "ScenarioId" = %s,
+                "Status" = %s,
+                "SolvedAt" = %s,
+                "ReceivedAt" = %s,
+                "ContractVersion" = %s,
+                "ResultJson" = %s::jsonb,
+                "TotalCost" = %s,
+                "Currency" = %s,
+                "UpdatedAt" = %s
+            WHERE "Id" = %s;
+            """,
+            (
+                run.scenario_database_id,
+                db_result_status,
+                now,
+                now,
+                contract_version,
+                result_json,
+                total_cost,
+                RESULT_CURRENCY,
+                now,
+                int(rows[0][0]),
+            ),
+        )
+        return
+
+    cursor.execute(
+        """
+        INSERT INTO public."OptimisationResults" (
+            "ScenarioId",
+            "Status",
+            "SolvedAt",
+            "ReceivedAt",
+            "ContractVersion",
+            "ResultJson",
+            "TotalCost",
+            "Currency",
+            "CreatedAt",
+            "UpdatedAt",
+            "RunId"
+        )
+        VALUES (
+            %s, %s, %s, %s, %s,
+            %s::jsonb, %s, %s, %s, %s, %s
+        );
+        """,
+        (
+            run.scenario_database_id,
+            db_result_status,
+            now,
+            now,
+            contract_version,
+            result_json,
+            total_cost,
+            RESULT_CURRENCY,
+            now,
+            now,
+            run.database_id,
+        ),
+    )
+
+
+def complete_run(
+    run: ClaimedRun,
+    *,
+    solved: Any,
+    result_json: str,
+    elapsed_ms: float,
+) -> None:
+    """Atomically persist OptimisationResults and complete the Runs row."""
+
+    solver_status = _solver_status(solved)
+    objective_value = _objective_value(solved)
+    solve_time_ms = _preferred_solve_time_ms(solved, elapsed_ms)
+    contract_version = _contract_version(solved)
 
     try:
         with _connect() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(sql, tuple(params))
+                _upsert_optimisation_result(
+                    cursor,
+                    run=run,
+                    solver_status=solver_status,
+                    contract_version=contract_version,
+                    result_json=result_json,
+                    total_cost=objective_value,
+                )
+
+                cursor.execute(
+                    """
+                    UPDATE public."Runs"
+                    SET
+                        "WorkflowStatus" = %s,
+                        "SolverOutcome" = %s,
+                        "ProgressMessage" = %s,
+                        "ErrorCode" = NULL,
+                        "ErrorMessage" = NULL,
+                        "SolveTimeMs" = %s,
+                        "ObjectiveValue" = %s,
+                        "UpdatedAt" = now()
+                    WHERE "Id" = %s
+                      AND lower("WorkflowStatus") = %s;
+                    """,
+                    (
+                        RUN_STATUS_COMPLETED,
+                        solver_status.lower(),
+                        "MILP optimisation completed.",
+                        solve_time_ms,
+                        objective_value,
+                        run.database_id,
+                        RUN_STATUS_RUNNING,
+                    ),
+                )
+
                 if cursor.rowcount != 1:
                     raise RunWorkerError(
-                        f"Run {run_id_value!r} was not in the expected "
-                        f"{config.running_status!r} state when completing it."
+                        f"Run {run.external_id!r} was no longer in the "
+                        f"{RUN_STATUS_RUNNING!r} state during completion."
                     )
     except RunWorkerError:
         raise
     except Exception as exc:
         raise RunWorkerError(
-            f"Could not persist result for run {run_id_value!r}."
+            f"Could not persist completed run {run.external_id!r}."
         ) from exc
 
 
-def _fail_run(
-    config: RunQueueConfig,
+def fail_run(
+    run: ClaimedRun,
     *,
-    run_id_value: str,
+    error_code: str,
     error_message: str,
+    elapsed_ms: float,
 ) -> None:
-    """Mark the run FAILED without exposing credentials or giant tracebacks."""
+    """Persist a worker/pipeline failure on the Runs row."""
 
-    table = _quote_relation(config.table)
-    run_id = _qcol(config.run_id_column, "run ID column")
-    status = _qcol(config.status_column, "status column")
-
-    set_parts = [f"{status} = %s"]
-    params: list[Any] = [config.failed_status]
-
-    if config.error_column:
-        error = _qcol(config.error_column, "error column")
-        set_parts.append(f"{error} = %s")
-        params.append(error_message[:_MAX_ERROR_LENGTH])
-
-    if config.completed_at_column:
-        completed_at = _qcol(config.completed_at_column, "completed-at column")
-        set_parts.append(f"{completed_at} = %s")
-        params.append(datetime.now(timezone.utc))
-
-    params.extend([run_id_value, config.running_status])
-
-    sql = f"""
-        UPDATE {table}
-        SET {", ".join(set_parts)}
-        WHERE {run_id} = %s
-          AND {status} = %s;
-    """
+    safe_code = (error_code or "MILP_EXECUTION_ERROR")[:200]
+    safe_message = (
+        error_message or "MILP execution failed."
+    )[:MAX_ERROR_MESSAGE_LENGTH]
 
     try:
         with _connect() as connection:
             with connection.cursor() as cursor:
-                cursor.execute(sql, tuple(params))
+                cursor.execute(
+                    """
+                    UPDATE public."Runs"
+                    SET
+                        "WorkflowStatus" = %s,
+                        "SolverOutcome" = NULL,
+                        "ProgressMessage" = %s,
+                        "ErrorCode" = %s,
+                        "ErrorMessage" = %s,
+                        "SolveTimeMs" = %s,
+                        "ObjectiveValue" = NULL,
+                        "UpdatedAt" = now()
+                    WHERE "Id" = %s
+                      AND lower("WorkflowStatus") = %s;
+                    """,
+                    (
+                        RUN_STATUS_FAILED,
+                        "MILP optimisation failed.",
+                        safe_code,
+                        safe_message,
+                        max(0.0, elapsed_ms),
+                        run.database_id,
+                        RUN_STATUS_RUNNING,
+                    ),
+                )
+
                 if cursor.rowcount != 1:
                     LOGGER.error(
-                        "Could not transition run %s from %s to %s.",
-                        run_id_value,
-                        config.running_status,
-                        config.failed_status,
+                        "Could not transition run %s from running to failed.",
+                        run.external_id,
                     )
     except Exception:
         LOGGER.exception(
-            "Could not persist FAILED state for run %s.", run_id_value
+            "Could not persist failed state for run %s.",
+            run.external_id,
         )
+
+
+def _failure_metadata(exc: Exception) -> tuple[str, str]:
+    if isinstance(exc, PipelineStageError):
+        stage = getattr(exc, "stage", None)
+        return (
+            f"MILP_{str(stage or 'PIPELINE').upper()}_FAILED",
+            str(exc),
+        )
+
+    if isinstance(exc, PipelineError):
+        return ("MILP_PIPELINE_FAILED", str(exc))
+
+    if isinstance(exc, RunWorkerError):
+        return ("MILP_WORKER_FAILED", str(exc))
+
+    return (
+        "MILP_EXECUTION_ERROR",
+        f"{type(exc).__name__}: MILP execution failed. See worker logs.",
+    )
 
 
 def process_claimed_run(
     run: ClaimedRun,
     *,
-    config: RunQueueConfig,
-    pipeline_options: PipelineOptions | None = None,
+    options: PipelineOptions | None = None,
 ) -> bool:
-    """Execute one already-claimed run.
-
-    Returns True if the worker completed the run, False if it failed.
-    """
-
     LOGGER.info(
-        "Starting MILP run %s for scenario %s.",
-        run.run_id,
-        run.scenario_id,
+        "Running %s for scenario %s.",
+        run.external_id,
+        run.scenario_external_id,
     )
+
+    started = time.perf_counter()
 
     try:
         solved = run_pipeline(
-            run.scenario_id,
-            run_id=run.run_id,
-            options=pipeline_options or PipelineOptions(),
+            run.scenario_external_id,
+            run_id=run.external_id,
+            options=options or PipelineOptions(),
         )
 
         result_json = solved_scenario_to_json(solved, indent=None)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
 
-        _complete_run(
-            config,
-            run_id_value=run.run_id,
+        complete_run(
+            run,
+            solved=solved,
             result_json=result_json,
+            elapsed_ms=elapsed_ms,
         )
 
         LOGGER.info(
-            "Completed MILP run %s (solver=%s, optimal=%s, feasible=%s).",
-            run.run_id,
+            "Completed %s: solver=%s, feasible=%s, optimal=%s.",
+            run.external_id,
             solved.solver.status,
-            solved.solver.is_optimal,
             solved.solver.is_feasible,
+            solved.solver.is_optimal,
         )
         return True
 
     except Exception as exc:
-        # Keep the database-facing error concise. Full traceback stays in worker
-        # logs for developers.
-        LOGGER.exception("MILP run %s failed.", run.run_id)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        LOGGER.exception("Run %s failed.", run.external_id)
 
-        if isinstance(exc, PipelineError):
-            user_safe_message = str(exc)
-        else:
-            user_safe_message = (
-                f"{type(exc).__name__}: MILP execution failed. "
-                "See worker logs for details."
-            )
-
-        _fail_run(
-            config,
-            run_id_value=run.run_id,
-            error_message=user_safe_message,
+        code, message = _failure_metadata(exc)
+        fail_run(
+            run,
+            error_code=code,
+            error_message=message,
+            elapsed_ms=elapsed_ms,
         )
         return False
 
 
 def process_next_run(
     *,
-    config: RunQueueConfig | None = None,
-    pipeline_options: PipelineOptions | None = None,
+    options: PipelineOptions | None = None,
 ) -> bool:
-    """Claim and process at most one queued run.
+    """Process at most one run. False means no queued run was present."""
 
-    Returns False only when no queued run currently exists.
-    """
-
-    resolved_config = config or RunQueueConfig.resolve()
-    run = claim_next_run(resolved_config)
+    run = claim_next_run()
     if run is None:
         return False
 
-    process_claimed_run(
-        run,
-        config=resolved_config,
-        pipeline_options=pipeline_options,
-    )
+    process_claimed_run(run, options=options)
     return True
 
 
 def watch_run_queue(
     *,
-    config: RunQueueConfig | None = None,
-    pipeline_options: PipelineOptions | None = None,
-    poll_seconds: float = 2.0,
+    options: PipelineOptions | None = None,
+    poll_seconds: float = DEFAULT_POLL_SECONDS,
 ) -> None:
-    """Continuously process new queued rows until the worker is stopped."""
-
     if poll_seconds < 0.25:
         raise RunWorkerError("poll_seconds must be at least 0.25 seconds.")
 
-    resolved_config = config or RunQueueConfig.resolve()
     stop_requested = False
 
     def request_stop(signum: int, frame: Any) -> None:
         nonlocal stop_requested
         stop_requested = True
-        LOGGER.info("Shutdown requested; worker will stop safely.")
+        LOGGER.info("Shutdown requested; finishing safely.")
 
     signal.signal(signal.SIGINT, request_stop)
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, request_stop)
 
     LOGGER.info(
-        "AquaBlend MILP worker started. Watching %s for status=%s.",
-        resolved_config.table,
-        resolved_config.pending_status,
+        "AquaBlend MILP worker watching public.Runs for WorkflowStatus=%r.",
+        RUN_STATUS_QUEUED,
     )
 
     while not stop_requested:
         try:
-            claimed = claim_next_run(resolved_config)
+            run = claim_next_run()
         except RunWorkerError:
-            LOGGER.exception("Run-queue polling failed.")
+            LOGGER.exception("Could not poll the run queue.")
             time.sleep(poll_seconds)
             continue
 
-        if claimed is None:
+        if run is None:
             time.sleep(poll_seconds)
             continue
 
-        process_claimed_run(
-            claimed,
-            config=resolved_config,
-            pipeline_options=pipeline_options,
-        )
+        process_claimed_run(run, options=options)
 
     LOGGER.info("AquaBlend MILP worker stopped.")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Automatically process queued AquaBlend MILP runs."
+        description="Automatically execute queued AquaBlend MILP runs."
     )
     parser.add_argument(
         "--once",
@@ -531,8 +625,10 @@ def main() -> None:
     parser.add_argument(
         "--poll-seconds",
         type=float,
-        default=float(os.getenv("AQUABLEND_RUN_POLL_SECONDS", "2")),
-        help="Queue polling interval for worker mode (default: 2 seconds).",
+        default=float(
+            os.getenv("AQUABLEND_RUN_POLL_SECONDS", str(DEFAULT_POLL_SECONDS))
+        ),
+        help="Polling interval while watching public.Runs.",
     )
     parser.add_argument(
         "--tee",
@@ -542,12 +638,12 @@ def main() -> None:
     parser.add_argument(
         "--skip-capacity-check",
         action="store_true",
-        help="Development only: skip preprocessing capacity pre-check.",
+        help="Development only.",
     )
     parser.add_argument(
         "--skip-quality-check",
         action="store_true",
-        help="Development only: skip preprocessing quality pre-check.",
+        help="Development only.",
     )
     args = parser.parse_args()
 
@@ -563,23 +659,16 @@ def main() -> None:
     )
 
     try:
-        config = RunQueueConfig.resolve()
-
         if args.once:
-            found = process_next_run(
-                config=config,
-                pipeline_options=options,
-            )
+            found = process_next_run(options=options)
             if not found:
-                LOGGER.info("No queued MILP runs found.")
+                LOGGER.info("No queued runs found.")
             return
 
         watch_run_queue(
-            config=config,
-            pipeline_options=options,
+            options=options,
             poll_seconds=args.poll_seconds,
         )
-
     except (RunWorkerError, PipelineError) as exc:
         print(f"AquaBlend worker failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
