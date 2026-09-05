@@ -111,14 +111,13 @@ def test_constraint_indices_match_network(
     """Check that constraints use only configured nodes and arcs."""
     assert set(model.demand_satisfaction) == {"Z1"}
 
-    assert set(model.source_flow_balance) == {
-        "S1",
-        "S2",
-    }
+    assert set(model.source_min_withdrawal) == {"S1", "S2"}
+    assert set(model.source_max_withdrawal) == {"S1", "S2"}
+    assert set(model.source_flow_balance) == {"S1", "S2"}
 
-    assert set(model.plant_flow_balance) == {
-        "T1",
-    }
+    assert set(model.plant_min_throughput) == {"T1"}
+    assert set(model.plant_max_throughput) == {"T1"}
+    assert set(model.plant_flow_balance) == {"T1"}
 
     assert set(model.source_plant_link_capacity) == {
         ("S1", "T1"),
@@ -127,6 +126,19 @@ def test_constraint_indices_match_network(
 
     assert set(model.plant_zone_link_capacity) == {
         ("T1", "Z1"),
+    }
+
+    assert set(model.source_link_activation) == {
+        ("S1", "T1"),
+        ("S2", "T1"),
+    }
+
+    assert set(model.plant_link_activation) == {
+        ("T1", "Z1"),
+    }
+
+    assert set(model.quality_lower_bound) == {
+        ("T1", "turbidity"),
     }
 
     assert set(model.quality_upper_bound) == {
@@ -216,7 +228,7 @@ def test_plant_balance_rejects_unequal_flows(
     assert pyo.value(constraint.body) != pytest.approx(0.0)
 
 
-def test_closed_source_link_rejects_positive_flow(
+def test_closed_source_plant_link_rejects_positive_flow(
     model: pyo.ConcreteModel,
 ) -> None:
     """Check that flow cannot use an inactive source-to-plant link."""
@@ -228,12 +240,47 @@ def test_closed_source_link_rejects_positive_flow(
     assert pyo.value(constraint.body) > pyo.value(constraint.upper)
 
 
+def test_active_source_below_minimum_withdrawal_is_rejected(
+    model: pyo.ConcreteModel,
+) -> None:
+    """An active source cannot withdraw less than its minimum."""
+    model.alpha["S1"].set_value(1)
+    model.a["S1"].set_value(4.0)
+
+    constraint = model.source_min_withdrawal["S1"]
+
+    assert pyo.value(constraint.body) > pyo.value(constraint.upper)
+
+
+def test_active_source_above_maximum_withdrawal_is_rejected(
+    model: pyo.ConcreteModel,
+) -> None:
+    """An active source cannot withdraw more than its maximum."""
+    model.alpha["S1"].set_value(1)
+    model.a["S1"].set_value(41.0)
+
+    constraint = model.source_max_withdrawal["S1"]
+
+    assert pyo.value(constraint.body) > pyo.value(constraint.upper)
+
+
+def test_active_plant_above_maximum_throughput_is_rejected(
+    two_plant_model: pyo.ConcreteModel,
+) -> None:
+    """An active plant cannot receive more than its maximum throughput."""
+    two_plant_model.beta["T1"].set_value(1)
+    two_plant_model.b["S1", "T1"].set_value(40.0)
+    two_plant_model.b["S2", "T1"].set_value(30.0)
+
+    constraint = two_plant_model.plant_max_throughput["T1"]
+
+    assert pyo.value(constraint.body) > pyo.value(constraint.upper)
+
+
 def test_solver_finds_expected_optimum(
     parameters: ModelParameters,
 ) -> None:
     """Solve the toy model and verify its cost and network flows."""
-
-    pytest.importorskip("highspy")
 
     model, results = solve(parameters)
 
@@ -532,41 +579,53 @@ def _uniform_ph(
     )
 
 
-def test_ph_scaling_changes_constraint_enforcement(
+@pytest.mark.parametrize(
+    "scale",
+    [
+        pytest.param(
+            1.0,
+            marks=pytest.mark.xfail(
+                reason="The high-pH mol/L violation is too small relative to solver feasibility tolerances",
+            ),
+        ),
+        1e9,
+    ],
+)
+def test_ph_above_upper_limit_is_infeasible(
     two_plant_parameters: ModelParameters,
+    scale: float,
 ) -> None:
-    """Poor pH scaling can make an infeasible model appear feasible.
-
-    All sources are at pH 8.6, above the permitted maximum of 8.5. The mol/L formulation
-    is accepted, while the same physical problem expressed in nmol/L is correctly
-    rejected.
-    """
-    mol_l_parameters = _uniform_ph(
+    """A source pH above the permitted maximum makes the model infeasible."""
+    parameters = _uniform_ph(
         two_plant_parameters,
         source_ph=8.6,
         lower_ph=6.5,
         upper_ph=8.5,
-        scale=1.0,
+        scale=scale,
     )
-    _, mol_l_results = solve(mol_l_parameters)
 
-    nmol_l_parameters = _uniform_ph(
+    _, results = solve(parameters)
+
+    assert results.solver.termination_condition == pyo.TerminationCondition.infeasible
+
+
+@pytest.mark.parametrize("scale", [1.0, 1e9])
+def test_ph_below_lower_limit_is_infeasible(
+    two_plant_parameters: ModelParameters,
+    scale: float,
+) -> None:
+    """A source pH below the permitted minimum makes the model infeasible."""
+    parameters = _uniform_ph(
         two_plant_parameters,
-        source_ph=8.6,
+        source_ph=6.4,
         lower_ph=6.5,
         upper_ph=8.5,
-        scale=1e9,
-    )
-    _, nmol_l_results = solve(nmol_l_parameters)
-
-    assert (
-        mol_l_results.solver.termination_condition == pyo.TerminationCondition.optimal
+        scale=scale,
     )
 
-    assert (
-        nmol_l_results.solver.termination_condition
-        == pyo.TerminationCondition.infeasible
-    )
+    _, results = solve(parameters)
+
+    assert results.solver.termination_condition == pyo.TerminationCondition.infeasible
 
 
 @pytest.mark.parametrize("scale", [1.0, 1e9])
@@ -590,3 +649,30 @@ def test_ph_within_limits_solves_at_either_scale(
     _, results = solve(parameters)
 
     assert results.solver.termination_condition == pyo.TerminationCondition.optimal
+
+
+def test_upper_quality_limit_uses_flow_weighted_blend(
+    two_plant_parameters: ModelParameters,
+) -> None:
+    """A plant may blend high- and low-quality sources within its quality limit."""
+    parameters = replace(
+        two_plant_parameters,
+        plant_ids=("T1",),
+        source_plant_arcs=(("S1", "T1"), ("S2", "T1")),
+        plant_zone_arcs=(("T1", "Z1"),),
+        source_max_withdrawal={"S1": 15.0, "S2": 15.0},
+        plant_fixed_cost={"T1": 5.0},
+        plant_unit_treatment_cost={"T1": 0.5},
+        plant_min_throughput={"T1": 0.0},
+        plant_max_throughput={"T1": 30.0},
+        source_plant_link_capacity={("S1", "T1"): 15.0, ("S2", "T1"): 15.0},
+        plant_zone_link_capacity={("T1", "Z1"): 30.0},
+        source_quality={("S1", "turbidity"): 1.0, ("S2", "turbidity"): 9.0},
+        quality_upper_bound={"turbidity": 5.0},
+    )
+
+    model, results = solve(parameters)
+
+    assert results.solver.termination_condition == pyo.TerminationCondition.optimal
+    assert pyo.value(model.b["S1", "T1"]) == pytest.approx(15.0)
+    assert pyo.value(model.b["S2", "T1"]) == pytest.approx(15.0)
