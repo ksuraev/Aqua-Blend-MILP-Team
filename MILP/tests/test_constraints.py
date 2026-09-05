@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pyomo.environ as pyo
 import pytest
+
 from src.model import build_model, solve
 from src.preprocessing import ModelParameters
 
