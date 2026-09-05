@@ -136,11 +136,27 @@ For example:
 
 ```python
 quality={
-    "pH": 7.2,
+    "ph": 7.2,
     "alkalinity": 45.0,
     "turbidity": 1.1,
 }
 ```
+
+#### Source-quality key contract
+
+The keys in `SourceInput.quality` are stable parameter identifiers. They must
+exactly match the keys in
+`ScenarioData.quality_limits["parameters"]`.
+
+Each quality-parameter definition contains an explicit `id` and a
+human-readable `name`. The `id` is used by the loader, preprocessing and model,
+while `name` is intended for display purposes. For example, `ph` is the stable
+identifier and `pH` is its display name.
+
+Source-quality measurements are loaded from the configured Supabase view or
+from inline source rows using each parameter's `source_field`. The scenario
+`sources` array remains a source-selection list and does not duplicate the
+source measurements.
 
 This same-key requirement prevents the source values and quality limits from drifting apart.
 
