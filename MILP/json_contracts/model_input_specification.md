@@ -120,13 +120,35 @@ The source data is one of two things. `data_source.type: "supabase"` reads a Sup
 
 | Field | Type | Rule |
 |---|---|---|
+| `parameters.<p>.id` | string | Required stable lowercase identifier. Must be identical to `<p>`, for example `ph`, `alkalinity`, or `turbidity`. |
+| `parameters.<p>.name` | string | Required human-readable display name, for example `pH`, `Alkalinity`, or `Turbidity`. It must not be used as a join key. |
 | `applies_to` | string | `"blend_at_plant_inflow"`. Records where the limit binds — see §6, this is not the same as the regulatory post-treatment limit. |
 | `parameters.<p>.unit` | string | Unit of the limits and of the database's representative value. |
 | `parameters.<p>.min` | number | $\underline{Q}_p$. Use a value the blend cannot realistically breach (e.g. `0`) when only an upper limit is regulated. |
 | `parameters.<p>.max` | number | $\overline{Q}_p \ge$ `min`. |
 | `parameters.<p>.transform` | string | Defaults to `"identity"`, meaning the value is used exactly as the source data supplies it. The only other accepted value is `"ph_to_hydrogen_ion"`, which linearises `pH` into $[H^+]$. Anything else raises. |
-| `parameters.<p>.source_field` | string | Column in the source data holding this parameter's representative value. Defaults to `representative_ph`, `representative_alkalinity_mg_l_caco3` or `representative_turbidity_ntu` when `<p>` is `pH`, `alkalinity` or `turbidity`. Any other parameter must name its own column or the load raises; declaring it here is what lets a new parameter be added without editing the loader. |
+| `parameters.<p>.source_field` | string | Required. Column in the source data containing this parameter's representative value, for example `representative_ph`, `representative_alkalinity_mg_l_caco3`, or `representative_turbidity_ntu`. Declaring it explicitly allows new parameters to be added without editing the loader. |
 | `parameters.<p>.model_name` | string | Identifier the parameter carries into the model. Defaults to `<p>`, or to `hydrogen_ion_concentration_mol_l` when `transform` is `"ph_to_hydrogen_ion"`. Must be unique across all parameters. |
-| `parameters.<p>.model_unit` | string | Unit of the value *after* `transform`. Defaults to `unit`, or to `mol/L` when `transform` is `"ph_to_hydrogen_ion"`. |
+| `parameters.<p>.model_unit` | string | Unit of the value after `transform`. Defaults to `unit`, or to `nmol/L` when `transform` is `ph_to_hydrogen_ion`. |
 | `parameters.<p>.estimated_field` | string | Optional. Boolean column marking this parameter's value as estimated. When it is set and the row is true, the source is flagged as containing estimated values, which fails the load under `allow_estimated_values: false`. Defaults to `alkalinity_is_estimated` for `alkalinity` and to nothing for every other parameter. |
 | `parameters.<p>.provenance_field` | string | Optional. Column carried through to the source's `provenance["quality.<p>"]`. Defaults to `alkalinity_provenance` for `alkalinity` and to nothing for every other parameter, in which case the entry is `null`. |
+
+#### Quality parameter identifiers and source values
+
+The object key `<p>` is the stable quality-parameter identifier and must match
+the parameter's explicit `id`. Stable lowercase identifiers are used so that
+display-name changes do not break the loader, preprocessing, model, or output
+contract.
+
+For example, the pH parameter uses `ph` as its identifier and `pH` as its
+human-readable name.
+
+The `sources` array remains a source-selection list. Source-quality
+measurements are loaded from the configured Supabase view or from
+`data_source.source_rows` for inline scenarios. The `source_field` property
+identifies the source-row column containing each parameter's representative
+value.
+
+Every enabled and non-forced-inactive source must provide a numeric value for
+every identifier in `quality_limits.parameters`. The loader makes these values
+available through `SourceInput.quality`.
