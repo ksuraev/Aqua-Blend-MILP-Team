@@ -159,7 +159,7 @@
         "transform": "ph_to_hydrogen_ion",
         "source_field": "representative_ph",
         "model_name": "hydrogen_ion_concentration_mol_l",
-        "model_unit": "mol/L"
+        "model_unit": "nmol/L"
       },
       "alkalinity": {
         "unit": "mg/L CaCO3",
@@ -170,7 +170,7 @@
       },
       "turbidity": {
         "unit": "NTU",
-        "min": 0.0,
+        "min": 0.5,
         "max": 5.0,
         "transform": "identity",
         "source_field": "representative_turbidity_ntu"
