@@ -312,7 +312,7 @@ def _normalise_quality_rules(
             )
 
         default_model_name = (
-            "hydrogen_ion_concentration_mol_l"
+            "hydrogen_ion_concentration_nmol_l"
             if transform == "ph_to_hydrogen_ion"
             else raw_name
         )
