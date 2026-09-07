@@ -6,6 +6,7 @@ import pyomo.environ as pyo
 import pytest
 
 import src.model as model_module
+from src.contracts import PreprocessingValidation
 from src.model import define_sets, define_variables, set_objective
 from src.preprocessing import ModelParameters
 
@@ -45,6 +46,9 @@ def parameters() -> ModelParameters:
         quality_upper_bound={"turbidity": 5.0},
         quality_units={"turbidity": "NTU"},
         warnings=(),
+        preprocessing_validation=PreprocessingValidation(
+            status="PASSED", warnings=(), checks=()
+        ),
     )
 
 
@@ -228,6 +232,9 @@ def test_objective_supports_one_source_connected_to_multiple_plants() -> None:
         quality_upper_bound={"turbidity": 5.0},
         quality_units={"turbidity": "NTU"},
         warnings=(),
+        preprocessing_validation=PreprocessingValidation(
+            status="PASSED", warnings=(), checks=()
+        ),
     )
 
     model = pyo.ConcreteModel(name="multiple_plant_objective_test")

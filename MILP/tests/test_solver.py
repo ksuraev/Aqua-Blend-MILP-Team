@@ -6,6 +6,7 @@ import pyomo.environ as pyo
 import pytest
 from pyomo.opt import TerminationCondition
 
+from src.contracts import PreprocessingValidation
 from src.model import solve
 from src.preprocessing import ModelParameters
 
@@ -74,6 +75,9 @@ def make_parameters(demand: float = 30.0) -> ModelParameters:
             "turbidity": "NTU",
         },
         warnings=(),
+        preprocessing_validation=PreprocessingValidation(
+            status="PASSED", warnings=(), checks=()
+        ),
     )
 
 

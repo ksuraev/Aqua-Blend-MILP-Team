@@ -10,10 +10,10 @@ from typing import Any
 
 try:
     # Package imports used when the module is imported through src.
-    from .contracts import ScenarioData
+    from .contracts import PreprocessingValidation, ScenarioData, ValidationCheck
     from .data_loader import DataLoadError, load_scenario
 except ImportError:  # pragma: no cover - supports direct script execution.
-    from contracts import ScenarioData
+    from contracts import PreprocessingValidation, ScenarioData, ValidationCheck
     from data_loader import DataLoadError, load_scenario
 
 
@@ -73,6 +73,9 @@ class ModelParameters:
 
     # Informational notes that do not prevent model construction.
     warnings: tuple[str, ...]
+
+    # Report of the mathematical-readiness checks performed during preprocessing.
+    preprocessing_validation: PreprocessingValidation
 
     def as_formulation_dict(self) -> dict[str, Any]:
         """Expose parameters using stable mathematical-name equivalents."""
@@ -790,6 +793,42 @@ def _validate_quality_feasibility(parameters: ModelParameters) -> None:
             )
 
 
+def _build_preprocessing_validation(
+    warnings: tuple[str, ...],
+    *,
+    validate_capacity_feasibility: bool,
+    validate_quality_feasibility: bool,
+) -> PreprocessingValidation:
+    """Report the mathematical-readiness checks performed during preprocessing.
+
+    Every one of these checks is enforced by an immediate ``PreprocessingError``
+    raise elsewhere in this module, with no non-strict mode. So by the time this
+    is called, every enabled check has already passed - there is nothing left to
+    fail dynamically. ``enabled`` mirrors the two checks that can be skipped via
+    the ``validate_capacity_feasibility``/``validate_quality_feasibility`` flags.
+    """
+    checks = (
+        ValidationCheck(check="model_parameter_completeness", enabled=True, passed=True),
+        ValidationCheck(
+            check="source_lower_upper_bound_consistency", enabled=True, passed=True
+        ),
+        ValidationCheck(
+            check="plant_lower_upper_bound_consistency", enabled=True, passed=True
+        ),
+        ValidationCheck(
+            check="capacity_feasibility",
+            enabled=validate_capacity_feasibility,
+            passed=True,
+        ),
+        ValidationCheck(
+            check="necessary_quality_feasibility",
+            enabled=validate_quality_feasibility,
+            passed=True,
+        ),
+    )
+    return PreprocessingValidation(status="PASSED", warnings=warnings, checks=checks)
+
+
 def _build_warnings(parameters: ModelParameters) -> tuple[str, ...]:
     warnings = list(parameters.warnings)
 
@@ -896,6 +935,9 @@ def preprocess_scenario(
         quality_upper_bound=quality_upper,
         quality_units=quality_units,
         warnings=tuple(warnings),
+        preprocessing_validation=PreprocessingValidation(
+            status="NOT_RUN", warnings=(), checks=()
+        ),
     )
 
     if validate_capacity_feasibility:
@@ -903,7 +945,16 @@ def preprocess_scenario(
     if validate_quality_feasibility:
         _validate_quality_feasibility(parameters)
 
-    return replace(parameters, warnings=_build_warnings(parameters))
+    final_warnings = _build_warnings(parameters)
+    return replace(
+        parameters,
+        warnings=final_warnings,
+        preprocessing_validation=_build_preprocessing_validation(
+            final_warnings,
+            validate_capacity_feasibility=validate_capacity_feasibility,
+            validate_quality_feasibility=validate_quality_feasibility,
+        ),
+    )
 
 
 def print_parameter_summary(parameters: ModelParameters) -> None:
