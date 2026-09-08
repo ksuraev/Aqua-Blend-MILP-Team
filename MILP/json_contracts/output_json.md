@@ -135,7 +135,7 @@ The Output JSON therefore uses:
 and the model-facing parameter identifier:
 
 ```text
-hydrogen_ion_concentration_mol_l
+hydrogen_ion_concentration_nmol_l
 ```
 
 This is intentional. The output must follow the canonical loader/preprocessing naming rather than introduce another transform name.
@@ -780,7 +780,7 @@ For pH:
 
 ```text
 parameter_id = pH
-model_parameter_id = hydrogen_ion_concentration_mol_l
+model_parameter_id = hydrogen_ion_concentration_nmol_l
 transform = ph_to_hydrogen_ion
 ```
 

@@ -42,3 +42,6 @@ Thumbs.db
 
 # Formatting
 .ruff_cache/
+
+# Project
+pyproject.toml
