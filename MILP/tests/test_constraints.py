@@ -4,7 +4,6 @@ from dataclasses import replace
 
 import pyomo.environ as pyo
 import pytest
-
 from src.model import build_model, solve
 from src.preprocessing import ModelParameters
 
@@ -53,7 +52,7 @@ def parameters() -> ModelParameters:
             ("S1", "turbidity"): 1.0,
             ("S2", "turbidity"): 4.0,
         },
-        quality_lower_bound={"turbidity": 0.0},
+        quality_lower_bound={"turbidity": 0.5},
         quality_upper_bound={"turbidity": 5.0},
         quality_units={"turbidity": "NTU"},
         warnings=(),
@@ -134,7 +133,7 @@ def two_plant_parameters() -> ModelParameters:
             ("S1", "turbidity"): 1.0,
             ("S2", "turbidity"): 4.0,
         },
-        quality_lower_bound={"turbidity": 0.0},
+        quality_lower_bound={"turbidity": 0.5},
         quality_upper_bound={"turbidity": 5.0},
         quality_units={"turbidity": "NTU"},
         warnings=(),
@@ -635,7 +634,7 @@ def test_upper_quality_limit_uses_flow_weighted_blend(
 
 
 # pH Scaling
-PH_PARAMETER = "hydrogen_ion_concentration_mol_l"
+PH_PARAMETER = "hydrogen_ion_concentration_nmol_l"
 
 
 def _uniform_ph(
@@ -653,6 +652,8 @@ def _uniform_ph(
     the upper concentration bound.
 
     scale controls the concentration units: 1.0 for mol/L and 1e9 for nmol/L.
+
+    Both scales are tested to demonstrate mol/L precision issues.
     """
     return replace(
         parameters,
@@ -673,7 +674,7 @@ def _uniform_ph(
         pytest.param(
             1.0,
             marks=pytest.mark.xfail(
-                reason="The high-pH mol/L violation is too small relative to solver feasibility tolerances",
+                reason="The high-pH mol/L violation is too small for solver tolerances; nmol/L rescaling avoids it",
             ),
         ),
         1e9,
