@@ -11,11 +11,15 @@ from pyomo.opt import SolverResults, SolverStatus, TerminationCondition
 from src.contracts import (
     DemandZoneInput,
     FlowResult,
+    InputValidationPolicy,
+    LoaderValidation,
     PlantInput,
     PlantZoneLinkInput,
+    PreprocessingValidation,
     ScenarioData,
     SourceInput,
     SourcePlantLinkInput,
+    ValidationCheck,
 )
 
 from src.postprocessing import (
@@ -49,6 +53,7 @@ def parameters() -> ModelParameters:
     """Return a small, internally consistent two-source network."""
     return ModelParameters(
         scenario_id="postprocessing_test",
+        run_id="postprocessing_test_run",
         source_ids=("S1", "S2"),
         plant_ids=("T1",),
         zone_ids=("Z1",),
@@ -77,6 +82,17 @@ def parameters() -> ModelParameters:
         quality_upper_bound={"turbidity": 8.0},
         quality_units={"turbidity": "NTU"},
         warnings=(),
+        preprocessing_validation=PreprocessingValidation(
+            status="PASSED",
+            warnings=(),
+            checks=(
+                ValidationCheck("model_parameter_completeness", True, True),
+                ValidationCheck("source_lower_upper_bound_consistency", True, True),
+                ValidationCheck("plant_lower_upper_bound_consistency", True, True),
+                ValidationCheck("capacity_feasibility", True, True),
+                ValidationCheck("necessary_quality_feasibility", True, True),
+            ),
+        ),
     )
 
 
@@ -142,6 +158,18 @@ def scenario() -> ScenarioData:
             }
         },
         validation_issues=(),
+        input_policy_validation=InputValidationPolicy(
+            fail_if_source_missing_from_database=True,
+            fail_if_daily_availability_missing=True,
+            fail_if_required_quality_value_missing=True,
+            fail_if_demand_missing=True,
+        ),
+        loader_validation=LoaderValidation(
+            status="PASSED",
+            scenario_ready=True,
+            validation_issues=(),
+            checks=(),
+        ),
     )
 
 
@@ -555,22 +583,15 @@ def test_quality_violation_fails_quality_check(
 
 
 # ---------------------------------------------------------------------------
-# Known integration gap
+# Full postprocessing integration tests
 # ---------------------------------------------------------------------------
 
 
-# Used to check the complete postprocessing path after upstream fields are added.
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "ScenarioData and ModelParameters do not yet carry input/loader/"
-        "preprocessing validation objects and run_id required by postprocess_solution."
-    ),
-)
-def test_full_postprocess_solution_after_upstream_passthrough_is_implemented(
+# Used to verify the complete postprocessing path and upstream pass through.
+def test_full_postprocess_solution_passes_through_run_and_validation_data(
     scenario, parameters, variables
 ) -> None:
-    """Remove xfail once upstream contracts carry validation objects and run_id."""
+    """A complete solved result should retain upstream run and validation data."""
     model = pyo.ConcreteModel()
     model.S = pyo.Set(initialize=parameters.source_ids)
     model.T = pyo.Set(initialize=parameters.plant_ids)
@@ -586,4 +607,9 @@ def test_full_postprocess_solution_after_upstream_passthrough_is_implemented(
 
     results = _solver_results(SolverStatus.ok, TerminationCondition.optimal)
     solved = postprocess_solution(scenario, parameters, model, results)
+
+    assert solved.run_id == parameters.run_id
+    assert solved.validation.input_policy is scenario.input_policy_validation
+    assert solved.validation.loader is scenario.loader_validation
+    assert solved.validation.preprocessing is parameters.preprocessing_validation
     assert solved.validation.output_consistency.status == "PASSED"
