@@ -13,6 +13,7 @@ from src.preprocessing import ModelParameters
 def make_parameters(demand: float = 30.0) -> ModelParameters:
     """Create a small parameter set for solver testing."""
     return ModelParameters(
+        scenario_id="solver_test",
         source_ids=("S1", "S2"),
         plant_ids=("T1",),
         zone_ids=("Z1",),
