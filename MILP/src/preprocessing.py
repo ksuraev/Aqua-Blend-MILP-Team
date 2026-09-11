@@ -227,9 +227,7 @@ def ph_to_hydrogen_ion(ph: float) -> float:
     if not math.isfinite(value) or value <= 0:
         raise PreprocessingError(f"pH {ph!r} could not be transformed safely.")
 
-    # Scale from mol/L to nmol/L (multiply by 1e9) for solver numerical stability
-    scaled_value = value * 1e9
-    return scaled_value
+    return value
 
 
 def _require_finite(value: float | None, label: str) -> float:
