@@ -160,6 +160,11 @@ When $p$ is represented as a concentration, multiplying concentration by volume 
 For parameters such as turbidity measured in NTU, the cost is per NTU$\cdot$ML, which is not a mass; however, we assume it correlates to the mass of sediment that would produce that level of turbidity.
 
 \subsection{Decision variables}
+{\color{red}
+    Just for notation consistency. Since in \textbf{Tab. \ref{tab:parameters}}, you used $C_{st}$ to represent cost from source $s$ to plant $t$.
+    Should we also use $c_{st}$ instead of $b_{st}$?
+}
+
 \begin{tabularx}{\textwidth}{@{}llll@{}}
     % Same reason.
     \caption{Notations on decision variables}
@@ -422,126 +427,134 @@ The volume term is $\sum_s b_{st}$ rather than $\sum_z c_{tz}$; the two are equa
 Because the current treatment model can only reduce parameter loads, treatment cannot correct a blend that is already below a required lower bound.
 Consequently, lower-bound compliance must be achieved through source selection and blending.
 
-\textcolor{red}{\textbf{TODO:} update the following section to reflect the new formulation, and add a discussion of how the transformed $\mathrm{pH}$ is handled - I think we should explicitly state that removal processes do not act on $\mathrm{pH}$ because this doesn't work - perhaps in linearity assumptions section?}
 
 \section{Water quality formulation logic}
+\textcolor{red}{\textbf{TODO:} update the following section to reflect the new formulation, and add a discussion of how the transformed $\mathrm{pH}$ is handled - I think we should explicitly state that removal processes do not act on $\mathrm{pH}$ because this doesn't work - perhaps in linearity assumptions section?}
 
-This section explains how the generic water quality constraint \eqref{eq:general_water_quality} is interpreted for turbidity, alkalinity, and $\mathrm{pH}$.
-The purpose is to keep the quality formulation consistent with the existing parameter notation while preserving the linear structure of the MILP.
+\textcolor{blue}{Done :>> I rephrased, added and copied some content :>>}
 
-\subsection{Interpretation of the generic quality parameter}
+% I don't want to directly change the current formulation
+% so I added another .tex, once we both agree with changes
+% we can merge them later
+\input{modified_water_quality.tex}
 
-In the general formulation, $Q_{sp}$ represents the value of quality parameter $p$ in source $s$.
-The set $\mathcal{P}$ may include parameters such as turbidity, alkalinity, and $\mathrm{pH}$.
-For quality parameters that blend approximately linearly by volume, the source value can be used directly in $Q_{sp}$.
+% This section explains how the generic water quality constraint \eqref{eq:general_water_quality} is interpreted for turbidity, alkalinity, and $\mathrm{pH}$.
+% The purpose is to keep the quality formulation consistent with the existing parameter notation while preserving the linear structure of the MILP.
 
-The constraint~\eqref{eq:general_water_quality} is written in load form.
-It is equivalent to requiring the volume-weighted average quality at each treatment plant to remain between the lower and upper bounds for each quality parameter, but it avoids division by a decision variable.
+% \subsection{Interpretation of the generic quality parameter}
 
-\subsection{Turbidity}
+% In the general formulation, $Q_{sp}$ represents the value of quality parameter $p$ in source $s$.
+% The set $\mathcal{P}$ may include parameters such as turbidity, alkalinity, and $\mathrm{pH}$.
+% For quality parameters that blend approximately linearly by volume, the source value can be used directly in $Q_{sp}$.
 
-Turbidity measures the cloudiness of water and is associated with suspended particles such as sediment, organic matter, algae, clay, or runoff material.
-In water supply modelling, turbidity is important because high turbidity may increase treatment requirements and affect disinfection performance \cite{WHOTurbidity2011, Matos2024Turbidity, UMNTurbidity}.
+% The constraint~\eqref{eq:general_water_quality} is written in load form.
+% It is equivalent to requiring the volume-weighted average quality at each treatment plant to remain between the lower and upper bounds for each quality parameter, but it avoids division by a decision variable.
 
-For turbidity, the quality parameter is represented by setting $p=\mathrm{turb}$.
-Thus, $Q_{s,\mathrm{turb}}$ denotes the turbidity value of source $s$, while $\underline{Q}_{\mathrm{turb}}$ and $\overline{Q}_{\mathrm{turb}}$ denote the lower and upper turbidity limits.
+% \subsection{Turbidity}
 
-The turbidity requirement is therefore handled directly by the generic water quality constraint~\eqref{eq:general_water_quality} with $p=\mathrm{turb}$.
-This avoids redefining the same load form constraint using separate turbidity specific equations.
+% Turbidity measures the cloudiness of water and is associated with suspended particles such as sediment, organic matter, algae, clay, or runoff material.
+% In water supply modelling, turbidity is important because high turbidity may increase treatment requirements and affect disinfection performance \cite{WHOTurbidity2011, Matos2024Turbidity, UMNTurbidity}.
 
-\subsection{Alkalinity}
+% For turbidity, the quality parameter is represented by setting $p=\mathrm{turb}$.
+% Thus, $Q_{s,\mathrm{turb}}$ denotes the turbidity value of source $s$, while $\underline{Q}_{\mathrm{turb}}$ and $\overline{Q}_{\mathrm{turb}}$ denote the lower and upper turbidity limits.
 
-Alkalinity measures the ability of water to neutralise acid \cite{ADWG2011, TestNeeds2025Alkalinity, PerfectWater2025Alkalinity}.
-It represents the buffering capacity of water and is relevant to $\mathrm{pH}$ stability, corrosion control, treatment performance, remineralisation, and water stability in distribution systems \cite{ADWG2011, PerfectWater2025Alkalinity}.
+% The turbidity requirement is therefore handled directly by the generic water quality constraint~\eqref{eq:general_water_quality} with $p=\mathrm{turb}$.
+% This avoids redefining the same load form constraint using separate turbidity specific equations.
 
-For alkalinity, the quality parameter is represented by setting $p=\mathrm{alk}$.
-Thus, $Q_{s,\mathrm{alk}}$ denotes the alkalinity value of source $s$, while $\underline{Q}_{\mathrm{alk}}$ and $\overline{Q}_{\mathrm{alk}}$ denote the lower and upper alkalinity limits.
+% \subsection{Alkalinity}
 
-The alkalinity requirement is therefore handled directly by the generic water quality constraint~\eqref{eq:general_water_quality} with $p=\mathrm{alk}$.
-This avoids redefining the same load form constraint using separate alkalinity specific equations.
+% Alkalinity measures the ability of water to neutralise acid \cite{ADWG2011, TestNeeds2025Alkalinity, PerfectWater2025Alkalinity}.
+% It represents the buffering capacity of water and is relevant to $\mathrm{pH}$ stability, corrosion control, treatment performance, remineralisation, and water stability in distribution systems \cite{ADWG2011, PerfectWater2025Alkalinity}.
 
-\subsection{pH transformation}
+% For alkalinity, the quality parameter is represented by setting $p=\mathrm{alk}$.
+% Thus, $Q_{s,\mathrm{alk}}$ denotes the alkalinity value of source $s$, while $\underline{Q}_{\mathrm{alk}}$ and $\overline{Q}_{\mathrm{alk}}$ denote the lower and upper alkalinity limits.
 
-$\mathrm{pH}$ is handled differently from turbidity and alkalinity because
-$\mathrm{pH}$ is a logarithmic measure of hydrogen ion concentration.
-Raw $\mathrm{pH}$ values are not averaged directly because direct $\mathrm{pH}$ averaging can produce a scientifically misleading blended value.
+% The alkalinity requirement is therefore handled directly by the generic water quality constraint~\eqref{eq:general_water_quality} with $p=\mathrm{alk}$.
+% This avoids redefining the same load form constraint using separate alkalinity specific equations.
 
-$\mathrm{pH}$ is defined as \cite{WHO2007pH}:
-\begin{equation}\label{eq:ph_definition}
-    \mathrm{pH} = -\log_{10}([\mathrm{H}^{+}]),
-\end{equation}
-where $[\mathrm{H}^{+}]$ represents hydrogen ion concentration \cite{EPA2026pH}.
+% \subsection{pH transformation}
 
-To keep the MILP linear, $\mathrm{pH}$ is handled as a preprocessing transformation \cite{WHO2007pH}.
-For the $\mathrm{pH}$ quality parameter, $Q_{s,\mathrm{pH}}$ stores the transformed hydrogen ion concentration obtained from the raw source $\mathrm{pH}$ value:
-\begin{equation}\label{eq:ph_source_transformation}
-    Q_{s,\mathrm{pH}} = 10^{-\mathrm{pH}_s}.
-\end{equation}
+% $\mathrm{pH}$ is handled differently from turbidity and alkalinity because
+% $\mathrm{pH}$ is a logarithmic measure of hydrogen ion concentration.
+% Raw $\mathrm{pH}$ values are not averaged directly because direct $\mathrm{pH}$ averaging can produce a scientifically misleading blended value.
 
-The symbols $\underline{\mathrm{pH}}$ and $\overline{\mathrm{pH}}$ represent the raw regulatory lower and upper limits in $\mathrm{pH}$ units.
-These raw limits are converted once during data preparation before being passed into the MILP.
-If the acceptable raw $\mathrm{pH}$ range is:
-\begin{equation}\label{eq:raw_ph_range}
-    \underline{\mathrm{pH}} \leq
-    \mathrm{pH}
-    \leq
-    \overline{\mathrm{pH}},
-\end{equation}
-then the corresponding transformed bounds stored for the $\mathrm{pH}$ quality parameter are:
-\begin{equation}\label{eq:ph_bound_transformation}
-    \underline{Q}_{\mathrm{pH}} = 10^{-\overline{\mathrm{pH}}},
-    \qquad
-    \overline{Q}_{\mathrm{pH}} = 10^{-\underline{\mathrm{pH}}}.
-\end{equation}
+% $\mathrm{pH}$ is defined as \cite{WHO2007pH}:
+% \begin{equation}\label{eq:ph_definition}
+%     \mathrm{pH} = -\log_{10}([\mathrm{H}^{+}]),
+% \end{equation}
+% where $[\mathrm{H}^{+}]$ represents hydrogen ion concentration \cite{EPA2026pH}.
 
-The direction of the bounds changes because $\mathrm{pH}$ and hydrogen ion concentration are inversely related \cite{Fondriest2025pH}.
-A higher $\mathrm{pH}$ corresponds to a lower hydrogen ion concentration, while a lower $\mathrm{pH}$ corresponds to a higher hydrogen ion concentration.
+% To keep the MILP linear, $\mathrm{pH}$ is handled as a preprocessing transformation \cite{WHO2007pH}.
+% For the $\mathrm{pH}$ quality parameter, $Q_{s,\mathrm{pH}}$ stores the transformed hydrogen ion concentration obtained from the raw source $\mathrm{pH}$ value:
+% \begin{equation}\label{eq:ph_source_transformation}
+%     Q_{s,\mathrm{pH}} = 10^{-\mathrm{pH}_s}.
+% \end{equation}
 
-After this preprocessing step, $\mathrm{pH}$ is handled by the same general water quality constraint~\eqref{eq:general_water_quality}, with $p=\mathrm{pH}$.
-This avoids introducing a separate $\mathrm{pH}$ specific constraint in the MILP.
+% The symbols $\underline{\mathrm{pH}}$ and $\overline{\mathrm{pH}}$ represent the raw regulatory lower and upper limits in $\mathrm{pH}$ units.
+% These raw limits are converted once during data preparation before being passed into the MILP.
+% If the acceptable raw $\mathrm{pH}$ range is:
+% \begin{equation}\label{eq:raw_ph_range}
+%     \underline{\mathrm{pH}} \leq
+%     \mathrm{pH}
+%     \leq
+%     \overline{\mathrm{pH}},
+% \end{equation}
+% then the corresponding transformed bounds stored for the $\mathrm{pH}$ quality parameter are:
+% \begin{equation}\label{eq:ph_bound_transformation}
+%     \underline{Q}_{\mathrm{pH}} = 10^{-\overline{\mathrm{pH}}},
+%     \qquad
+%     \overline{Q}_{\mathrm{pH}} = 10^{-\underline{\mathrm{pH}}}.
+% \end{equation}
 
-\subsection{Blended pH recovery after optimisation}
+% The direction of the bounds changes because $\mathrm{pH}$ and hydrogen ion concentration are inversely related \cite{Fondriest2025pH}.
+% A higher $\mathrm{pH}$ corresponds to a lower hydrogen ion concentration, while a lower $\mathrm{pH}$ corresponds to a higher hydrogen ion concentration.
 
-The optimisation model constrains $\mathrm{pH}$ through the transformed value $Q_{s,\mathrm{pH}}$.
-After the solver finds the optimal source to plant flows, the blended hydrogen ion concentration at plant $t$ is calculated as:
-\begin{equation}\label{eq:blended_ph_transformed}
-    Q^{\mathrm{blend}}_{t,\mathrm{pH}} = \frac{ \sum_{s \in \mathcal{S}} Q_{s,\mathrm{pH}} b_{st} }{ \sum_{s \in \mathcal{S}} b_{st} }.
-\end{equation}
+% After this preprocessing step, $\mathrm{pH}$ is handled by the same general water quality constraint~\eqref{eq:general_water_quality}, with $p=\mathrm{pH}$.
+% This avoids introducing a separate $\mathrm{pH}$ specific constraint in the MILP.
 
-The blended $\mathrm{pH}$ is then recovered in post-processing as:
-\begin{equation}\label{eq:blended_ph_recovery}
-    \mathrm{pH}^{\mathrm{blend}}_{t}
-    =
-    -\log_{10}
-    \left(
-    Q^{\mathrm{blend}}_{t,\mathrm{pH}}
-    \right).
-\end{equation}
+% \subsection{Blended pH recovery after optimisation}
 
-This recovered $\mathrm{pH}$ value is not an MILP decision variable.
-It is a post-solve reporting value used for validation, interpretation, dashboard display, and output generation.
+% The optimisation model constrains $\mathrm{pH}$ through the transformed value $Q_{s,\mathrm{pH}}$.
+% After the solver finds the optimal source to plant flows, the blended hydrogen ion concentration at plant $t$ is calculated as:
+% \begin{equation}\label{eq:blended_ph_transformed}
+%     Q^{\mathrm{blend}}_{t,\mathrm{pH}} = \frac{ \sum_{s \in \mathcal{S}} Q_{s,\mathrm{pH}} b_{st} }{ \sum_{s \in \mathcal{S}} b_{st} }.
+% \end{equation}
 
-\textcolor{red}{\textbf{TODO:} update these to reflect new removal formulation i.e. last assumption is now incorrect and there should be more assumptions about the removal processes.}
+% The blended $\mathrm{pH}$ is then recovered in post-processing as:
+% \begin{equation}\label{eq:blended_ph_recovery}
+%     \mathrm{pH}^{\mathrm{blend}}_{t}
+%     =
+%     -\log_{10}
+%     \left(
+%     Q^{\mathrm{blend}}_{t,\mathrm{pH}}
+%     \right).
+% \end{equation}
 
-\subsection{Linearity assumptions for water quality}
+% This recovered $\mathrm{pH}$ value is not an MILP decision variable.
+% It is a post-solve reporting value used for validation, interpretation, dashboard display, and output generation.
 
-The water quality formulation relies on simplifying assumptions that preserve linearity in the Sprint~1 MILP.
-The key assumptions are:
-\begin{enumerate}[label=(\roman*), align=left, widest=viii]
-    \item Water from selected sources is completely mixed before quality is assessed.
-    \item The model represents a single time period, so temporal variation in water quality is not modelled.
-    \item Source quality values are fixed input parameters for the representative period.
-    \item Alkalinity and turbidity are approximated as volume-weighted linear blends.
-    \item Raw $\mathrm{pH}$ values are not averaged directly; $\mathrm{pH}$ is transformed before optimisation.
-    \item No nonlinear chemical reactions between blended sources are modelled.
-    \item Water quality is checked at each treatment plant, using the blend of its incoming sources.
-\end{enumerate}
+% \textcolor{red}{\textbf{TODO:} update these to reflect new removal formulation i.e. last assumption is now incorrect and there should be more assumptions about the removal processes.}
 
-These assumptions allow the water quality constraints to remain linear and suitable for inclusion in the MILP formulation.
+% \subsection{Linearity assumptions for water quality}
 
-\textcolor{red}{\textbf{TODO:} toy model is now also incorrect because it doesn't account for removal processes.}
+% The water quality formulation relies on simplifying assumptions that preserve linearity in the Sprint~1 MILP.
+% The key assumptions are:
+% \begin{enumerate}[label=(\roman*), align=left, widest=viii]
+%     \item Water from selected sources is completely mixed before quality is assessed.
+%     \item The model represents a single time period, so temporal variation in water quality is not modelled.
+%     \item Source quality values are fixed input parameters for the representative period.
+%     \item Alkalinity and turbidity are approximated as volume-weighted linear blends.
+%     \item Raw $\mathrm{pH}$ values are not averaged directly; $\mathrm{pH}$ is transformed before optimisation.
+%     \item No nonlinear chemical reactions between blended sources are modelled.
+%     \item Water quality is checked at each treatment plant, using the blend of its incoming sources.
+% \end{enumerate}
+
+% These assumptions allow the water quality constraints to remain linear and suitable for inclusion in the MILP formulation.
+
+% \textcolor{red}{\textbf{TODO:} toy model is now also incorrect because it doesn't account for removal processes.}
 
 \section{Application to the toy model}\label{sec:toy}
+\textcolor{red}{\textbf{TODO:} toy model is now also incorrect because it doesn't account for removal processes.}
 
 The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
 With one plant and one zone there is nothing to route:
