@@ -556,6 +556,8 @@ Consequently, lower-bound compliance must be achieved through source selection a
 \section{Application to the toy model}\label{sec:toy}
 \textcolor{red}{\textbf{TODO:} toy model is now also incorrect because it doesn't account for removal processes.}
 
+\textcolor{blue}{The only thing I could think of the is outgoing flow, but if so, then would it violate the flow conservation?}
+
 The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
 With one plant and one zone there is nothing to route:
 the arc variables are fixed by conservation, and only the source decisions $\alpha_s$ and $a_s$ remain free.
@@ -596,7 +598,8 @@ Every term of the general model is inherited unchanged.
         \draw (s1) edge node[lbl] {$a_1$} (t);
         \draw (s2) edge node[lbl] {$a_2$} (t);
         \draw (s3) edge node[lbl] {$a_3$} (t);
-        \draw (t) edge node[lbl, right=1pt] {$\textstyle\sum_s a_s$} (z);
+        % \draw (t) edge node[lbl, right=1pt] {$\textstyle\sum_s a_s$} (z);
+        \draw (t) edge node[lbl, right=1pt] {$\ell^{n_t}_{tp}$?} (z);
     \end{tikzpicture}
     \captionof{figure}{Toy model.
         Three sources draw $a_1,a_2,a_3$ into the single plant $t$, which delivers their sum to the single zone $z$.}
