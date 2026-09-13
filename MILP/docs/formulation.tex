@@ -266,8 +266,11 @@ The coefficient $C_{trp}$ is charged per unit of parameter $p$ removed by proces
     \begin{aligned}
         \min \quad
                      & \sum_{s \in \mathcal{S}}
-        F_s \alpha_s &                          & \text{source fixed cost} \\ + \; & \sum_{s \in \mathcal{S}} C_s a_s & & \text{source draw cost} \\ + \; & \sum_{t \in \mathcal{T}} F_t \beta_t & & \text{plant fixed cost} \\ + \; & \sum_{t \in \mathcal{T}} C_t \sum_{s \in \mathcal{S}} b_{st} & & \text{plant throughput cost} \\ + \; & \sum_{s \in \mathcal{S}} \sum_{t \in \mathcal{T}} C_{st}\, b_{st} + \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} C_{tz}\, c_{tz} & & \text{arc transfer cost} \\ + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} F_{tr} \sigma_{tr} & & \text{removal process fixed cost} \\ + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} \sum_{p \in \mathcal{P}} C_{trp}\, e_{trp} & & \text{removal cost} \\\end{aligned} \end{equation} \section{Constraints}
+        F_s \alpha_s &                          & \text{source fixed cost} \\ + \; & \sum_{s \in \mathcal{S}} C_s a_s & & \text{source draw cost} \\ + \; & \sum_{t \in \mathcal{T}} F_t \beta_t & & \text{plant fixed cost} \\ + \; & \sum_{t \in \mathcal{T}} C_t \sum_{s \in \mathcal{S}} b_{st} & & \text{plant throughput cost} \\ + \; & \sum_{s \in \mathcal{S}} \sum_{t \in \mathcal{T}} C_{st}\, b_{st} + \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} C_{tz}\, c_{tz} & & \text{arc transfer cost} \\ + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} F_{tr} \sigma_{tr} & & \text{removal process fixed cost} \\ + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} \sum_{p \in \mathcal{P}} C_{trp}\, e_{trp} & & \text{removal cost} \\\end{aligned} \end{equation}
 
+
+\section{Constraints}
+\label{sec:constraints}
 \paragraph{Non-negativity.}
 All continuous variables must be non-negative.
 \begin{equation}\label{eq:nonnegativity}
@@ -556,7 +559,7 @@ Consequently, lower-bound compliance must be achieved through source selection a
 \section{Application to the toy model}\label{sec:toy}
 \textcolor{red}{\textbf{TODO:} toy model is now also incorrect because it doesn't account for removal processes.}
 
-\textcolor{blue}{The only thing I could think of the is outgoing flow, but if so, then would it violate the flow conservation?}
+\textcolor{blue}{The only thing I could think of the is outgoing flow, but if so, would it violate the flow conservation?}
 
 The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
 With one plant and one zone there is nothing to route:
@@ -611,5 +614,9 @@ The toy can therefore be built and tested first, then scaled up without reformul
 \clearpage
 \bibliographystyle{plainurl}
 \bibliography{references}
+
+\clearpage
+\appendix
+\input{appendix.tex}
 
 \end{document}
