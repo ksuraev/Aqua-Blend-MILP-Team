@@ -4,16 +4,17 @@ import argparse
 import math
 from collections import deque
 from collections.abc import Hashable, Iterable, Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 try:
     # Package imports used when the module is imported through src.
-    from .contracts import ScenarioData
+    from .contracts import PreprocessingValidation, ScenarioData, ValidationCheck
     from .data_loader import DataLoadError, load_scenario
 except ImportError:  # pragma: no cover - supports direct script execution.
-    from contracts import ScenarioData
+    from contracts import PreprocessingValidation, ScenarioData, ValidationCheck
     from data_loader import DataLoadError, load_scenario
 
 
@@ -37,6 +38,16 @@ _MILP_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_SCENARIO_PATH = _MILP_ROOT / "config" / "scenarios" / "base_scenarios_v1.json"
 
 
+def _new_run_id() -> str:
+    """Create an identifier for one execution of the optimisation pipeline."""
+    return str(uuid4())
+
+
+def _not_run_preprocessing_validation() -> PreprocessingValidation:
+    """Provide an honest default for parameters assembled directly in unit tests."""
+    return PreprocessingValidation(status="NOT_RUN", warnings=(), checks=())
+
+
 @dataclass(frozen=True, slots=True)
 class ModelParameters:
     """Complete, non-null parameter set required by the MILP formulation.
@@ -46,7 +57,7 @@ class ModelParameters:
     objective terms, constraints, solver objects, or optimisation logic.
     """
 
-    # Id of scenario
+    # ID for the scenario definition.
     scenario_id: str
 
     # Sets: S, T, Z and P.
@@ -82,6 +93,13 @@ class ModelParameters:
 
     # Informational notes that do not prevent model construction.
     warnings: tuple[str, ...]
+
+    # Run metadata. The defaults keep directly assembled unit-test parameters
+    # valid; preprocess_scenario replaces validation with the completed checks.
+    run_id: str = field(default_factory=_new_run_id)
+    preprocessing_validation: PreprocessingValidation = field(
+        default_factory=_not_run_preprocessing_validation
+    )
 
     def as_formulation_dict(self) -> dict[str, Any]:
         """Expose parameters using stable mathematical-name equivalents."""
@@ -226,7 +244,6 @@ def ph_to_hydrogen_ion(ph: float) -> float:
     value = 10.0 ** (-ph) * _NMOL_PER_MOL
     if not math.isfinite(value) or value <= 0:
         raise PreprocessingError(f"pH {ph!r} could not be transformed safely.")
-
     return value
 
 
@@ -833,6 +850,7 @@ def _build_warnings(parameters: ModelParameters) -> tuple[str, ...]:
 def preprocess_scenario(
     scenario: ScenarioData,
     *,
+    run_id: str | None = None,
     validate_capacity_feasibility: bool = True,
     validate_quality_feasibility: bool = True,
 ) -> ModelParameters:
@@ -843,6 +861,13 @@ def preprocess_scenario(
             "Preprocessing requires a scenario with no loader validation issues:\n"
             + issues
         )
+
+    if run_id is None:
+        resolved_run_id = _new_run_id()
+    elif not isinstance(run_id, str) or not run_id.strip():
+        raise PreprocessingError("run_id must be a non-blank string.")
+    else:
+        resolved_run_id = run_id.strip()
 
     quality_rules = _normalise_quality_rules(scenario.quality_limits)
     quality_lower, quality_upper, quality_units = _transform_quality_bounds(
@@ -885,6 +910,7 @@ def preprocess_scenario(
 
     parameters = ModelParameters(
         scenario_id=scenario.scenario_id,
+        run_id=resolved_run_id,
         source_ids=source_ids,
         plant_ids=plant_ids,
         zone_ids=zone_ids,
@@ -907,6 +933,12 @@ def preprocess_scenario(
         quality_upper_bound=quality_upper,
         quality_units=quality_units,
         warnings=tuple(warnings),
+        # This temporary value is replaced after the readiness checks below.
+        preprocessing_validation=PreprocessingValidation(
+            status="NOT_RUN",
+            warnings=(),
+            checks=(),
+        ),
     )
 
     if validate_capacity_feasibility:
@@ -914,7 +946,44 @@ def preprocess_scenario(
     if validate_quality_feasibility:
         _validate_quality_feasibility(parameters)
 
-    return replace(parameters, warnings=_build_warnings(parameters))
+    final_warnings = _build_warnings(parameters)
+    preprocessing_validation = PreprocessingValidation(
+        status="PASSED",
+        warnings=final_warnings,
+        checks=(
+            ValidationCheck(
+                check="model_parameter_completeness",
+                enabled=True,
+                passed=True,
+            ),
+            ValidationCheck(
+                check="source_lower_upper_bound_consistency",
+                enabled=True,
+                passed=True,
+            ),
+            ValidationCheck(
+                check="plant_lower_upper_bound_consistency",
+                enabled=True,
+                passed=True,
+            ),
+            ValidationCheck(
+                check="capacity_feasibility",
+                enabled=validate_capacity_feasibility,
+                passed=True,
+            ),
+            ValidationCheck(
+                check="necessary_quality_feasibility",
+                enabled=validate_quality_feasibility,
+                passed=True,
+            ),
+        ),
+    )
+
+    return replace(
+        parameters,
+        warnings=final_warnings,
+        preprocessing_validation=preprocessing_validation,
+    )
 
 
 def print_parameter_summary(parameters: ModelParameters) -> None:

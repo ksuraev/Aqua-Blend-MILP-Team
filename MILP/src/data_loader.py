@@ -5,6 +5,7 @@ import json
 import math
 import os
 import re
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
@@ -12,20 +13,26 @@ try:
     # Package import used when the module is imported through src.
     from .contracts import (
         DemandZoneInput,
+        InputValidationPolicy,
+        LoaderValidation,
         PlantInput,
         PlantZoneLinkInput,
         ScenarioData,
         SourceInput,
         SourcePlantLinkInput,
+        ValidationCheck,
     )
 except ImportError:  # pragma: no cover - supports direct script execution.
     from contracts import (
         DemandZoneInput,
+        InputValidationPolicy,
+        LoaderValidation,
         PlantInput,
         PlantZoneLinkInput,
         ScenarioData,
         SourceInput,
         SourcePlantLinkInput,
+        ValidationCheck,
     )
 
 
@@ -59,6 +66,53 @@ _RELATION_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]
 
 _MILP_ROOT = Path(__file__).resolve().parents[1]
 _DEFAULT_SCENARIO_PATH = _MILP_ROOT / "config" / "scenarios" / "base_scenarios_v1.json"
+
+_LOADER_CHECK_NAMES = (
+    "scenario_identity",
+    "source_ids_present_and_unique",
+    "source_exists_in_configured_data_source",
+    "source_withdrawal_bounds_present",
+    "source_withdrawal_bounds_non_negative_and_ordered",
+    "source_cost_present_finite_and_non_negative",
+    "estimated_values_allowed_by_policy",
+    "source_quality_keys_match_quality_limits",
+    "source_quality_values_numeric_and_finite",
+    "plant_ids_present_and_unique",
+    "plant_capacity_bounds_finite_non_negative_and_ordered",
+    "plant_costs_finite_and_non_negative",
+    "demand_zone_ids_present_and_unique",
+    "demand_present_finite_and_non_negative",
+    "source_to_plant_links_unique_and_valid",
+    "plant_to_zone_links_unique_and_valid",
+    "link_capacities_finite_and_non_negative",
+    "quality_limit_definition_valid",
+)
+
+
+class _CheckTracker:
+    """Tracks pass/fail per named loader check, alongside the flat issue list.
+
+    Most named checks are only ever exercised through this tracker (soft
+    issues, gated by policy or "at least one" presence checks). A few, such as
+    ``scenario_identity`` and ``quality_limit_definition_valid``, are enforced
+    elsewhere by an immediate ``DataLoadError`` and so can only ever show as
+    passed here: a failure there means loading aborts before a
+    ``LoaderValidation`` is ever built from this tracker.
+    """
+
+    def __init__(self, check_names: Iterable[str]) -> None:
+        self._passed: dict[str, bool] = dict.fromkeys(check_names, True)
+        self.issues: list[str] = []
+
+    def fail(self, check: str, message: str) -> None:
+        self._passed[check] = False
+        self.issues.append(message)
+
+    def as_checks(self) -> tuple[ValidationCheck, ...]:
+        return tuple(
+            ValidationCheck(check=name, enabled=True, passed=passed)
+            for name, passed in self._passed.items()
+        )
 
 
 def _read_json(path: str | Path) -> dict[str, Any]:
@@ -228,18 +282,20 @@ def _to_float(value: Any, field_name: str) -> float | None:
 
 
 def _append_non_negative_issue(
-    issues: list[str],
+    tracker: _CheckTracker,
     value: float | None,
     label: str,
     *,
     required: bool,
+    missing_check: str,
+    invalid_check: str,
 ) -> None:
     if value is None:
         if required:
-            issues.append(f"{label} is missing.")
+            tracker.fail(missing_check, f"{label} is missing.")
         return
     if value < 0:
-        issues.append(f"{label} must be greater than or equal to zero.")
+        tracker.fail(invalid_check, f"{label} must be greater than or equal to zero.")
 
 
 def _normalise_quality_limits(value: Any) -> dict[str, Any]:
@@ -401,11 +457,11 @@ def _build_sources(
     config_sources: list[dict[str, Any]],
     database_rows: list[dict[str, Any]],
     allow_estimated_values: bool,
-    validation: dict[str, Any],
+    input_policy: InputValidationPolicy,
     quality_limits: dict[str, Any],
     source_data_origin: str,
-) -> tuple[tuple[SourceInput, ...], list[str]]:
-    issues: list[str] = []
+    tracker: _CheckTracker,
+) -> tuple[SourceInput, ...]:
     enabled_configs: list[dict[str, Any]] = []
 
     for index, item in enumerate(config_sources):
@@ -424,7 +480,10 @@ def _build_sources(
     if len(source_ids) != len(set(source_ids)):
         raise DataLoadError("The scenario contains duplicate enabled source IDs.")
     if not source_ids:
-        issues.append("The scenario must contain at least one enabled source.")
+        tracker.fail(
+            "source_ids_present_and_unique",
+            "The scenario must contain at least one enabled source.",
+        )
 
     rows_by_id = _database_rows_by_id(database_rows)
     quality_parameters = _require_mapping(
@@ -438,9 +497,10 @@ def _build_sources(
     for index, (item, source_id) in enumerate(paired_sources):
         row = rows_by_id.get(source_id)
         if row is None:
-            if validation.get("fail_if_source_missing_from_database", True):
-                issues.append(
-                    f"Source {source_id} was not found in the configured source data."
+            if input_policy.fail_if_source_missing_from_database:
+                tracker.fail(
+                    "source_exists_in_configured_data_source",
+                    f"Source {source_id} was not found in the configured source data.",
                 )
             continue
 
@@ -502,20 +562,22 @@ def _build_sources(
         )
 
         if not forced_inactive:
-            require_availability = bool(
-                validation.get("fail_if_daily_availability_missing", True)
-            )
+            require_availability = input_policy.fail_if_daily_availability_missing
             _append_non_negative_issue(
-                issues,
+                tracker,
                 minimum_withdrawal,
                 f"{source_name} minimum withdrawal in ML/day",
                 required=require_availability,
+                missing_check="source_withdrawal_bounds_present",
+                invalid_check="source_withdrawal_bounds_non_negative_and_ordered",
             )
             _append_non_negative_issue(
-                issues,
+                tracker,
                 maximum_withdrawal,
                 f"{source_name} maximum withdrawal in ML/day",
                 required=require_availability,
+                missing_check="source_withdrawal_bounds_present",
+                invalid_check="source_withdrawal_bounds_non_negative_and_ordered",
             )
 
         if (
@@ -523,8 +585,9 @@ def _build_sources(
             and maximum_withdrawal is not None
             and minimum_withdrawal > maximum_withdrawal
         ):
-            issues.append(
-                f"{source_name} has a minimum withdrawal greater than its maximum."
+            tracker.fail(
+                "source_withdrawal_bounds_non_negative_and_ordered",
+                f"{source_name} has a minimum withdrawal greater than its maximum.",
             )
 
         if "fixed_activation_cost" in item:
@@ -533,15 +596,20 @@ def _build_sources(
                 f"sources[{index}].fixed_activation_cost",
             )
             if fixed_activation_cost is None:
-                issues.append(f"{source_name} fixed activation cost is missing.")
+                tracker.fail(
+                    "source_cost_present_finite_and_non_negative",
+                    f"{source_name} fixed activation cost is missing.",
+                )
                 continue
         else:
             fixed_activation_cost = 0.0
         _append_non_negative_issue(
-            issues,
+            tracker,
             fixed_activation_cost,
             f"{source_name} fixed activation cost",
             required=True,
+            missing_check="source_cost_present_finite_and_non_negative",
+            invalid_check="source_cost_present_finite_and_non_negative",
         )
 
         cost_per_ml = _to_float(
@@ -550,10 +618,12 @@ def _build_sources(
         )
         if not forced_inactive:
             _append_non_negative_issue(
-                issues,
+                tracker,
                 cost_per_ml,
                 f"{source_name} cost per ML",
                 required=True,
+                missing_check="source_cost_present_finite_and_non_negative",
+                invalid_check="source_cost_present_finite_and_non_negative",
             )
 
         source_quality: dict[str, float] = {}
@@ -571,12 +641,14 @@ def _build_sources(
                 f"database source {source_id}.{source_field}",
             )
             if quality_value is None:
-                if not forced_inactive and validation.get(
-                    "fail_if_required_quality_value_missing", True
+                if (
+                    not forced_inactive
+                    and input_policy.fail_if_required_quality_value_missing
                 ):
-                    issues.append(
+                    tracker.fail(
+                        "source_quality_values_numeric_and_finite",
                         f"{source_name} is missing quality parameter "
-                        f"'{parameter_id}' from database field '{source_field}'."
+                        f"'{parameter_id}' from database field '{source_field}'.",
                     )
             else:
                 source_quality[parameter_id] = quality_value
@@ -606,9 +678,10 @@ def _build_sources(
                 details.append("missing=" + ", ".join(missing_keys))
             if extra_keys:
                 details.append("unexpected=" + ", ".join(extra_keys))
-            issues.append(
+            tracker.fail(
+                "source_quality_keys_match_quality_limits",
                 f"{source_name} quality keys do not match "
-                "quality_limits.parameters (" + "; ".join(details) + ")."
+                "quality_limits.parameters (" + "; ".join(details) + ").",
             )
 
         estimated_flags = [
@@ -621,7 +694,10 @@ def _build_sources(
         ]
         has_estimated_values = any(estimated_flags)
         if has_estimated_values and not allow_estimated_values and not forced_inactive:
-            issues.append(f"{source_name} contains estimated or overridden values.")
+            tracker.fail(
+                "estimated_values_allowed_by_policy",
+                f"{source_name} contains estimated or overridden values.",
+            )
 
         provenance: dict[str, str | None] = {
             "storage_capacity": (
@@ -676,22 +752,20 @@ def _build_sources(
             )
         )
 
-    return tuple(loaded_sources), issues
+    return tuple(loaded_sources)
 
 
 def _build_network(
     network: dict[str, Any],
-    validation: dict[str, Any],
+    input_policy: InputValidationPolicy,
+    tracker: _CheckTracker,
 ) -> tuple[
     tuple[PlantInput, ...],
     tuple[DemandZoneInput, ...],
     tuple[SourcePlantLinkInput, ...],
     tuple[PlantZoneLinkInput, ...],
-    list[str],
 ]:
     """Build and validate enabled plants, zones and network links."""
-    issues: list[str] = []
-
     plant_items = _require_object_list(network.get("plants", []), "network.plants")
     plants: list[PlantInput] = []
     plant_ids_seen: set[str] = set()
@@ -709,7 +783,10 @@ def _build_network(
             f"network.plants[{index}].plant_id",
         )
         if plant_id in plant_ids_seen:
-            issues.append(f"Duplicate enabled plant ID '{plant_id}'.")
+            tracker.fail(
+                "plant_ids_present_and_unique",
+                f"Duplicate enabled plant ID '{plant_id}'.",
+            )
             continue
         plant_ids_seen.add(plant_id)
 
@@ -739,28 +816,36 @@ def _build_network(
         )
 
         _append_non_negative_issue(
-            issues,
+            tracker,
             minimum_capacity,
             f"Plant '{plant_id}' minimum processing capacity",
             required=True,
+            missing_check="plant_capacity_bounds_finite_non_negative_and_ordered",
+            invalid_check="plant_capacity_bounds_finite_non_negative_and_ordered",
         )
         _append_non_negative_issue(
-            issues,
+            tracker,
             maximum_capacity,
             f"Plant '{plant_id}' maximum processing capacity",
             required=True,
+            missing_check="plant_capacity_bounds_finite_non_negative_and_ordered",
+            invalid_check="plant_capacity_bounds_finite_non_negative_and_ordered",
         )
         _append_non_negative_issue(
-            issues,
+            tracker,
             fixed_cost,
             f"Plant '{plant_id}' fixed activation cost",
             required=True,
+            missing_check="plant_costs_finite_and_non_negative",
+            invalid_check="plant_costs_finite_and_non_negative",
         )
         _append_non_negative_issue(
-            issues,
+            tracker,
             treatment_cost,
             f"Plant '{plant_id}' treatment cost per ML",
             required=True,
+            missing_check="plant_costs_finite_and_non_negative",
+            invalid_check="plant_costs_finite_and_non_negative",
         )
 
         if (
@@ -768,8 +853,9 @@ def _build_network(
             and maximum_capacity is not None
             and minimum_capacity > maximum_capacity
         ):
-            issues.append(
-                f"Plant '{plant_id}' minimum processing capacity exceeds its maximum."
+            tracker.fail(
+                "plant_capacity_bounds_finite_non_negative_and_ordered",
+                f"Plant '{plant_id}' minimum processing capacity exceeds its maximum.",
             )
 
         # A PlantInput cannot truthfully represent missing required scalar values.
@@ -803,7 +889,10 @@ def _build_network(
             f"network.demand_zones[{index}].zone_id",
         )
         if zone_id in zone_ids_seen:
-            issues.append(f"Duplicate demand-zone ID '{zone_id}'.")
+            tracker.fail(
+                "demand_zone_ids_present_and_unique",
+                f"Duplicate demand-zone ID '{zone_id}'.",
+            )
             continue
         zone_ids_seen.add(zone_id)
 
@@ -816,10 +905,12 @@ def _build_network(
             f"network.demand_zones[{index}].demand_ml_per_day",
         )
         _append_non_negative_issue(
-            issues,
+            tracker,
             demand,
             f"Demand zone '{zone_id}' demand in ML/day",
-            required=bool(validation.get("fail_if_demand_missing", True)),
+            required=input_policy.fail_if_demand_missing,
+            missing_check="demand_present_finite_and_non_negative",
+            invalid_check="demand_present_finite_and_non_negative",
         )
 
         if "demand_must_be_met" in item:
@@ -829,9 +920,10 @@ def _build_network(
                 default=True,
             )
             if not demand_must_be_met:
-                issues.append(
+                tracker.fail(
+                    "demand_present_finite_and_non_negative",
                     f"Demand zone '{zone_id}' allows unmet demand, but the current "
-                    "formulation requires all demand to be satisfied."
+                    "formulation requires all demand to be satisfied.",
                 )
 
         demand_zones.append(
@@ -867,7 +959,10 @@ def _build_network(
         )
         key = (source_id, plant_id)
         if key in source_link_keys:
-            issues.append(f"Duplicate enabled source-to-plant link {key!r}.")
+            tracker.fail(
+                "source_to_plant_links_unique_and_valid",
+                f"Duplicate enabled source-to-plant link {key!r}.",
+            )
             continue
         source_link_keys.add(key)
 
@@ -876,10 +971,12 @@ def _build_network(
             f"network.source_to_plant_links[{index}].maximum_flow_ml_per_day",
         )
         _append_non_negative_issue(
-            issues,
+            tracker,
             capacity,
             f"Source-to-plant link {source_id} -> {plant_id} maximum flow",
             required=True,
+            missing_check="link_capacities_finite_and_non_negative",
+            invalid_check="link_capacities_finite_and_non_negative",
         )
         source_links.append(
             SourcePlantLinkInput(
@@ -915,7 +1012,10 @@ def _build_network(
         )
         key = (plant_id, zone_id)
         if key in zone_link_keys:
-            issues.append(f"Duplicate enabled plant-to-zone link {key!r}.")
+            tracker.fail(
+                "plant_to_zone_links_unique_and_valid",
+                f"Duplicate enabled plant-to-zone link {key!r}.",
+            )
             continue
         zone_link_keys.add(key)
 
@@ -924,10 +1024,12 @@ def _build_network(
             f"network.plant_to_zone_links[{index}].maximum_flow_ml_per_day",
         )
         _append_non_negative_issue(
-            issues,
+            tracker,
             capacity,
             f"Plant-to-zone link {plant_id} -> {zone_id} maximum flow",
             required=True,
+            missing_check="link_capacities_finite_and_non_negative",
+            invalid_check="link_capacities_finite_and_non_negative",
         )
         zone_links.append(
             PlantZoneLinkInput(
@@ -942,34 +1044,45 @@ def _build_network(
     zone_ids = {zone.zone_id for zone in demand_zones}
 
     if not plants:
-        issues.append("The scenario must contain at least one valid enabled plant.")
+        tracker.fail(
+            "plant_ids_present_and_unique",
+            "The scenario must contain at least one valid enabled plant.",
+        )
     if not demand_zones:
-        issues.append("The scenario must contain at least one demand zone.")
+        tracker.fail(
+            "demand_zone_ids_present_and_unique",
+            "The scenario must contain at least one demand zone.",
+        )
     if not source_links:
-        issues.append(
-            "The scenario must contain at least one enabled source-to-plant link."
+        tracker.fail(
+            "source_to_plant_links_unique_and_valid",
+            "The scenario must contain at least one enabled source-to-plant link.",
         )
     if not zone_links:
-        issues.append(
-            "The scenario must contain at least one enabled plant-to-zone link."
+        tracker.fail(
+            "plant_to_zone_links_unique_and_valid",
+            "The scenario must contain at least one enabled plant-to-zone link.",
         )
 
     for link in source_links:
         if link.plant_id not in plant_ids:
-            issues.append(
+            tracker.fail(
+                "source_to_plant_links_unique_and_valid",
                 f"Source-to-plant link references unknown or invalid plant "
-                f"'{link.plant_id}'."
+                f"'{link.plant_id}'.",
             )
 
     for link in zone_links:
         if link.plant_id not in plant_ids:
-            issues.append(
+            tracker.fail(
+                "plant_to_zone_links_unique_and_valid",
                 f"Plant-to-zone link references unknown or invalid plant "
-                f"'{link.plant_id}'."
+                f"'{link.plant_id}'.",
             )
         if link.zone_id not in zone_ids:
-            issues.append(
-                f"Plant-to-zone link references unknown zone '{link.zone_id}'."
+            tracker.fail(
+                "plant_to_zone_links_unique_and_valid",
+                f"Plant-to-zone link references unknown zone '{link.zone_id}'.",
             )
 
     return (
@@ -977,7 +1090,6 @@ def _build_network(
         tuple(demand_zones),
         tuple(source_links),
         tuple(zone_links),
-        issues,
     )
 
 
@@ -995,6 +1107,28 @@ def load_scenario(
 
     data_source = _require_mapping(config.get("data_source"), "data_source")
     validation = _require_mapping(config.get("validation", {}), "validation")
+    input_policy = InputValidationPolicy(
+        fail_if_source_missing_from_database=_optional_bool(
+            validation.get("fail_if_source_missing_from_database"),
+            "validation.fail_if_source_missing_from_database",
+            default=True,
+        ),
+        fail_if_daily_availability_missing=_optional_bool(
+            validation.get("fail_if_daily_availability_missing"),
+            "validation.fail_if_daily_availability_missing",
+            default=True,
+        ),
+        fail_if_required_quality_value_missing=_optional_bool(
+            validation.get("fail_if_required_quality_value_missing"),
+            "validation.fail_if_required_quality_value_missing",
+            default=True,
+        ),
+        fail_if_demand_missing=_optional_bool(
+            validation.get("fail_if_demand_missing"),
+            "validation.fail_if_demand_missing",
+            default=True,
+        ),
+    )
 
     data_source_type = _required_text(
         data_source.get("type"),
@@ -1032,13 +1166,16 @@ def load_scenario(
     else:
         raise DataLoadError('"data_source.type" must be either "supabase" or "inline".')
 
-    sources, source_issues = _build_sources(
+    tracker = _CheckTracker(_LOADER_CHECK_NAMES)
+
+    sources = _build_sources(
         source_config,
         rows,
         allow_estimated_values,
-        validation,
+        input_policy,
         quality_limits,
         source_data_origin=("database" if data_source_type == "supabase" else "inline"),
+        tracker=tracker,
     )
 
     network = _require_mapping(config.get("network"), "network")
@@ -1047,19 +1184,25 @@ def load_scenario(
         demand_zones,
         source_links,
         zone_links,
-        network_issues,
-    ) = _build_network(network, validation)
+    ) = _build_network(network, input_policy, tracker)
 
     known_source_ids = {source.source_id for source in sources}
     for link in source_links:
         if link.source_id not in known_source_ids:
-            network_issues.append(
+            tracker.fail(
+                "source_to_plant_links_unique_and_valid",
                 f"Source-to-plant link references unavailable source "
-                f"'{link.source_id}'."
+                f"'{link.source_id}'.",
             )
 
     # Preserve first occurrence order while removing duplicated diagnostics.
-    issues = tuple(dict.fromkeys(source_issues + network_issues))
+    issues = tuple(dict.fromkeys(tracker.issues))
+    loader_validation = LoaderValidation(
+        status="PASSED" if not issues else "FAILED",
+        scenario_ready=not issues,
+        validation_issues=issues,
+        checks=tracker.as_checks(),
+    )
 
     scenario = ScenarioData(
         scenario_id=scenario_id,
@@ -1073,6 +1216,8 @@ def load_scenario(
         plant_to_zone_links=zone_links,
         quality_limits=quality_limits,
         validation_issues=issues,
+        input_policy_validation=input_policy,
+        loader_validation=loader_validation,
     )
 
     if strict and issues:

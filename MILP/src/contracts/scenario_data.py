@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .solved_data import InputValidationPolicy, LoaderValidation
+
 
 @dataclass(frozen=True, slots=True)
 class SourceInput:
@@ -101,6 +103,9 @@ class ScenarioData:
 
     quality_limits: dict[str, Any]
     validation_issues: tuple[str, ...]
+
+    input_policy_validation: InputValidationPolicy
+    loader_validation: LoaderValidation
 
     @property
     def is_ready(self) -> bool:
