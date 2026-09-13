@@ -87,27 +87,42 @@
     ]
   },
   "quality_limits": {
-    "applies_to": "blend_at_plant_inflow",
-    "parameters": {
-      "pH": {
-        "unit": "pH",
-        "min": 6.5,
-        "max": 8.5,
-        "transform": "hydrogenic"
-      },
-      "alkalinity": {
-        "unit": "mg/L CaCO3",
-        "min": 20,
-        "max": 100,
-        "transform": "identity"
-      },
-      "turbidity": {
-        "unit": "NTU",
-        "min": 0,
-        "max": 8.0,
-        "transform": "identity"
-      }
+  "applies_to": "blend_at_plant_inflow",
+  "parameters": {
+    "ph": {
+      "id": "ph",
+      "name": "pH",
+      "unit": "pH",
+      "min": 6.5,
+      "max": 8.5,
+      "transform": "ph_to_hydrogen_ion",
+      "source_field": "representative_ph",
+      "model_name": "hydrogen_ion_concentration_mol_l",
+      "model_unit": "nmol/L"
+    },
+    "alkalinity": {
+      "id": "alkalinity",
+      "name": "Alkalinity",
+      "unit": "mg/L CaCO3",
+      "min": 20.0,
+      "max": 100.0,
+      "transform": "identity",
+      "source_field": "representative_alkalinity_mg_l_caco3",
+      "model_name": "alkalinity",
+      "model_unit": "mg/L CaCO3"
+    },
+    "turbidity": {
+      "id": "turbidity",
+      "name": "Turbidity",
+      "unit": "NTU",
+      "min": 0.5,
+      "max": 8.0,
+      "transform": "identity",
+      "source_field": "representative_turbidity_ntu",
+      "model_name": "turbidity",
+      "model_unit": "NTU"
     }
-  },
+  }
+},
   "treatment": {}
 }

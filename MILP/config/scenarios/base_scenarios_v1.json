@@ -92,28 +92,43 @@
     ]
   },
   "quality_limits": {
-    "applies_to": "blend_at_plant_inflow",
-    "parameters": {
-      "pH": {
-        "min": 6.5,
-        "max": 8.5,
-        "unit": "pH",
-        "transform": "ph_to_hydrogen_ion"
-      },
-      "alkalinity": {
-        "min": 20,
-        "max": 200,
-        "unit": "mg/L CaCO3",
-        "transform": "identity"
-      },
-      "turbidity": {
-        "min": 0,
-        "max": 5,
-        "unit": "NTU",
-        "transform": "identity"
-      }
+  "applies_to": "blend_at_plant_inflow",
+  "parameters": {
+    "ph": {
+      "id": "ph",
+      "name": "pH",
+      "unit": "pH",
+      "min": 6.5,
+      "max": 8.5,
+      "transform": "ph_to_hydrogen_ion",
+      "source_field": "representative_ph",
+      "model_name": "hydrogen_ion_concentration_mol_l",
+      "model_unit": "nmol/L"
+    },
+    "alkalinity": {
+      "id": "alkalinity",
+      "name": "Alkalinity",
+      "unit": "mg/L CaCO3",
+      "min": 20.0,
+      "max": 200.0,
+      "transform": "identity",
+      "source_field": "representative_alkalinity_mg_l_caco3",
+      "model_name": "alkalinity",
+      "model_unit": "mg/L CaCO3"
+    },
+    "turbidity": {
+      "id": "turbidity",
+      "name": "Turbidity",
+      "unit": "NTU",
+      "min": 0.5,
+      "max": 5.0,
+      "transform": "identity",
+      "source_field": "representative_turbidity_ntu",
+      "model_name": "turbidity",
+      "model_unit": "NTU"
     }
-  },
+  }
+},
   "treatment": {
     "chemical_dosing_enabled": false,
     "batching_enabled": false,
@@ -132,6 +147,7 @@
     "The source minimum withdrawals are all non-negative and do not exceed their corresponding maximums.",
     "The plant minimum and maximum processing capacities follow the updated naming convention.",
     "All network-link capacities are explicit because preprocessing requires finite non-negative values.",
-    "The scenario remains marked as draft until its expected MILP solution is independently verified."
+    "The scenario remains marked as draft until its expected MILP solution is independently verified.",
+    "Source quality measurements are loaded from the configured Supabase view using the source_field declared for each quality parameter."
   ]
 }
