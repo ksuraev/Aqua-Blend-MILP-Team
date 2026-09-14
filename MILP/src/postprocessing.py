@@ -507,8 +507,9 @@ def _build_source_results(
                         is_selected
                         and math.isclose(withdrawal, min_withdrawal, abs_tol=_SOLVER_TOLERANCE)
                     ),
-                    binding_upper=math.isclose(
-                        withdrawal, max_withdrawal, abs_tol=_SOLVER_TOLERANCE
+                    binding_upper=(
+                        is_selected
+                        and math.isclose(withdrawal, max_withdrawal, abs_tol=_SOLVER_TOLERANCE)
                     ),
                 ),
             )
@@ -873,7 +874,6 @@ def _get_preprocessing_validation_obj(parameters: ModelParameters) -> Preprocess
     """
     return parameters.preprocessing_validation
 
-    preprocessing_validation = _get_preprocessing_validation_obj(parameters)
 
 def _check(check: str, passed: bool) -> ValidationCheck:
     return ValidationCheck(check=check, enabled=True, passed=passed)
