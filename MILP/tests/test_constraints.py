@@ -13,6 +13,7 @@ from src.preprocessing import ModelParameters
 def parameters() -> ModelParameters:
     """Create a small parameter object for constraint testing."""
     return ModelParameters(
+        scenario_id="constraints_test",
         source_ids=("S1", "S2"),
         plant_ids=("T1",),
         zone_ids=("Z1",),
