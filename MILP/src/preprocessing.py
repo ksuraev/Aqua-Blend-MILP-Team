@@ -57,7 +57,11 @@ class ModelParameters:
     objective terms, constraints, solver objects, or optimisation logic.
     """
 
+<<<<<<< HEAD
     # ID for the scenario definition.
+=======
+    # Id of scenario
+>>>>>>> feature/solver-postprocessing
     scenario_id: str
 
     # Sets: S, T, Z and P.
@@ -244,6 +248,10 @@ def ph_to_hydrogen_ion(ph: float) -> float:
     value = 10.0 ** (-ph) * _NMOL_PER_MOL
     if not math.isfinite(value) or value <= 0:
         raise PreprocessingError(f"pH {ph!r} could not be transformed safely.")
+<<<<<<< HEAD
+=======
+
+>>>>>>> feature/solver-postprocessing
     return value
 
 
@@ -910,7 +918,10 @@ def preprocess_scenario(
 
     parameters = ModelParameters(
         scenario_id=scenario.scenario_id,
+<<<<<<< HEAD
         run_id=resolved_run_id,
+=======
+>>>>>>> feature/solver-postprocessing
         source_ids=source_ids,
         plant_ids=plant_ids,
         zone_ids=zone_ids,
