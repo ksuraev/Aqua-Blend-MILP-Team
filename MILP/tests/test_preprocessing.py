@@ -9,15 +9,17 @@ import pytest
 from src.data_loader import load_scenario
 from src.preprocessing import preprocess_scenario, PreprocessingError
 
-
-# ============================================================
 # FIXTURES
-# ============================================================
 
 @pytest.fixture
 def toy_scenario():
-    return load_scenario("config/scenarios/toy_scenario.json")
-
+    scenario_path = (
+        Path(__file__).resolve().parents[1]
+        / "config"
+        / "scenarios"
+        / "toy_scenario.json"
+    )
+    return load_scenario(scenario_path)
 
 @pytest.fixture
 def toy_parameters(toy_scenario):
@@ -171,6 +173,8 @@ def test_preprocessing_is_deterministic(toy_scenario):
     first = preprocess_scenario(toy_scenario)
     second = preprocess_scenario(toy_scenario)
 
+    assert first == second
+    
     assert first.source_ids == second.source_ids
     assert first.plant_ids == second.plant_ids
     assert first.zone_ids == second.zone_ids
