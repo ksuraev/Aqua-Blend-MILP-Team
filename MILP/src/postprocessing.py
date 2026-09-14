@@ -1114,7 +1114,7 @@ def postprocess_solution(
 
     return SolvedScenario(
         schema_version=schema_version,
-        run_id=parameters.run_id,
+        run_id=parameters.run_id, # currently waiting for a change upstream
         scenario=input_scenario,
         validation=validation,
         solver=solver,

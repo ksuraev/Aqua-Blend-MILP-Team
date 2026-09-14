@@ -226,6 +226,7 @@ def ph_to_hydrogen_ion(ph: float) -> float:
     value = 10.0 ** (-ph) * _NMOL_PER_MOL
     if not math.isfinite(value) or value <= 0:
         raise PreprocessingError(f"pH {ph!r} could not be transformed safely.")
+
     return value
 
 
