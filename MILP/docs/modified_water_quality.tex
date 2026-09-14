@@ -46,7 +46,11 @@ For example, \eqref{eq:inlet_treatability} becomes:
     Q_{s,\mathrm{alk}} ~b_{st} \le \overline{I}_{t,\mathrm{alk}} ~\sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T}.
 \end{equation*}
 
+\textcolor{red}{maybe worth saying the lower limit for alk can't be met by treatment at all i.e. if no blend reaches it, the model is infeasible.}
+
 We highlight here that, according to \cite{who2004water}, removal process can directly reduce alkalinity, though it can be increased by an adjustment process.
+
+
 
 \subsection{pH transformation}
 
@@ -85,6 +89,8 @@ then the corresponding transformed bounds stored for the $\mathrm{pH}$ quality p
 The direction of the bounds changes because $\mathrm{pH}$ and hydrogen ion concentration are inversely related \cite{Fondriest2025pH}.
 A higher $\mathrm{pH}$ corresponds to a lower hydrogen ion concentration, while a lower $\mathrm{pH}$ corresponds to a higher hydrogen ion concentration.
 
+\textcolor{red}{I wouldn't maybe say that they are inapplicable but rather that the removal constraints still apply but have no effect?}
+
 As mentioned earlier, pH cannot be handled by removal process, thereby, inapplicable to constraints from \eqref{eq:removal_process_initial} to \eqref{eq:outlet_water_quality}.
 Nonetheless, as an incoming quality parameter at $t \in T$, the constraint \eqref{eq:inlet_treatability} is still valid. Formally, this is:
 
@@ -119,6 +125,8 @@ It is a post-solve reporting value used for validation, interpretation, dashboar
 
 \textcolor{blue}{I think you meant the Section 6.4? Because I think the Section 6.5 is sound, and I modified few things in Section 6.4, also other sections before 6.4. One more thing, I added a separate subsection for 6.7 Assumptions for removal process.}
 
+\textcolor{red}{yep nice!}
+
 \subsection{Linearity assumptions for water quality}
 
 The water quality formulation relies on simplifying assumptions that preserve linearity in the MILP.
@@ -136,10 +144,12 @@ The key assumptions are:
 These assumptions allow the water quality constraints to remain linear and suitable for inclusion in the MILP formulation.
 
 \subsection{Assumptions for removal processes}
+\textcolor{magenta}{also each process sees only what the previous left?}
+
 In practices, several designs for removal processes exist, see \cite{lower_murray_water2023, zouboulis2005improvement}. Therefore, we shall propose the following assumptions for convenience and simplicity.
 \begin{itemize}
     \item Removal process $\mathcal R_t$ is conducted in a sequence.
-    \item Maximum removal efficiency $H_{trp}$ is known. \textcolor{red}{I'm thinking about a weaker assumption, not maximum but a fixed efficiency is known?}
+    \item Maximum removal efficiency $H_{trp}$ is known. \textcolor{red}{I'm thinking about a weaker assumption, not maximum but a fixed efficiency is known?} \textcolor{magenta}{keep maximum I think $\epsilon \le H \ell$ is an upper bound, so the process can remove less. Fixed would be $\epsilon = H \ell$, which forces removal whenever the process runs and ruins the behaviour where the model stops at the limit rather than at capacity.}
     \item Uniform treatment: $\sum_{s \in \mathcal S} b_{st}$ receives the same treatment.
     \item No water loss after passing through $r_i \in \mathcal R_t$.
 \end{itemize}

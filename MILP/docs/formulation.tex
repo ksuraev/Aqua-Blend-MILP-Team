@@ -162,7 +162,7 @@ For parameters such as turbidity measured in NTU, the cost is per NTU$\cdot$ML, 
 \subsection{Decision variables}
 {\color{red}
     Just for notation consistency. Since in \textbf{Tab. \ref{tab:parameters}}, you used $C_{st}$ to represent cost from source $s$ to plant $t$.
-    Should we also use $c_{st}$ instead of $b_{st}$?
+    Should we also use $c_{st}$ instead of $b_{st}$?  \color{blue}{I think in future yes but at the moment it would put all code/docs out of sync?}
 }
 
 \begin{tabularx}{\textwidth}{@{}llll@{}}
@@ -560,6 +560,8 @@ Consequently, lower-bound compliance must be achieved through source selection a
 \textcolor{red}{\textbf{TODO:} toy model is now also incorrect because it doesn't account for removal processes.}
 
 \textcolor{blue}{The only thing I could think of the is outgoing flow, but if so, would it violate the flow conservation?}
+
+\textcolor{red}{water in equals water out, and removal doesn't change it by the assumption of no water loss so $\sum_s a_s$ still leaves plant and I think should remain that label because that's the volume of water leaving the plant. So maybe just one row in table.The single plant here will have a process sequence $r_{1}, r_{2}, r_{3},..$, i.e. $\mathcal{R}_t$ fixed and one process sequence. $\sigma_{tr}$ and $e_{trp}$ remain free}
 
 The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
 With one plant and one zone there is nothing to route:
