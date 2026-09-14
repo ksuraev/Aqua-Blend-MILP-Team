@@ -25,21 +25,22 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import math
 import os
 import subprocess
 import sys
 import tempfile
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, fields, is_dataclass, replace
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 from uuid import UUID, uuid4
-import os
-import psycopg
 
+import psycopg
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -61,6 +62,8 @@ try:
     from .postprocessing import PostprocessingError, postprocess_solution
     from .preprocessing import ModelParameters, PreprocessingError, preprocess_scenario
 except ImportError:  # pragma: no cover - direct script execution
+    from postprocessing import PostprocessingError, postprocess_solution
+
     from contracts import (
         DataSource,
         InputValidationPolicy,
@@ -72,8 +75,10 @@ except ImportError:  # pragma: no cover - direct script execution
     )
     from data_loader import DataLoadError, load_scenario
     from model import solve
-    from postprocessing import PostprocessingError, postprocess_solution
     from preprocessing import ModelParameters, PreprocessingError, preprocess_scenario
+
+
+LOGGER = logging.getLogger("aquablend.milp.pipeline")
 
 
 class PipelineError(RuntimeError):
@@ -158,7 +163,7 @@ class _ScenarioPostprocessingView:
 
 
 class _ParametersPostprocessingView:
-    __slots__ = ("_parameters", "run_id", "preprocessing_validation")
+    __slots__ = ("_parameters", "preprocessing_validation", "run_id")
 
     def __init__(
         self,
@@ -255,8 +260,7 @@ def _normalise_json_value(value: Any) -> Any:
     if isinstance(value, Mapping):
         if all(isinstance(key, str) for key in value):
             return {
-                str(key): _normalise_json_value(value[key])
-                for key in sorted(value)
+                str(key): _normalise_json_value(value[key]) for key in sorted(value)
             }
 
         entries: list[dict[str, Any]] = []
@@ -316,7 +320,9 @@ def json_for_database(value: Any) -> str:
             separators=(",", ":"),
         )
     except (TypeError, ValueError) as exc:
-        raise PipelineError("Value is not valid JSON for database persistence.") from exc
+        raise PipelineError(
+            "Value is not valid JSON for database persistence."
+        ) from exc
 
 
 def _ensure_json_object(value: Any, label: str) -> dict[str, Any]:
@@ -357,8 +363,7 @@ def _validate_canonical_document(
     missing = sorted(required.difference(result))
     if missing:
         raise PipelineError(
-            "canonical_input_json is missing required field(s): "
-            + ", ".join(missing)
+            "canonical_input_json is missing required field(s): " + ", ".join(missing)
         )
 
     scenario_id = _clean_nonblank(result.get("scenario_id"), "scenario_id")
@@ -411,10 +416,9 @@ def fetch_milp_input_snapshot(input_id: str | UUID) -> MilpInputSnapshot:
     """
 
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(query, (parsed_id,))
-                rows = cursor.fetchall()
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(query, (parsed_id,))
+            rows = cursor.fetchall()
     except PipelineError:
         raise
     except Exception as exc:
@@ -475,19 +479,23 @@ def _extract_source_snapshot(scenario_json: Any) -> Any:
 
 def _mark_input_status(input_id: str, status: str) -> None:
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
                     UPDATE public.milp_model_input
                     SET input_status = %s
                     WHERE id = %s;
                     """,
-                    (status, UUID(input_id)),
-                )
+                (status, UUID(input_id)),
+            )
     except Exception:
-        # Do not mask the original pipeline failure solely because status marking failed.
-        pass
+        # Never mask the original pipeline failure over a status-marking error.
+        LOGGER.warning(
+            "Could not mark milp_model_input %s as %r.",
+            input_id,
+            status,
+            exc_info=True,
+        )
 
 
 def _persist_loaded_scenario(
@@ -509,22 +517,21 @@ def _persist_loaded_scenario(
         WHERE id = %s;
     """
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    query,
-                    (
-                        canonical_input_hash,
-                        json_for_database(scenario_data_json),
-                        scenario_data_hash,
-                        json_for_database(source_data_snapshot_json),
-                        UUID(snapshot.id),
-                    ),
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                query,
+                (
+                    canonical_input_hash,
+                    json_for_database(scenario_data_json),
+                    scenario_data_hash,
+                    json_for_database(source_data_snapshot_json),
+                    UUID(snapshot.id),
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise PipelineError(
+                    f"milp_model_input {snapshot.id} disappeared during loading."
                 )
-                if cursor.rowcount != 1:
-                    raise PipelineError(
-                        f"milp_model_input {snapshot.id} disappeared during loading."
-                    )
     except PipelineError:
         raise
     except Exception as exc:
@@ -557,25 +564,24 @@ def _persist_preprocessed_parameters(
         WHERE id = %s;
     """
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    query,
-                    (
-                        json_for_database(model_parameters_json),
-                        model_parameters_hash,
-                        input_hash,
-                        json_for_database(dict(solver_config_json)),
-                        solver_config_hash,
-                        milp_model_version,
-                        execution_key,
-                        UUID(snapshot.id),
-                    ),
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                query,
+                (
+                    json_for_database(model_parameters_json),
+                    model_parameters_hash,
+                    input_hash,
+                    json_for_database(dict(solver_config_json)),
+                    solver_config_hash,
+                    milp_model_version,
+                    execution_key,
+                    UUID(snapshot.id),
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise PipelineError(
+                    f"milp_model_input {snapshot.id} disappeared during preprocessing."
                 )
-                if cursor.rowcount != 1:
-                    raise PipelineError(
-                        f"milp_model_input {snapshot.id} disappeared during preprocessing."
-                    )
     except PipelineError:
         raise
     except Exception as exc:
@@ -655,6 +661,8 @@ def _solver_package_version() -> str:
         except PackageNotFoundError:
             return "unknown"
     except Exception:
+        # Version probing must never fail a run; it only annotates solver config.
+        LOGGER.warning("Could not resolve the highspy package version.", exc_info=True)
         return "unknown"
 
 
@@ -931,9 +939,7 @@ def _postprocessing_parameters_view(
     run_id: str,
     options: PipelineOptions,
 ) -> _ParametersPostprocessingView:
-    preprocessing_validation = getattr(
-        parameters, "preprocessing_validation", None
-    )
+    preprocessing_validation = getattr(parameters, "preprocessing_validation", None)
     if not isinstance(preprocessing_validation, PreprocessingValidation):
         preprocessing_validation = _preprocessing_validation_fallback(
             parameters, options
@@ -1043,8 +1049,8 @@ def solve_prepared_input(
 
     try:
         solved = postprocess_solution(
-            scenario_view,      # type: ignore[arg-type]
-            parameters_view,    # type: ignore[arg-type]
+            scenario_view,  # type: ignore[arg-type]
+            parameters_view,  # type: ignore[arg-type]
             model,
             solver_results,
         )

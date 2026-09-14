@@ -22,19 +22,20 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
-import psycopg
 import logging
 import os
 import signal
 import sys
 import time
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any
 from uuid import UUID
+
+import psycopg
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -45,7 +46,6 @@ try:
         PipelineOptions,
         PipelineStageError,
         PreparedMilpInput,
-        _database_url,
         json_for_database,
         prepare_milp_input,
         semantic_solved_output_hash,
@@ -58,7 +58,6 @@ except ImportError:  # pragma: no cover
         PipelineOptions,
         PipelineStageError,
         PreparedMilpInput,
-        _database_url,
         json_for_database,
         prepare_milp_input,
         semantic_solved_output_hash,
@@ -140,7 +139,9 @@ def _as_float(value: Any) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError) as exc:
-        raise RunWorkerError(f"Expected float-compatible value, got {value!r}.") from exc
+        raise RunWorkerError(
+            f"Expected float-compatible value, got {value!r}."
+        ) from exc
 
 
 def _path(value: Any, path: Sequence[str], default: Any = None) -> Any:
@@ -217,21 +218,20 @@ def claim_next_run() -> ClaimedRun | None:
     """
 
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    sql,
-                    (
-                        RUN_STATUS_QUEUED,
-                        RUN_STATUS_PREPARING_INPUT,
-                        "Resolving immutable MILP input snapshot.",
-                    ),
-                )
-                row = cursor.fetchone()
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                sql,
+                (
+                    RUN_STATUS_QUEUED,
+                    RUN_STATUS_PREPARING_INPUT,
+                    "Resolving immutable MILP input snapshot.",
+                ),
+            )
+            row = cursor.fetchone()
     except Exception as exc:
         raise RunWorkerError(
-        f"Could not claim the next queued Run: {type(exc).__name__}: {exc}"
-    ) from exc
+            f"Could not claim the next queued Run: {type(exc).__name__}: {exc}"
+        ) from exc
 
     if row is None:
         return None
@@ -297,10 +297,9 @@ def find_cached_output(execution_key: str) -> CachedMilpOutput | None:
     """
 
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(query, (execution_key,))
-                row = cursor.fetchone()
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(query, (execution_key,))
+            row = cursor.fetchone()
     except Exception as exc:
         raise RunWorkerError("MILP cache lookup failed.") from exc
 
@@ -341,26 +340,25 @@ def attach_cached_output(run: ClaimedRun, cached: CachedMilpOutput) -> None:
     """
 
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    query,
-                    (
-                        RUN_STATUS_MILP_COMPLETED,
-                        cached.solver_status.lower(),
-                        "MILP result reused from cache.",
-                        cached.objective_value,
-                        UUID(cached.id),
-                        cached.origin_run_id,
-                        run.database_id,
-                        RUN_STATUS_PREPARING_INPUT,
-                    ),
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                query,
+                (
+                    RUN_STATUS_MILP_COMPLETED,
+                    cached.solver_status.lower(),
+                    "MILP result reused from cache.",
+                    cached.objective_value,
+                    UUID(cached.id),
+                    cached.origin_run_id,
+                    run.database_id,
+                    RUN_STATUS_PREPARING_INPUT,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RunWorkerError(
+                    f"Run {run.external_id!r} was not in preparing_input "
+                    "while attaching a cached result."
                 )
-                if cursor.rowcount != 1:
-                    raise RunWorkerError(
-                        f"Run {run.external_id!r} was not in preparing_input "
-                        "while attaching a cached result."
-                    )
     except RunWorkerError:
         raise
     except Exception as exc:
@@ -380,21 +378,20 @@ def mark_milp_running(run: ClaimedRun) -> None:
           AND lower("WorkflowStatus") = %s;
     """
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    query,
-                    (
-                        RUN_STATUS_MILP_RUNNING,
-                        "Executing Pyomo/HiGHS optimisation.",
-                        run.database_id,
-                        RUN_STATUS_PREPARING_INPUT,
-                    ),
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                query,
+                (
+                    RUN_STATUS_MILP_RUNNING,
+                    "Executing Pyomo/HiGHS optimisation.",
+                    run.database_id,
+                    RUN_STATUS_PREPARING_INPUT,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RunWorkerError(
+                    f"Run {run.external_id!r} was not in preparing_input."
                 )
-                if cursor.rowcount != 1:
-                    raise RunWorkerError(
-                        f"Run {run.external_id!r} was not in preparing_input."
-                    )
     except RunWorkerError:
         raise
     except Exception as exc:
@@ -436,7 +433,9 @@ def _preferred_solve_time_ms(solved: Any, elapsed_ms: float) -> float:
     return max(0.0, elapsed_ms)
 
 
-def _numeric_from_paths(raw: Mapping[str, Any], *paths: Sequence[str]) -> Decimal | None:
+def _numeric_from_paths(
+    raw: Mapping[str, Any], *paths: Sequence[str]
+) -> Decimal | None:
     value = _first_path(raw, *paths)
     return _as_decimal(value)
 
@@ -459,14 +458,10 @@ def _build_flat_output(
     loader = _first_path(raw, ("validation", "loader"), default={})
     if not isinstance(loader, Mapping):
         loader = {}
-    preprocessing = _first_path(
-        raw, ("validation", "preprocessing"), default={}
-    )
+    preprocessing = _first_path(raw, ("validation", "preprocessing"), default={})
     if not isinstance(preprocessing, Mapping):
         preprocessing = {}
-    consistency = _first_path(
-        raw, ("validation", "output_consistency"), default={}
-    )
+    consistency = _first_path(raw, ("validation", "output_consistency"), default={})
     if not isinstance(consistency, Mapping):
         consistency = {}
 
@@ -516,18 +511,10 @@ def _build_flat_output(
             preprocessing.get("warnings"),
             getattr(prepared.parameters, "warnings", []),
         ),
-        "preprocessing_checks": _json_or_default(
-            preprocessing.get("checks"), []
-        ),
-        "output_consistency_status": str(
-            consistency.get("status") or "NOT_RUN"
-        ),
-        "output_consistency_tolerance": _as_decimal(
-            consistency.get("tolerance")
-        ),
-        "output_consistency_checks": _json_or_default(
-            consistency.get("checks"), []
-        ),
+        "preprocessing_checks": _json_or_default(preprocessing.get("checks"), []),
+        "output_consistency_status": str(consistency.get("status") or "NOT_RUN"),
+        "output_consistency_tolerance": _as_decimal(consistency.get("tolerance")),
+        "output_consistency_checks": _json_or_default(consistency.get("checks"), []),
         "solver_status": _solver_status(solved),
         "solver_is_feasible": _solver_bool(solved, "is_feasible"),
         "solver_is_optimal": _solver_bool(solved, "is_optimal"),
@@ -832,32 +819,31 @@ def persist_solved_output(
     """
 
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(insert_sql, values)
-                output_row = cursor.fetchone()
-                if output_row is None:
-                    raise RunWorkerError("milp_model_output INSERT returned no id.")
-                output_id = str(output_row[0])
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(insert_sql, values)
+            output_row = cursor.fetchone()
+            if output_row is None:
+                raise RunWorkerError("milp_model_output INSERT returned no id.")
+            output_id = str(output_row[0])
 
-                cursor.execute(
-                    update_sql,
-                    (
-                        RUN_STATUS_MILP_COMPLETED,
-                        flat["solver_status"].lower(),
-                        "MILP optimisation completed; result ready for AI analysis.",
-                        flat["solve_time_ms"],
-                        flat["solver_objective_value"],
-                        UUID(output_id),
-                        run.database_id,
-                        RUN_STATUS_MILP_RUNNING,
-                    ),
+            cursor.execute(
+                update_sql,
+                (
+                    RUN_STATUS_MILP_COMPLETED,
+                    flat["solver_status"].lower(),
+                    "MILP optimisation completed; result ready for AI analysis.",
+                    flat["solve_time_ms"],
+                    flat["solver_objective_value"],
+                    UUID(output_id),
+                    run.database_id,
+                    RUN_STATUS_MILP_RUNNING,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise RunWorkerError(
+                    f"Run {run.external_id!r} was not in milp_running "
+                    "during completion."
                 )
-                if cursor.rowcount != 1:
-                    raise RunWorkerError(
-                        f"Run {run.external_id!r} was not in milp_running "
-                        "during completion."
-                    )
         return output_id
     except RunWorkerError:
         raise
@@ -878,10 +864,9 @@ def fail_run(
     ]
 
     try:
-        with _connect() as connection:
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    """
+        with _connect() as connection, connection.cursor() as cursor:
+            cursor.execute(
+                """
                     UPDATE public."Runs"
                     SET
                         "WorkflowStatus" = %s,
@@ -897,17 +882,17 @@ def fail_run(
                     WHERE "Id" = %s
                       AND lower("WorkflowStatus") IN (%s, %s);
                     """,
-                    (
-                        RUN_STATUS_FAILED,
-                        "MILP execution failed.",
-                        safe_code,
-                        safe_message,
-                        max(0.0, elapsed_ms),
-                        run.database_id,
-                        RUN_STATUS_PREPARING_INPUT,
-                        RUN_STATUS_MILP_RUNNING,
-                    ),
-                )
+                (
+                    RUN_STATUS_FAILED,
+                    "MILP execution failed.",
+                    safe_code,
+                    safe_message,
+                    max(0.0, elapsed_ms),
+                    run.database_id,
+                    RUN_STATUS_PREPARING_INPUT,
+                    RUN_STATUS_MILP_RUNNING,
+                ),
+            )
     except Exception:
         LOGGER.exception("Could not persist failed state for %s.", run.external_id)
 
@@ -988,9 +973,7 @@ def process_claimed_run(
 
         if run.force_rerun:
             output_id = _solve_and_store(run, prepared, options=options)
-            LOGGER.info(
-                "Force-rerun %s solved; output=%s.", run.external_id, output_id
-            )
+            LOGGER.info("Force-rerun %s solved; output=%s.", run.external_id, output_id)
             return True
 
         # Fast path before obtaining the advisory lock.
@@ -1066,9 +1049,7 @@ def watch_run_queue(
     if hasattr(signal, "SIGTERM"):
         signal.signal(signal.SIGTERM, request_stop)
 
-    LOGGER.info(
-        "Watching public.Runs for WorkflowStatus=%r.", RUN_STATUS_QUEUED
-    )
+    LOGGER.info("Watching public.Runs for WorkflowStatus=%r.", RUN_STATUS_QUEUED)
 
     while not stop_requested:
         try:
