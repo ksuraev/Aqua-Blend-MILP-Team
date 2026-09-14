@@ -73,6 +73,7 @@ def two_plant_parameters() -> ModelParameters:
     Both sources flow to both plants, and both plants flow to the zone.
     """
     return ModelParameters(
+        scenario_id="constraints_test",
         source_ids=("S1", "S2"),
         plant_ids=("T1", "T2"),
         zone_ids=("Z1",),
