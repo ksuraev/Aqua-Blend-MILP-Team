@@ -190,17 +190,6 @@ def _load_environment() -> None:
     load_dotenv()
 
 
-def _database_url() -> str:
-    _load_environment()
-    value = os.getenv("DATABASE_URL")
-    if not value:
-        raise PipelineError(
-            "DATABASE_URL is missing. Add the Supabase PostgreSQL connection "
-            "string to the MILP environment."
-        )
-    return value
-
-
 def _connect():
     return psycopg.connect(
         host=os.environ["PGHOST"],
