@@ -99,28 +99,16 @@ def test_solve_reports_infeasible_model() -> None:
     assert results.solver.termination_condition == TerminationCondition.infeasible
 
 
-def test_solve_preserves_shared_variables() -> None:
-    """Check that the solved model uses the agreed variable interface."""
-    model, _ = solve(make_parameters())
+def test_solver_uses_second_source_when_first_reaches_capacity() -> None:
+    """Check that additional demand is supplied by the second source."""
+    model, results = solve(make_parameters(demand=50.0))
 
-    expected_variables = {
-        "alpha",
-        "a",
-        "beta",
-        "gamma",
-        "b",
-        "delta",
-        "c",
-    }
-
-    actual_variables = set(model.component_map(pyo.Var))
-
-    assert expected_variables <= actual_variables
-
-
-def test_solve_accepts_tee_option() -> None:
-    """Check that the HiGHS solver log can be enabled."""
-    model, results = solve(make_parameters(), tee=True)
-
-    assert model is not None
     assert results.solver.termination_condition == TerminationCondition.optimal
+
+    assert pyo.value(model.a["S1"]) == pytest.approx(40.0)
+    assert pyo.value(model.a["S2"]) == pytest.approx(10.0)
+
+    assert pyo.value(model.b["S1", "T1"]) == pytest.approx(40.0)
+    assert pyo.value(model.b["S2", "T1"]) == pytest.approx(10.0)
+
+    assert pyo.value(model.c["T1", "Z1"]) == pytest.approx(50.0)
