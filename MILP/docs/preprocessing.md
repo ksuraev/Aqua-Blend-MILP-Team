@@ -101,19 +101,19 @@ It contains no:
 
 ### 3.1 Sets
 
-| Field | Type | Meaning |
-|---|---|---|
-| `source_ids` | `tuple[str, ...]` | Usable water-source identifiers forming set \(S\). |
-| `plant_ids` | `tuple[str, ...]` | Enabled treatment-plant identifiers forming set \(T\). |
-| `zone_ids` | `tuple[str, ...]` | Demand-zone identifiers forming set \(Z\). |
-| `quality_parameter_ids` | `tuple[str, ...]` | Model-facing quality identifiers forming set \(P\). |
+| Field                   | Type              | Meaning                                                |
+| ----------------------- | ----------------- | ------------------------------------------------------ |
+| `source_ids`            | `tuple[str, ...]` | Usable water-source identifiers forming set \(S\).     |
+| `plant_ids`             | `tuple[str, ...]` | Enabled treatment-plant identifiers forming set \(T\). |
+| `zone_ids`              | `tuple[str, ...]` | Demand-zone identifiers forming set \(Z\).             |
+| `quality_parameter_ids` | `tuple[str, ...]` | Model-facing quality identifiers forming set \(P\).    |
 
 ### 3.2 Network arc sets
 
-| Field | Type | Meaning |
-|---|---|---|
-| `source_plant_arcs` | `tuple[tuple[str, str], ...]` | Enabled and usable source-to-plant arcs \(A_{ST}\). |
-| `plant_zone_arcs` | `tuple[tuple[str, str], ...]` | Enabled and usable plant-to-zone arcs \(A_{TZ}\). |
+| Field               | Type                          | Meaning                                              |
+| ------------------- | ----------------------------- | ---------------------------------------------------- |
+| `source_plant_arcs` | `tuple[tuple[str, str], ...]` | Enabled and usable source-to-plant arcs \(A\_{ST}\). |
+| `plant_zone_arcs`   | `tuple[tuple[str, str], ...]` | Enabled and usable plant-to-zone arcs \(A\_{TZ}\).   |
 
 Each arc is represented as a two-element tuple:
 
@@ -131,22 +131,22 @@ The model builder should create flow and activation variables only for arcs pres
 
 ### 3.3 Demand and cost parameters
 
-| Field | Type | Formulation notation | Meaning |
-|---|---|---|---|
-| `demand_by_zone` | `dict[str, float]` | \(D_z\) | Required delivery to each demand zone in ML/day. |
-| `source_fixed_cost` | `dict[str, float]` | \(F_s\) | Fixed cost of activating each source. |
-| `plant_fixed_cost` | `dict[str, float]` | \(F_t\) | Fixed cost of activating each treatment plant. |
-| `source_unit_cost` | `dict[str, float]` | \(C_s\) | Variable withdrawal cost per ML for each source. |
-| `plant_unit_treatment_cost` | `dict[str, float]` | \(C_t\) | Treatment cost per ML for each plant. |
+| Field                       | Type               | Formulation notation | Meaning                                          |
+| --------------------------- | ------------------ | -------------------- | ------------------------------------------------ |
+| `demand_by_zone`            | `dict[str, float]` | \(D_z\)              | Required delivery to each demand zone in ML/day. |
+| `source_fixed_cost`         | `dict[str, float]` | \(F_s\)              | Fixed cost of activating each source.            |
+| `plant_fixed_cost`          | `dict[str, float]` | \(F_t\)              | Fixed cost of activating each treatment plant.   |
+| `source_unit_cost`          | `dict[str, float]` | \(C_s\)              | Variable withdrawal cost per ML for each source. |
+| `plant_unit_treatment_cost` | `dict[str, float]` | \(C_t\)              | Treatment cost per ML for each plant.            |
 
 ### 3.4 Source and plant bounds
 
-| Field | Type | Formulation notation | Meaning |
-|---|---|---|---|
-| `source_min_withdrawal` | `dict[str, float]` | \(\underline{W}_s\) | Minimum source withdrawal when the source is active. |
-| `source_max_withdrawal` | `dict[str, float]` | \(\overline{W}_s\) | Maximum source withdrawal. |
-| `plant_min_throughput` | `dict[str, float]` | \(\underline{V}_t\) | Minimum plant throughput when the plant is active. |
-| `plant_max_throughput` | `dict[str, float]` | \(\overline{V}_t\) | Maximum plant throughput. |
+| Field                   | Type               | Formulation notation | Meaning                                              |
+| ----------------------- | ------------------ | -------------------- | ---------------------------------------------------- |
+| `source_min_withdrawal` | `dict[str, float]` | \(\underline{W}\_s\) | Minimum source withdrawal when the source is active. |
+| `source_max_withdrawal` | `dict[str, float]` | \(\overline{W}\_s\)  | Maximum source withdrawal.                           |
+| `plant_min_throughput`  | `dict[str, float]` | \(\underline{V}\_t\) | Minimum plant throughput when the plant is active.   |
+| `plant_max_throughput`  | `dict[str, float]` | \(\overline{V}\_t\)  | Maximum plant throughput.                            |
 
 For every included source and plant:
 
@@ -158,21 +158,21 @@ No value in these dictionaries is nullable.
 
 ### 3.5 Link-capacity parameters
 
-| Field | Type | Formulation notation | Meaning |
-|---|---|---|---|
-| `source_plant_link_capacity` | `dict[tuple[str, str], float]` | \(\overline{L}_{st}\) | Maximum flow on each source-to-plant arc. |
-| `plant_zone_link_capacity` | `dict[tuple[str, str], float]` | \(\overline{L}_{tz}\) | Maximum flow on each plant-to-zone arc. |
+| Field                        | Type                           | Formulation notation   | Meaning                                   |
+| ---------------------------- | ------------------------------ | ---------------------- | ----------------------------------------- |
+| `source_plant_link_capacity` | `dict[tuple[str, str], float]` | \(\overline{L}\_{st}\) | Maximum flow on each source-to-plant arc. |
+| `plant_zone_link_capacity`   | `dict[tuple[str, str], float]` | \(\overline{L}\_{tz}\) | Maximum flow on each plant-to-zone arc.   |
 
 The keys of each capacity dictionary must match the corresponding arc set exactly.
 
 ### 3.6 Water-quality parameters
 
-| Field | Type | Formulation notation | Meaning |
-|---|---|---|---|
-| `source_quality` | `dict[tuple[str, str], float]` | \(Q_{sp}\) | Transformed quality value for source \(s\) and model parameter \(p\). |
-| `quality_lower_bound` | `dict[str, float]` | \(\underline{Q}_p\) | Lower permitted model-space quality bound. |
-| `quality_upper_bound` | `dict[str, float]` | \(\overline{Q}_p\) | Upper permitted model-space quality bound. |
-| `quality_units` | `dict[str, str]` | — | Model-facing unit for each quality parameter. |
+| Field                 | Type                           | Formulation notation | Meaning                                                               |
+| --------------------- | ------------------------------ | -------------------- | --------------------------------------------------------------------- |
+| `source_quality`      | `dict[tuple[str, str], float]` | \(Q\_{sp}\)          | Transformed quality value for source \(s\) and model parameter \(p\). |
+| `quality_lower_bound` | `dict[str, float]`             | \(\underline{Q}\_p\) | Lower permitted model-space quality bound.                            |
+| `quality_upper_bound` | `dict[str, float]`             | \(\overline{Q}\_p\)  | Upper permitted model-space quality bound.                            |
+| `quality_units`       | `dict[str, str]`               | —                    | Model-facing unit for each quality parameter.                         |
 
 Quality keys use:
 
@@ -184,8 +184,8 @@ The model builder should use the transformed values directly. It must not reappl
 
 ### 3.7 Supporting metadata
 
-| Field | Type | Meaning |
-|---|---|---|
+| Field      | Type              | Meaning                                                    |
+| ---------- | ----------------- | ---------------------------------------------------------- |
 | `warnings` | `tuple[str, ...]` | Non-blocking notes that do not prevent model construction. |
 
 Warnings may describe issues such as a source not being marked `model_ready` in the source data after required scenario overrides and validation have still produced a usable record.
@@ -271,8 +271,8 @@ Example:
 Raw scenario key: pH
 Raw unit: pH
 Transform: ph_to_hydrogen_ion
-Model parameter: hydrogen_ion_concentration_mol_l
-Model unit: mol/L
+Model parameter: hydrogen_ion_concentration_nmol_l
+Model unit: nmol/L
 ```
 
 The same transformation is applied to:
@@ -305,9 +305,9 @@ quality_units
 
 The currently supported transforms are:
 
-| Transform | Behaviour |
-|---|---|
-| `identity` | Keeps a finite value unchanged. |
+| Transform            | Behaviour                                                              |
+| -------------------- | ---------------------------------------------------------------------- |
+| `identity`           | Keeps a finite value unchanged.                                        |
 | `ph_to_hydrogen_ion` | Converts pH to hydrogen-ion concentration using \(10^{-\mathrm{pH}}\). |
 
 Alkalinity and turbidity currently use identity transformation.
@@ -399,28 +399,28 @@ Non-blocking warnings may identify:
 
 ## 9. Formulation mapping
 
-| Mathematical object | Python field |
-|---|---|
-| \(S\) | `source_ids` |
-| \(T\) | `plant_ids` |
-| \(Z\) | `zone_ids` |
-| \(P\) | `quality_parameter_ids` |
-| \(A_{ST}\) | `source_plant_arcs` |
-| \(A_{TZ}\) | `plant_zone_arcs` |
-| \(D_z\) | `demand_by_zone` |
-| \(F_s\) | `source_fixed_cost` |
-| \(F_t\) | `plant_fixed_cost` |
-| \(C_s\) | `source_unit_cost` |
-| \(C_t\) | `plant_unit_treatment_cost` |
-| \(\underline{W}_s\) | `source_min_withdrawal` |
-| \(\overline{W}_s\) | `source_max_withdrawal` |
-| \(\underline{V}_t\) | `plant_min_throughput` |
-| \(\overline{V}_t\) | `plant_max_throughput` |
-| \(\overline{L}_{st}\) | `source_plant_link_capacity` |
-| \(\overline{L}_{tz}\) | `plant_zone_link_capacity` |
-| \(Q_{sp}\) | `source_quality` |
-| \(\underline{Q}_p\) | `quality_lower_bound` |
-| \(\overline{Q}_p\) | `quality_upper_bound` |
+| Mathematical object    | Python field                 |
+| ---------------------- | ---------------------------- |
+| \(S\)                  | `source_ids`                 |
+| \(T\)                  | `plant_ids`                  |
+| \(Z\)                  | `zone_ids`                   |
+| \(P\)                  | `quality_parameter_ids`      |
+| \(A\_{ST}\)            | `source_plant_arcs`          |
+| \(A\_{TZ}\)            | `plant_zone_arcs`            |
+| \(D_z\)                | `demand_by_zone`             |
+| \(F_s\)                | `source_fixed_cost`          |
+| \(F_t\)                | `plant_fixed_cost`           |
+| \(C_s\)                | `source_unit_cost`           |
+| \(C_t\)                | `plant_unit_treatment_cost`  |
+| \(\underline{W}\_s\)   | `source_min_withdrawal`      |
+| \(\overline{W}\_s\)    | `source_max_withdrawal`      |
+| \(\underline{V}\_t\)   | `plant_min_throughput`       |
+| \(\overline{V}\_t\)    | `plant_max_throughput`       |
+| \(\overline{L}\_{st}\) | `source_plant_link_capacity` |
+| \(\overline{L}\_{tz}\) | `plant_zone_link_capacity`   |
+| \(Q\_{sp}\)            | `source_quality`             |
+| \(\underline{Q}\_p\)   | `quality_lower_bound`        |
+| \(\overline{Q}\_p\)    | `quality_upper_bound`        |
 
 `as_formulation_dict()` provides stable mathematical-style aliases for integrations that prefer notation-oriented keys, including `A_ST` for `source_plant_arcs` and `A_TZ` for `plant_zone_arcs`.
 
@@ -430,12 +430,12 @@ The descriptive dataclass attributes remain the canonical Python interface.
 
 ## 10. Responsibility boundaries
 
-| Component | Responsibility |
-|---|---|
-| `data_loader.py` | Parse scenario input, retrieve source data, normalise external names, validate individual values and references, and return `ScenarioData`. |
-| `preprocessing.py` | Transform quality data, filter unusable entities, build sets and parameter dictionaries, perform cross-record checks, and return `ModelParameters`. |
-| `model.py` | Create PuLP variables, objective terms and constraints from `ModelParameters`, then invoke HiGHS. |
-| `postprocessing.py` | Read the solved model and produce the agreed output contract and JSON results. |
+| Component           | Responsibility                                                                                                                                      |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data_loader.py`    | Parse scenario input, retrieve source data, normalise external names, validate individual values and references, and return `ScenarioData`.         |
+| `preprocessing.py`  | Transform quality data, filter unusable entities, build sets and parameter dictionaries, perform cross-record checks, and return `ModelParameters`. |
+| `model.py`          | Create PuLP variables, objective terms and constraints from `ModelParameters`, then invoke HiGHS.                                                   |
+| `postprocessing.py` | Read the solved model and produce the agreed output contract and JSON results.                                                                      |
 
 `preprocessing.py` does not define optimisation constraints.
 
