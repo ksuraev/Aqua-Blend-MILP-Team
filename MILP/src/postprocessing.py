@@ -854,9 +854,9 @@ def _build_input_scenario_obj(scenario: ScenarioData) -> InputScenario:
 def _get_input_validation_policy_obj(scenario: ScenarioData) -> InputValidationPolicy:
     """
     Passes through the input validation policy object from data_loader.py.
-    Currently not implemented, assuming it is passed through as input_policy_validation.
+    Currently not implemented, assuming it is passed through as input_validation_policy.
     """
-    return scenario.input_policy_validation
+    return scenario.input_validation_policy
 
 
 def _get_loader_validation_obj(scenario: ScenarioData) -> LoaderValidation:

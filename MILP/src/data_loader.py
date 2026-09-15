@@ -385,7 +385,7 @@ def _normalise_quality_limits(value: Any) -> dict[str, Any]:
         )
 
         default_model_name = (
-            "hydrogen_ion_concentration_mol_l"
+            "hydrogen_ion_concentration_nmol_l"
             if transform == "ph_to_hydrogen_ion"
             else parameter_id
         )
@@ -399,7 +399,7 @@ def _normalise_quality_limits(value: Any) -> dict[str, Any]:
             )
         model_names.add(model_name)
 
-        default_model_unit = "mol/L" if transform == "ph_to_hydrogen_ion" else unit
+        default_model_unit = "nmol/L" if transform == "ph_to_hydrogen_ion" else unit
         model_unit = _required_text(
             specification.get("model_unit", default_model_unit),
             f"quality_limits.parameters.{parameter_id}.model_unit",
@@ -1249,7 +1249,7 @@ def load_scenario(
         plant_to_zone_links=zone_links,
         quality_limits=quality_limits,
         validation_issues=issues,
-        input_policy_validation=input_policy,
+        input_validation_policy=input_policy,
         loader_validation=loader_validation,
     )
 

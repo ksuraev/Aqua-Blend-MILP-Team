@@ -1,3 +1,14 @@
+"""
+This files mocks the running of the pipeline from a successfully loaded ScenarioData file 
+through to the end of postprocessing. It prints the postprocessing output for inspection.
+
+It doesn't run the data loader step, but mocks a scenario where that is already complete.
+
+The purpose is a sanity check to ensure that nothing is broken in the pipeline.
+
+Run from the MILP directory using ``python3 -m tests.mock_pipeline``.
+"""
+
 import json
 
 from src.contracts import (
@@ -7,10 +18,12 @@ from src.contracts import (
     SourceInput,
     SourcePlantLinkInput,
     PlantZoneLinkInput,
+    InputValidationPolicy,
+    LoaderValidation,
 )
 from src.preprocessing import preprocess_scenario
-from src.model import build_model, solve
-from src.postprocessing import SolverVariables, postprocess_solution, print_solution_summary
+from src.model import solve
+from src.postprocessing import postprocess_solution, print_solution_summary
 
 # Illustrative-only quality/cost values (the real scenario sources this from
 # Supabase; the JSON file only carries withdrawal overrides).
@@ -102,6 +115,18 @@ scenario = ScenarioData(
     plant_to_zone_links=zone_links,
     quality_limits=raw["quality_limits"],
     validation_issues=(),
+    input_validation_policy=InputValidationPolicy(
+        fail_if_source_missing_from_database=True,
+        fail_if_daily_availability_missing=True,
+        fail_if_required_quality_value_missing=True,
+        fail_if_demand_missing=True
+    ),
+   loader_validation=LoaderValidation(
+        status="PASSED",
+        scenario_ready=True,
+        validation_issues=(),
+        checks=(),
+    )
 )
 
 parameters = preprocess_scenario(scenario)

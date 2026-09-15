@@ -158,7 +158,7 @@ def scenario() -> ScenarioData:
             }
         },
         validation_issues=(),
-        input_policy_validation=InputValidationPolicy(
+        input_validation_policy=InputValidationPolicy(
             fail_if_source_missing_from_database=True,
             fail_if_daily_availability_missing=True,
             fail_if_required_quality_value_missing=True,
@@ -609,7 +609,7 @@ def test_full_postprocess_solution_passes_through_run_and_validation_data(
     solved = postprocess_solution(scenario, parameters, model, results)
 
     assert solved.run_id == parameters.run_id
-    assert solved.validation.input_policy is scenario.input_policy_validation
+    assert solved.validation.input_policy is scenario.input_validation_policy
     assert solved.validation.loader is scenario.loader_validation
     assert solved.validation.preprocessing is parameters.preprocessing_validation
     assert solved.validation.output_consistency.status == "PASSED"

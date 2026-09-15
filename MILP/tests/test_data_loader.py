@@ -152,7 +152,7 @@ def test_is_ready_matches_loader_validation_scenario_ready(tmp_path: Path) -> No
 # ---------------------------------------------------------------------------
 
 
-def test_input_policy_validation_defaults_to_strict_when_omitted(
+def test_input_validation_policy_defaults_to_strict_when_omitted(
     tmp_path: Path,
 ) -> None:
     """Omitting the "validation" block defaults every policy flag to True."""
@@ -160,7 +160,7 @@ def test_input_policy_validation_defaults_to_strict_when_omitted(
     del config["validation"]
     scenario = load_scenario(_write(tmp_path, config), strict=True)
 
-    assert scenario.input_policy_validation == InputValidationPolicy(
+    assert scenario.input_validation_policy == InputValidationPolicy(
         fail_if_source_missing_from_database=True,
         fail_if_daily_availability_missing=True,
         fail_if_required_quality_value_missing=True,
@@ -168,7 +168,7 @@ def test_input_policy_validation_defaults_to_strict_when_omitted(
     )
 
 
-def test_input_policy_validation_reflects_explicit_flags(tmp_path: Path) -> None:
+def test_input_validation_policy_reflects_explicit_flags(tmp_path: Path) -> None:
     """Explicit policy flags in the scenario file are carried onto ScenarioData."""
     config = _config()
     config["validation"] = {
@@ -179,7 +179,7 @@ def test_input_policy_validation_reflects_explicit_flags(tmp_path: Path) -> None
     }
     scenario = load_scenario(_write(tmp_path, config), strict=True)
 
-    assert scenario.input_policy_validation == InputValidationPolicy(
+    assert scenario.input_validation_policy == InputValidationPolicy(
         fail_if_source_missing_from_database=False,
         fail_if_daily_availability_missing=False,
         fail_if_required_quality_value_missing=True,
