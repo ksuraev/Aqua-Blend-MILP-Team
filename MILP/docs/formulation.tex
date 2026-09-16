@@ -367,6 +367,8 @@ Each $Q_{sp}$ must be a quantity that blends linearly by volume, so that $\sum_{
 The corresponding blended value is obtained by dividing this load by the total incoming water volume.
 $\underline{I}_{tp}$ and $\overline{I}_{tp}$ are held in the same units as $Q_{sp}$, so where $Q_{sp}$ stores a transformed value the limits are transformed with it.
 
+Remarkably, with only removal process installed, infeasibility is an immediate result since removal processes cannot increase $p \in \mathcal P$.
+
 Not all plants impose limits on every parameter.
 When a plant $t$ has no meaningful limit on the incoming $p$, the pair is neutralised rather than removed by setting
 \begin{equation}\label{eq:inlet_treatability_neutral}
@@ -558,57 +560,11 @@ Consequently, lower-bound compliance must be achieved through source selection a
 % \textcolor{red}{\textbf{TODO:} toy model is now also incorrect because it doesn't account for removal processes.}
 
 \section{Application to the toy model}\label{sec:toy}
-\textcolor{red}{\textbf{TODO:} toy model is now also incorrect because it doesn't account for removal processes.}
-
-\textcolor{blue}{The only thing I could think of the is outgoing flow, but if so, would it violate the flow conservation?}
-
-\textcolor{red}{water in equals water out, and removal doesn't change it by the assumption of no water loss so $\sum_s a_s$ still leaves plant and I think should remain that label because that's the volume of water leaving the plant.
-	So maybe just one row in table.The single plant here will have a process sequence $r_{1}, r_{2}, r_{3},.
-		.$, i.e. $\mathcal{R}_t$ fixed and one process sequence. $\sigma_{tr}$ and $e_{trp}$ remain free}
-
-\textcolor{magenta}{I added a row to clarify $\sigma_{tr} = 1$ as there is only 1 plant, but hmmm, why $e_{trp}$ is free?}
-
-\textcolor{blue}{$e_{trp}$ is the load removed by the process, which is a decision variable.
-	It is not fixed because it depends on the incoming load and the process efficiency.}
-
-\textcolor{blue}{I don't think $\sigma_{tr} = 1$ belongs in this table: with one plant and one zone, $b_{st}$ and $c_{tz}$ are fixed by conservation, there's nowhere else for the water to go but having one plant doesn't force its processes to run.
-	If a process is expensive and the blend already complies without it, the model switches it off.
-	so I guess the only thing that changes is the first paragraph here and then remove $\gamma_{st}$ and $\delta_{tz}$ from the table since we have removed that earlier?}
-
-\color{blue}{E.g. (feel free to not use this )
-
-	The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
-	With one plant and one zone there is nothing to route:
-	the arc flows are fixed by conservation, the source and treatment decisions remain free.
-
-	Every equation of the toy model follows from the general formulation by the substitutions below.
-	Nothing is restated here.
-	\begin{center}
-		\begin{tabular}{@{}ll@{}}
-			\toprule
-			\textbf{Substitution}                        & \textbf{Consequence}                                     \\
-			\midrule
-			$\mathcal{T} = \{t\}$, $\mathcal{Z} = \{z\}$ & one plant, one zone                                      \\
-			$b_{st} = a_s$                               & by source flow conservation                              \\
-			$c_{tz} = \sum_{s} a_s$                      & by plant flow conservation                               \\
-			$\beta_t = 1$                                & demand is positive, so $F_t$ is a constant and drops out \\
-			\bottomrule
-		\end{tabular}
-	\end{center}
-	then maybe after table:
-	The reduction is a substitution rather than a rewrite:
-	any constraint indexed over $\mathcal{T}$ or $\mathcal{Z}$ contributes exactly one instance, and any variable on an arc is determined by conservation as a sum of source draws.
-	Every term of the general model is inherited unchanged.
-
-	The treatment decisions are not fixed by this reduction:
-	$\sigma_{t r_i}$ and $e_{t r_i p}$ remain free, so the model still chooses which processes to run and how much to remove.
-	With routing determined, the trade-off the toy case exercises is between the cost of the water drawn and the cost of removing what it carries.
-}
 
 \color{black}
 The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
 With one plant and one zone there is nothing to route:
-the arc variables are fixed by conservation, and only the source decisions $\alpha_s$ and $a_s$ remain free.
+the arc variables are fixed by conservation, and only the source decisions ($\alpha_s$ and $a_s$) and treatment decisions, e.g. $\sigma_{trp}$ and $e_{trp}$ in removal process, remain free.
 
 Every equation of the toy model follows from the general formulation by the substitutions below.
 Nothing is restated here.
@@ -620,10 +576,8 @@ Nothing is restated here.
 		\midrule
 		$\mathcal{T} = \{t\}$, $\mathcal{Z} = \{z\}$ & one plant, one zone                                              \\
 		$\beta_t = 1$                                & the plant is always active, so $F_t$ is a constant and drops out \\
-		$\gamma_{st} = \delta_{tz} = 1$              & every arc is active                                              \\
 		$b_{st} = a_s$                               & by source flow conservation                                      \\
 		$c_{tz} = \sum_{s} a_s$                      & by plant flow conservation                                       \\
-		$\sigma_{tr} = 1$                            & one plant, one fixed $\mathcal R_t$                              \\
 		\bottomrule
 	\end{tabular}
 \end{center}
@@ -662,7 +616,6 @@ The toy can therefore be built and tested first, then scaled up without reformul
 \bibliography{references}
 
 \clearpage
-\textcolor{red}{put appendix before references?}
 \appendix
 \input{appendix.tex}
 
