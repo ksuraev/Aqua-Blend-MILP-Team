@@ -8,7 +8,7 @@ class DataSource:
 
     type: str
     view: str
-    allow_estimated_values: bool
+    allow_estimated_values: bool | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -124,16 +124,16 @@ class SourceDecisionEvidence:
     and why a certain amount of water was drawn from it
     """
 
-    unit_cost_rank: int
-    binding_lower: bool
-    binding_upper: bool
+    unit_cost_rank: int | None
+    binding_lower: bool | None
+    binding_upper: bool | None
 
 
 @dataclass(frozen=True, slots=True)
 class SourceResult:
     """Solved decision and cost outcome for one water source.
 
-    Nb: ``blend_ratio`` is ``None`` when no water was delivered, to avoid a divide by zero.
+    Nb: blend_ratio is None when no water was delivered, to avoid a divide by zero.
     """
 
     source_id: str

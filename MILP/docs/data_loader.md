@@ -306,7 +306,7 @@ Each parameter requires:
 | `unit` | Required and non-blank. |
 | `transform` | Must be `identity` or `ph_to_hydrogen_ion`. Defaults to `identity`. |
 | `source_field` | Database field containing the raw value. Required unless a backward-compatible default exists. |
-| `model_name` | Model-facing parameter identifier. Defaults to the raw key, except pH transformation defaults to `hydrogen_ion_concentration_mol_l`. Must be unique. |
+| `model_name` | Model-facing parameter identifier. Defaults to the raw key, except pH transformation defaults to `hydrogen_ion_concentration_nmol_l`. Must be unique. |
 | `model_unit` | Model-facing unit. Defaults to the raw unit, except pH transformation defaults to `mol/L`. |
 | `estimated_field` | Optional database boolean field used by estimated-value policy. |
 | `provenance_field` | Optional database field copied into source provenance. |
@@ -324,8 +324,8 @@ Example:
         "unit": "pH",
         "transform": "ph_to_hydrogen_ion",
         "source_field": "representative_ph",
-        "model_name": "hydrogen_ion_concentration_mol_l",
-        "model_unit": "mol/L"
+        "model_name": "hydrogen_ion_concentration_nmol_l",
+        "model_unit": "nmol/L"
       },
       "alkalinity": {
         "min": 20,
