@@ -1,0 +1,82 @@
+\section{Implicit constraints}\label{sec:implicit_constraints}
+
+This appendix complements Section~\ref{sec:constraints} with inequalities that hold for the model but are not stated there explicitly, and records the status of the linking constraints \eqref{eq:arc_source_active}--\eqref{eq:arc_plant_active_optional}.
+
+\paragraph{Closed nodes send no flow.}
+\begin{align}
+    b_{st} & \le \overline{W}_s\,\alpha_s, \quad \forall s \in \mathcal{S},\ t \in \mathcal{T}, \label{eq:closed_source} \\
+    c_{tz} & \le \overline{V}_t\,\beta_t, \quad \forall t \in \mathcal{T},\ z \in \mathcal{Z}. \label{eq:closed_plant}
+\end{align}
+By \eqref{eq:nonnegativity} and \eqref{eq:source_flow_conservation}, $b_{st} \le \sum_{t' \in \mathcal{T}} b_{st'} = a_s$, and $a_s \le \overline{W}_s\alpha_s$ by \eqref{eq:source_capacity}.
+Likewise, \eqref{eq:nonnegativity} and \eqref{eq:plant_flow_conservation} give $c_{tz} \le \sum_{z' \in \mathcal{Z}} c_{tz'} = \sum_{s \in \mathcal{S}} b_{st}$, which is at most $\overline{V}_t\beta_t$ by \eqref{eq:plant_capacity}.
+Hence a closed source or plant sends no water, unnecessarily require \eqref{eq:arc_source_active}--\eqref{eq:arc_plant_active_optional} explicitly stated.
+
+\paragraph{Total supply covers total demand.}
+Summing \eqref{eq:demand} over all zones and applying \eqref{eq:plant_flow_conservation}, \eqref{eq:source_flow_conservation} and \eqref{eq:source_capacity} gives
+\begin{equation}\label{eq:total_supply}
+    \sum_{s \in \mathcal{S}} \overline{W}_s\,\alpha_s
+    \ \ge\ \sum_{s \in \mathcal{S}} a_s
+    \ =\ \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} c_{tz}
+    \ \ge\ \sum_{z \in \mathcal{Z}} D_z.
+\end{equation}
+Whatever the routing, the active sources must have enough combined capacity to cover total demand, so no set of sources whose maximum withdrawals sum to less than $\sum_z D_z$ can be the active set.
+
+\paragraph{Blend bounds implied by outlet quality.}
+Combining \eqref{eq:outlet_water_quality} with \eqref{eq:removal_process_initial} gives, for every $t \in \mathcal{T}$ and $p \in \mathcal{P}$:
+\begin{align}
+    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+     & \le \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}, \label{eq:implied_blend_lower}
+\end{align}
+This means the incapability of $t \in \mathcal T$ to correct a blend that is below a lower limit, assuming only removal process is implemented; thereby, every lower regulatory limit must be met by source selection and blending, $\forall p \in \mathcal P$.
+Three cases follow.
+\begin{itemize}
+    \item If $\underline{Q}_p = 0$, \eqref{eq:implied_blend_lower} never binds, otherwise no water is drawn.
+    \item If $\underline{Q}_p > 0$, as for alkalinity, \eqref{eq:implied_blend_lower} binds regardless of the processes installed at the plant.
+    \item If no process acts on $p$ ($H_{trp} = 0$ for all $r \in \mathcal{R}_t$, or equivalently $e_{trp} = 0$, as for the transformed value \eqref{eq:ph_source_transformation}), then $\ell^{n_t}_{tp} = \ell^{0}_{tp}$ and
+          \begin{equation*}
+              \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+              \le \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}
+              \le \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st},
+          \end{equation*}
+          so both limits must be met by blending alone.
+\end{itemize}
+
+\paragraph{Linking constraints $\gamma_{st}$ and $\delta_{tz}$.}
+The arc binaries $\gamma_{st}$ and $\delta_{tz}$ have no term in the objective, and they appear only in \eqref{eq:arc_capacity_st} and \eqref{eq:arc_capacity_tz}.
+The following constraints enforce one arc activated if its upstream node is active.
+
+% Arcs can only be active if the corresponding upstream node (source or treatment plant) is active.
+% This is enforced by ensuring that the binary variables representing the arcs are less than or equal to the binary variables representing the activation of the sources and plants.
+
+A source-to-plant arc requires the source to be active:
+\begin{equation}\label{eq:arc_source_active}
+    \gamma_{st} \le \alpha_s, \quad \forall s \in \mathcal{S}, t \in \mathcal{T}.
+\end{equation}
+A plant-to-zone arc requires the plant to be active:
+\begin{equation}\label{eq:arc_plant_active}
+    \delta_{tz} \le \beta_t,  \quad \forall t \in \mathcal{T}, z \in \mathcal{Z}.
+\end{equation}
+A source-to-plant arc could also require the plant to be active:
+\begin{equation}\label{eq:arc_plant_active_optional}
+    \gamma_{st} \le \beta_t, \quad \forall s \in \mathcal{S},\, t \in \mathcal{T}.
+\end{equation}
+
+This is not explicitly needed, since zero flow to an inactive plant is already guaranteed by the plant capacity constraint~\eqref{eq:plant_capacity}.
+Suppose the plant $t$ is inactive, so $\beta_t = 0$.
+Then~\eqref{eq:plant_capacity} becomes
+\begin{equation*}
+    \sum_{s \in \mathcal{S}} b_{st} \le \overline{V}_t\,\beta_t = 0,
+\end{equation*}
+and since every flow is non-negative ($b_{st} \ge 0$), this forces $b_{st} = 0$ for all $s \in \mathcal{S}$. Let us further show these constraints are unnecessarily stated.
+
+Supposing source $s$ is closed, $\alpha_s = 0$, and change $\gamma_{st}$ to $1$.
+By \eqref{eq:closed_source}, $b_{st} = 0$, so \eqref{eq:arc_capacity_st} still holds and only \eqref{eq:arc_source_active} is violated.
+Similarly, if plant $t$ is closed, setting $\delta_{tz} = 1$ violates only \eqref{eq:arc_plant_active}, and, if source $s$ is open, setting $\gamma_{st} = 1$ violates only \eqref{eq:arc_plant_active_optional}.
+Removing any of the three therefore enlarges the feasible set.
+
+Conversely, supposing every constraint of Section~\ref{sec:constraints} is satisfied, except \eqref{eq:arc_source_active}--\eqref{eq:arc_plant_active_optional},
+and reset the arc binaries to $\gamma_{st} = 1 \Leftrightarrow b_{st} > 0$, and $\delta_{tz} = 1 \Leftrightarrow c_{tz} > 0$.
+The reset only switches off arcs that carry no flow, so \eqref{eq:arc_capacity_st} and \eqref{eq:arc_capacity_tz} still hold.
+If $\gamma_{st} = 1$, then $b_{st} > 0$, so $\alpha_s = 1$ by \eqref{eq:closed_source} and $\beta_t = 1$ by \eqref{eq:plant_capacity}.
+If $\delta_{tz} = 1$, then $c_{tz} > 0$, so $\beta_t = 1$ by \eqref{eq:closed_plant}.
+All three linking constraints now hold, while the flows and the node binaries are unchanged and so is the objective \eqref{eq:objective}.
