@@ -60,93 +60,93 @@ A subscript is an index; an overbar/underbar is an upper/lower bound.
 \subsection{Sets}
 
 \begin{tabularx}{\textwidth}{@{}lX@{}}
-    % You can change the table name if you'd like, since I see later you mention Table 1, 
-    % but I'm afraid they could not find ``Table 1''.
-    \caption{Notations on sets of input parameters}
-    \label{tab:sets}                                                             \\
-    \toprule
-    \textbf{Notation} & \textbf{Description}                                     \\
-    \midrule
-    \endfirsthead
+	% You can change the table name if you'd like, since I see later you mention Table 1, 
+	% but I'm afraid they could not find ``Table 1''.
+	\caption{Notations on sets of input parameters}
+	\label{tab:sets}                                                             \\
+	\toprule
+	\textbf{Notation} & \textbf{Description}                                     \\
+	\midrule
+	\endfirsthead
 
-    \toprule
-    \textbf{Notation} & \textbf{Description}                                     \\
-    \midrule
-    \endhead
+	\toprule
+	\textbf{Notation} & \textbf{Description}                                     \\
+	\midrule
+	\endhead
 
-    \midrule
-    \multicolumn{2}{r}{\emph{Continued on next page}}                            \\
-    \endfoot
-    \bottomrule
-    \endlastfoot
-    $\mathcal{S}$     & set of water sources, $s \in \mathcal{S}$                \\
-    $\mathcal{T}$     & set of treatment plants, $t \in \mathcal{T}$             \\
-    $\mathcal{Z}$     & set of demand zones, $z \in \mathcal{Z}$                 \\
-    $\mathcal{P}$     & set of water quality parameters, $p \in \mathcal{P}$     \\
-    $\mathcal{R}$     & set of removal processes, $r \in \mathcal{R}$            \\
-    $\mathcal{R}_t$   & processes installed at plant $t$, as an ordered sequence
-    $r_1, \dots, r_{n_t}$ drawn from $\mathcal{R}$, in the order water
-    flows through them                                                           \\
+	\midrule
+	\multicolumn{2}{r}{\emph{Continued on next page}}                            \\
+	\endfoot
+	\bottomrule
+	\endlastfoot
+	$\mathcal{S}$     & set of water sources, $s \in \mathcal{S}$                \\
+	$\mathcal{T}$     & set of treatment plants, $t \in \mathcal{T}$             \\
+	$\mathcal{Z}$     & set of demand zones, $z \in \mathcal{Z}$                 \\
+	$\mathcal{P}$     & set of water quality parameters, $p \in \mathcal{P}$     \\
+	$\mathcal{R}$     & set of removal processes, $r \in \mathcal{R}$            \\
+	$\mathcal{R}_t$   & processes installed at plant $t$, as an ordered sequence
+	$r_1, \dots, r_{n_t}$ drawn from $\mathcal{R}$, in the order water
+	flows through them                                                           \\
 \end{tabularx}
 $n_t = |\mathcal{R}_t|$ is written with the index because plants differ in how many processes they run.
 For example, a plant with coagulation, filtration and chlorination has $n_t = 3$, while one with filtration alone has $n_t = 1$.
 
 \subsection{Parameters}
 \begin{tabularx}{\textwidth}{@{}lXl@{}}
-    % Same reason.
-    \caption{Notations on input parameters}
-    \label{tab:parameters}                                                                                                                                  \\
-    \toprule
-    \textbf{Notation}    & \textbf{Description}                                                                                  & \textbf{Units}           \\
-    \midrule
-    \endfirsthead
+	% Same reason.
+	\caption{Notations on input parameters}
+	\label{tab:parameters}                                                                                                                                  \\
+	\toprule
+	\textbf{Notation}    & \textbf{Description}                                                                                  & \textbf{Units}           \\
+	\midrule
+	\endfirsthead
 
-    \toprule
-    \textbf{Notation}    & \textbf{Description}                                                                                  & \textbf{Units}           \\
-    \midrule
-    \endhead
+	\toprule
+	\textbf{Notation}    & \textbf{Description}                                                                                  & \textbf{Units}           \\
+	\midrule
+	\endhead
 
-    \midrule
-    \multicolumn{3}{r}{\emph{Continued on next page}}                                                                                                       \\
-    \endfoot
+	\midrule
+	\multicolumn{3}{r}{\emph{Continued on next page}}                                                                                                       \\
+	\endfoot
 
-    \bottomrule
-    \endlastfoot
+	\bottomrule
+	\endlastfoot
 
-    \multicolumn{3}{@{}l}{\emph{Demand}}                                                                                                                    \\
-    $D_{z}$              & volume of water to deliver to demand zone $z$                                                         & ML/day                   \\[0.4em]
-    \midrule
-    \multicolumn{3}{@{}l}{\emph{Sources}}                                                                                                                   \\
+	\multicolumn{3}{@{}l}{\emph{Demand}}                                                                                                                    \\
+	$D_{z}$              & volume of water to deliver to demand zone $z$                                                         & ML/day                   \\[0.4em]
+	\midrule
+	\multicolumn{3}{@{}l}{\emph{Sources}}                                                                                                                   \\
 
-    $F_{s}$              & fixed cost of activating source $s$                                                                   & \$/day                   \\
-    $C_{s}$              & unit cost of drawing water from source $s$                                                            & \$/ML                    \\
-    $\underline{W}_{s}$  & minimum daily withdrawal from source $s$                                                              & ML/day                   \\
-    $\overline{W}_{s}$   & maximum daily withdrawal from source $s$                                                              & ML/day                   \\[0.4em]
-    \midrule
-    \multicolumn{3}{@{}l}{\emph{Treatment plants}}                                                                                                          \\
-    $F_{t}$              & fixed cost of activating treatment plant $t$                                                          & \$/day                   \\
+	$F_{s}$              & fixed cost of activating source $s$                                                                   & \$/day                   \\
+	$C_{s}$              & unit cost of drawing water from source $s$                                                            & \$/ML                    \\
+	$\underline{W}_{s}$  & minimum daily withdrawal from source $s$                                                              & ML/day                   \\
+	$\overline{W}_{s}$   & maximum daily withdrawal from source $s$                                                              & ML/day                   \\[0.4em]
+	\midrule
+	\multicolumn{3}{@{}l}{\emph{Treatment plants}}                                                                                                          \\
+	$F_{t}$              & fixed cost of activating treatment plant $t$                                                          & \$/day                   \\
 
-    $C_{t}$              & unit treatment cost at plant $t$                                                                      & \$/ML                    \\
-    $\underline{V}_{t}$  & minimum daily throughput of plant $t$                                                                 & ML/day                   \\
-    $\overline{V}_{t}$   & maximum daily throughput of plant $t$                                                                 & ML/day                   \\[0.4em]
-    \midrule
-    \multicolumn{3}{@{}l}{\emph{Arcs}}                                                                                                                      \\
-    $\overline{L}_{st}$  & maximum flow on the arc from source $s$ to plant $t$                                                  & ML/day                   \\
-    $\overline{L}_{tz}$  & maximum flow on the arc from plant $t$ to zone $z$                                                    & ML/day                   \\
-    $C_{st}$             & unit cost of transferring water from source $s$ to plant $t$                                          & \$/ML                    \\
-    $C_{tz}$             & unit cost of transferring water from plant $t$ to zone $z$                                            & \$/ML                    \\[0.4em]
-    \midrule
-    \multicolumn{3}{@{}l}{\emph{Water quality}}                                                                                                             \\
-    $Q_{sp}$             & value of quality parameter $p$ in source $s$                                                          & units of $p$             \\
-    $\underline{Q}_{p}$  & lower regulatory limit for parameter $p$                                                              & units of $p$             \\
-    $\overline{Q}_{p}$   & upper regulatory limit for parameter $p$                                                              & units of $p$             \\
-    $\underline{I}_{tp}$ & minimum value of $p$ that plant $t$ can accept                                                        & units of $p$             \\
-    $\overline{I}_{tp}$  & maximum value of $p$ that plant $t$ can accept                                                        & units of $p$             \\[0.4em]
-    \midrule
-    \multicolumn{3}{@{}l}{\emph{Removal processes}}                                                                                                         \\
-    $F_{tr}$             & fixed daily cost of operating process $r$ at plant $t$                                                & \$/day                   \\
-    $C_{trp}$            & cost per unit of load of $p$ removed by process $r$ at plant $t$                                      & \$/(units of $p\cdot$ML) \\
-    $H_{trp}$            & maximum fraction of the load of $p$ removable by process $r$ at plant $t$, with $0 \le H_{trp} \le 1$ & ---                      \\
+	$C_{t}$              & unit treatment cost at plant $t$                                                                      & \$/ML                    \\
+	$\underline{V}_{t}$  & minimum daily throughput of plant $t$                                                                 & ML/day                   \\
+	$\overline{V}_{t}$   & maximum daily throughput of plant $t$                                                                 & ML/day                   \\[0.4em]
+	\midrule
+	\multicolumn{3}{@{}l}{\emph{Arcs}}                                                                                                                      \\
+	$\overline{L}_{st}$  & maximum flow on the arc from source $s$ to plant $t$                                                  & ML/day                   \\
+	$\overline{L}_{tz}$  & maximum flow on the arc from plant $t$ to zone $z$                                                    & ML/day                   \\
+	$C_{st}$             & unit cost of transferring water from source $s$ to plant $t$                                          & \$/ML                    \\
+	$C_{tz}$             & unit cost of transferring water from plant $t$ to zone $z$                                            & \$/ML                    \\[0.4em]
+	\midrule
+	\multicolumn{3}{@{}l}{\emph{Water quality}}                                                                                                             \\
+	$Q_{sp}$             & value of quality parameter $p$ in source $s$                                                          & units of $p$             \\
+	$\underline{Q}_{p}$  & lower regulatory limit for parameter $p$                                                              & units of $p$             \\
+	$\overline{Q}_{p}$   & upper regulatory limit for parameter $p$                                                              & units of $p$             \\
+	$\underline{I}_{tp}$ & minimum value of $p$ that plant $t$ can accept                                                        & units of $p$             \\
+	$\overline{I}_{tp}$  & maximum value of $p$ that plant $t$ can accept                                                        & units of $p$             \\[0.4em]
+	\midrule
+	\multicolumn{3}{@{}l}{\emph{Removal processes}}                                                                                                         \\
+	$F_{tr}$             & fixed daily cost of operating process $r$ at plant $t$                                                & \$/day                   \\
+	$C_{trp}$            & cost per unit of load of $p$ removed by process $r$ at plant $t$                                      & \$/(units of $p\cdot$ML) \\
+	$H_{trp}$            & maximum fraction of the load of $p$ removable by process $r$ at plant $t$, with $0 \le H_{trp} \le 1$ & ---                      \\
 \end{tabularx}
 Costs and limits are treated as fixed.
 The units of a quality parameter depend on $p$ (e.g.\ mg/L, NTU).
@@ -166,44 +166,44 @@ For parameters such as turbidity measured in NTU, the cost is per NTU$\cdot$ML, 
 % }
 
 \begin{tabularx}{\textwidth}{@{}llll@{}}
-    % Same reason.
-    \caption{Notations on decision variables}
-    \label{tab:variables}                                                                                                                       \\
-    \toprule
-    \textbf{Notation} & \textbf{Domain}             & \textbf{Description}                                        & \textbf{Units}              \\
-    \midrule
-    \endfirsthead
+	% Same reason.
+	\caption{Notations on decision variables}
+	\label{tab:variables}                                                                                                                       \\
+	\toprule
+	\textbf{Notation} & \textbf{Domain}             & \textbf{Description}                                        & \textbf{Units}              \\
+	\midrule
+	\endfirsthead
 
-    \toprule
-    \textbf{Notation} & \textbf{Domain}             & \textbf{Description}                                        & \textbf{Units}              \\
-    \midrule
-    \endhead
+	\toprule
+	\textbf{Notation} & \textbf{Domain}             & \textbf{Description}                                        & \textbf{Units}              \\
+	\midrule
+	\endhead
 
-    \midrule
-    \multicolumn{4}{r}{\emph{Continued on next page}}                                                                                           \\
-    \endfoot
+	\midrule
+	\multicolumn{4}{r}{\emph{Continued on next page}}                                                                                           \\
+	\endfoot
 
-    \bottomrule
-    \endlastfoot
+	\bottomrule
+	\endlastfoot
 
-    \multicolumn{4}{@{}l}{\emph{Sources}}                                                                                                       \\
-    $\alpha_{s}$      & $\{0,1\}$                   & $1$ if source $s$ is activated                              & ---                         \\
-    $a_{s}$           & $\ge 0$                     & volume drawn from source $s$                                & ML/day                      \\[0.4em]
-    \midrule
-    \multicolumn{4}{@{}l}{\emph{Treatment plants}}                                                                                              \\
-    $\beta_{t}$       & $\{0,1\}$                   & $1$ if plant $t$ is activated                               & ---                         \\[0.4em]
-    \midrule
-    \multicolumn{4}{@{}l}{\emph{Arcs}}                                                                                                          \\
-    $\gamma_{st}$     & $\{0,1\}$                   & $1$ if source $s$ sends water to plant $t$                  & ---                         \\
-    $b_{st}$          & $\ge 0$                     & volume of water from source $s$ to plant $t$                & ML/day                      \\
-    $\delta_{tz}$     & $\{0,1\}$                   & $1$ if plant $t$ sends water to demand zone $z$             & ---                         \\
-    $c_{tz}$          & $\ge 0$                     & volume of water from plant $t$ to demand zone $z$           & ML/day                      \\[0.4em]
-    \midrule
-    \multicolumn{4}{@{}l}{\emph{Removal processes}}                                                                                             \\
-    $\sigma_{tr}$     & $\{0,1\}$                   & $1$ if removal process $r$ is operated at plant $t$         & ---                         \\
-    $e_{trp}$         & $\ge 0$                     & load of parameter $p$ removed by process $r$ at plant $t$   & (units of $p$)$\cdot$ML/day \\
-    $\ell^i_{tp}$     & $\ge 0$                     & load of $p$ remaining after the $i$-th process at plant $t$
-                      & (units of $p$)$\cdot$ML/day                                                                                             \\
+	\multicolumn{4}{@{}l}{\emph{Sources}}                                                                                                       \\
+	$\alpha_{s}$      & $\{0,1\}$                   & $1$ if source $s$ is activated                              & ---                         \\
+	$a_{s}$           & $\ge 0$                     & volume drawn from source $s$                                & ML/day                      \\[0.4em]
+	\midrule
+	\multicolumn{4}{@{}l}{\emph{Treatment plants}}                                                                                              \\
+	$\beta_{t}$       & $\{0,1\}$                   & $1$ if plant $t$ is activated                               & ---                         \\[0.4em]
+	\midrule
+	\multicolumn{4}{@{}l}{\emph{Arcs}}                                                                                                          \\
+	$\gamma_{st}$     & $\{0,1\}$                   & $1$ if source $s$ sends water to plant $t$                  & ---                         \\
+	$b_{st}$          & $\ge 0$                     & volume of water from source $s$ to plant $t$                & ML/day                      \\
+	$\delta_{tz}$     & $\{0,1\}$                   & $1$ if plant $t$ sends water to demand zone $z$             & ---                         \\
+	$c_{tz}$          & $\ge 0$                     & volume of water from plant $t$ to demand zone $z$           & ML/day                      \\[0.4em]
+	\midrule
+	\multicolumn{4}{@{}l}{\emph{Removal processes}}                                                                                             \\
+	$\sigma_{tr}$     & $\{0,1\}$                   & $1$ if removal process $r$ is operated at plant $t$         & ---                         \\
+	$e_{trp}$         & $\ge 0$                     & load of parameter $p$ removed by process $r$ at plant $t$   & (units of $p$)$\cdot$ML/day \\
+	$\ell^i_{tp}$     & $\ge 0$                     & load of $p$ remaining after the $i$-th process at plant $t$
+	                  & (units of $p$)$\cdot$ML/day                                                                                             \\
 \end{tabularx}
 $\sigma_{tr}$ and $e_{trp}$ are defined only for $r \in \mathcal{R}_t$, and
 $\ell^i_{tp}$ only for $i = 0, \dots, n_t$; the objective and constraints below reflect this.
@@ -212,42 +212,42 @@ variables are indexed by the process itself, so $e_{t r_i p}$ is the same variab
 
 \section{Example network structure}
 \begin{center}
-    \begin{tikzpicture}[
-            nd/.style={circle, draw, minimum size=8mm, inner sep=1pt},
-            every edge/.style={draw, -latex, thick},
-            lbl/.style={fill=white, inner sep=1.5pt, font=\small},
-            thick
-        ]
-        % Source nodes
-        \node[nd] (S1) at (0,4)   {$s_1$};
-        \node[nd] (S2) at (3,4)   {$s_2$};
-        \node[nd] (S3) at (6,4)   {$s_3$};
+	\begin{tikzpicture}[
+			nd/.style={circle, draw, minimum size=8mm, inner sep=1pt},
+			every edge/.style={draw, -latex, thick},
+			lbl/.style={fill=white, inner sep=1.5pt, font=\small},
+			thick
+		]
+		% Source nodes
+		\node[nd] (S1) at (0,4)   {$s_1$};
+		\node[nd] (S2) at (3,4)   {$s_2$};
+		\node[nd] (S3) at (6,4)   {$s_3$};
 
-        % Treatment plant nodes
-        \node[nd] (T1) at (1.5,2) {$t_1$};
-        \node[nd] (T2) at (4.5,2) {$t_2$};
+		% Treatment plant nodes
+		\node[nd] (T1) at (1.5,2) {$t_1$};
+		\node[nd] (T2) at (4.5,2) {$t_2$};
 
-        % Demand zone nodes
-        \node[nd] (Z1) at (0,0)           {$z_1$};
-        \node[nd] (Z2) at (3,0)           {$z_2$};
-        \node[nd] (Z3) at (6,0)           {$z_3$};
+		% Demand zone nodes
+		\node[nd] (Z1) at (0,0)           {$z_1$};
+		\node[nd] (Z2) at (3,0)           {$z_2$};
+		\node[nd] (Z3) at (6,0)           {$z_3$};
 
-        % S -> T connections
-        \draw (S1) edge node[lbl] {$b_{11}$} (T1);
-        \draw (S2) edge node[lbl] {$b_{21}$} (T1);
-        \draw (S2) edge node[lbl] {$b_{22}$} (T2);
-        \draw (S3) edge node[lbl] {$b_{32}$} (T2);
+		% S -> T connections
+		\draw (S1) edge node[lbl] {$b_{11}$} (T1);
+		\draw (S2) edge node[lbl] {$b_{21}$} (T1);
+		\draw (S2) edge node[lbl] {$b_{22}$} (T2);
+		\draw (S3) edge node[lbl] {$b_{32}$} (T2);
 
-        % T -> Z connections
-        \draw (T1) edge node[lbl] {$c_{11}$} (Z1);
-        \draw (T1) edge node[lbl] {$c_{12}$} (Z2);
-        \draw (T2) edge node[lbl] {$c_{22}$} (Z2);
-        \draw (T2) edge node[lbl] {$c_{23}$} (Z3);
-    \end{tikzpicture}
-    \captionof{figure}{One example of the network structure (sources $\to$ treatment plants $\to$ demand zones).
-        Each source-plant arc has an activation binary $\gamma_{st}$ and a flow variable $b_{st}$; each plant-zone arc has $\delta_{tz}$ and $c_{tz}$.
-        The formulation is generic over any number of sources, plants, zones and links.
-    }
+		% T -> Z connections
+		\draw (T1) edge node[lbl] {$c_{11}$} (Z1);
+		\draw (T1) edge node[lbl] {$c_{12}$} (Z2);
+		\draw (T2) edge node[lbl] {$c_{22}$} (Z2);
+		\draw (T2) edge node[lbl] {$c_{23}$} (Z3);
+	\end{tikzpicture}
+	\captionof{figure}{One example of the network structure (sources $\to$ treatment plants $\to$ demand zones).
+		Each source-plant arc has an activation binary $\gamma_{st}$ and a flow variable $b_{st}$; each plant-zone arc has $\delta_{tz}$ and $c_{tz}$.
+		The formulation is generic over any number of sources, plants, zones and links.
+	}
 \end{center}
 
 \section{Objective}
@@ -263,26 +263,23 @@ The removal cost makes source blending an economic decision rather than purely a
 It is the only cost term that depends directly on water quality; all other variable costs depend only on flow volume.
 The coefficient $C_{trp}$ is charged per unit of parameter $p$ removed by process $r$ at plant $t$, so a source requiring less removal may incur lower treatment costs.
 \begin{equation}\label{eq:objective}
-    \begin{aligned}
-        \min \quad
-                     & \sum_{s \in \mathcal{S}}
-        F_s \alpha_s &                          & \text{source fixed cost} \\ + \; & \sum_{s \in \mathcal{S}} C_s a_s & & \text{source draw cost} \\ + \; & \sum_{t \in \mathcal{T}} F_t \beta_t & & \text{plant fixed cost} \\ + \; & \sum_{t \in \mathcal{T}} C_t \sum_{s \in \mathcal{S}} b_{st} & & \text{plant throughput cost} \\ + \; & \sum_{s \in \mathcal{S}} \sum_{t \in \mathcal{T}} C_{st}\, b_{st} + \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} C_{tz}\, c_{tz} & & \text{arc transfer cost} \\ + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} F_{tr} \sigma_{tr} & & \text{removal process fixed cost} \\ + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} \sum_{p \in \mathcal{P}} C_{trp}\, e_{trp} & & \text{removal cost} \\\end{aligned} \end{equation}
+	\begin{aligned}
+		\min \quad
+		             & \sum_{s \in \mathcal{S}}
+		F_s \alpha_s &                          & \text{source fixed cost} \\ + \; & \sum_{s \in \mathcal{S}} C_s a_s & & \text{source draw cost} \\ + \; & \sum_{t \in \mathcal{T}} F_t \beta_t & & \text{plant fixed cost} \\ + \; & \sum_{t \in \mathcal{T}} C_t \sum_{s \in \mathcal{S}} b_{st} & & \text{plant throughput cost} \\ + \; & \sum_{s \in \mathcal{S}} \sum_{t \in \mathcal{T}} C_{st}\, b_{st} + \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} C_{tz}\, c_{tz} & & \text{arc transfer cost} \\ + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} F_{tr} \sigma_{tr} & & \text{removal process fixed cost} \\ + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} \sum_{p \in \mathcal{P}} C_{trp}\, e_{trp} & & \text{removal cost} \\\end{aligned} \end{equation}
 
-
-\section{Constraints}
-\label{sec:constraints}
-\paragraph{Non-negativity.}
+\section{Constraints} \label{sec:constraints} \paragraph{Non-negativity.}
 All continuous variables must be non-negative.
 \begin{equation}\label{eq:nonnegativity}
-    a_s,\; b_{st},\; c_{tz},\; e_{trp},\; \ell^i_{tp} \;\ge\; 0,
-    \qquad \forall s \in \mathcal{S},\, t \in \mathcal{T},\, z \in \mathcal{Z},\,
-    r \in \mathcal{R}_t,\, p \in \mathcal{P},\, i = 0, \dots, n_t.
+	a_s,\; b_{st},\; c_{tz},\; e_{trp},\; \ell^i_{tp} \;\ge\; 0,
+	\qquad \forall s \in \mathcal{S},\, t \in \mathcal{T},\, z \in \mathcal{Z},\,
+	r \in \mathcal{R}_t,\, p \in \mathcal{P},\, i = 0, \dots, n_t.
 \end{equation}
 
 \paragraph{Demand satisfaction.}
 The total volume of water sent from all treatment plants to demand zone $z$ via the arcs $c_{tz}$ must be at least the demand $D_z$ for that zone.
 \begin{equation}\label{eq:demand}
-    \sum_{t \in \mathcal{T}} c_{tz} \ge D_z, \qquad \forall z \in \mathcal{Z}.
+	\sum_{t \in \mathcal{T}} c_{tz} \ge D_z, \qquad \forall z \in \mathcal{Z}.
 \end{equation}
 
 \paragraph{Source capacity and activation.}
@@ -290,12 +287,12 @@ Water can only be drawn from a source if it has been activated.
 If source $s$ is inactive ($\alpha_s = 0$), the draw $a_s$ is forced to zero.
 If source $s$ is active ($\alpha_s = 1$), the draw must lie between its minimum daily withdrawal $\underline{W}_s$ and maximum daily withdrawal $\overline{W}_s$.
 \begin{equation}\label{eq:source_capacity}
-    \underline{W}_s\alpha_s
-    \leq
-    a_s
-    \leq
-    \overline{W}_s\alpha_s,
-    \quad \forall s \in \mathcal{S}.
+	\underline{W}_s\alpha_s
+	\leq
+	a_s
+	\leq
+	\overline{W}_s\alpha_s,
+	\quad \forall s \in \mathcal{S}.
 \end{equation}
 
 \paragraph{Plant capacity and activation.}
@@ -303,36 +300,36 @@ A plant can process water only if it has been activated.
 If plant $t$ is inactive ($\beta_t=0$), the total volume arriving from all sources is forced to zero.
 If plant $t$ is active ($\beta_t=1$), the total incoming volume must lie between its minimum daily throughput $\underline{V}_t$ and maximum daily throughput $\overline{V}_t$.
 \begin{equation}\label{eq:plant_capacity}
-    \underline{V}_t \beta_t
-    \leq
-    \sum_{s \in \mathcal{S}} b_{st}
-    \leq
-    \overline{V}_t \beta_t,
-    \quad \forall t \in \mathcal{T}.
+	\underline{V}_t \beta_t
+	\leq
+	\sum_{s \in \mathcal{S}} b_{st}
+	\leq
+	\overline{V}_t \beta_t,
+	\quad \forall t \in \mathcal{T}.
 \end{equation}
 
 \paragraph{Plant flow conservation.}
 The total volume leaving plant $t$ toward all zones via the arcs $c_{tz}$ equals the total volume entering it from all sources via the arcs $b_{st}$.
 \begin{equation}\label{eq:plant_flow_conservation}
-    \sum_{z \in \mathcal{Z}} c_{tz} = \sum_{s \in \mathcal{S}} b_{st},
-    \quad \forall t \in \mathcal{T}.
+	\sum_{z \in \mathcal{Z}} c_{tz} = \sum_{s \in \mathcal{S}} b_{st},
+	\quad \forall t \in \mathcal{T}.
 \end{equation}
 
 \paragraph{Source flow conservation.}
 The volume drawn from each source $a_{s}$ must equal the total volume it sends to all plants via the arcs $b_{st}$.
 \begin{equation}\label{eq:source_flow_conservation}
-    a_s = \sum_{t \in \mathcal{T}} b_{st} , \quad \forall s \in \mathcal{S}.
+	a_s = \sum_{t \in \mathcal{T}} b_{st} , \quad \forall s \in \mathcal{S}.
 \end{equation}
 
 \paragraph{Arc capacity.}
 Each arc has a maximum flow and can carry water only if that arc is active.
 For a source-to-plant arc, the flow $b_{st}$ is capped at $\overline{L}_{st}$ and forced to zero unless the arc is active ($\gamma_{st} = 1$).
 \begin{equation}\label{eq:arc_capacity_st}
-    b_{st} \le \overline{L}_{st} \gamma_{st}, \quad \forall s \in \mathcal{S}, t \in \mathcal{T}.
+	b_{st} \le \overline{L}_{st} \gamma_{st}, \quad \forall s \in \mathcal{S}, t \in \mathcal{T}.
 \end{equation}
 Similarly, a plant-to-zone arc's flow $c_{tz}$ is capped at $\overline{L}_{tz}$ and is zero unless the arc is active ($\delta_{tz} = 1$).
 \begin{equation}\label{eq:arc_capacity_tz}
-    c_{tz} \le \overline{L}_{tz} \delta_{tz}, \quad \forall t \in \mathcal{T}, z \in \mathcal{Z}.
+	c_{tz} \le \overline{L}_{tz} \delta_{tz}, \quad \forall t \in \mathcal{T}, z \in \mathcal{Z}.
 \end{equation}
 
 % \paragraph{Arcs require active nodes.}
@@ -362,9 +359,9 @@ Similarly, a plant-to-zone arc's flow $c_{tz}$ is capped at $\overline{L}_{tz}$ 
 A plant can only accept raw water that its installed processes are built to handle.
 This is a property of the plant rather than a regulatory standard, which is the reason the bound includes the index $t$.
 \begin{equation}\label{eq:inlet_treatability}
-    \underline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}
-    \le \sum_{s \in \mathcal{S}}
-    Q_{sp} b_{st} \le \overline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+	\underline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}
+	\le \sum_{s \in \mathcal{S}}
+	Q_{sp} b_{st} \le \overline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
 \end{equation}
 Each $Q_{sp}$ must be a quantity that blends linearly by volume, so that $\sum_{s\in\mathcal S}Q_{sp}b_{st}$ represents the total load of parameter $p$ arriving at the plant.
 The corresponding blended value is obtained by dividing this load by the total incoming water volume.
@@ -373,9 +370,9 @@ $\underline{I}_{tp}$ and $\overline{I}_{tp}$ are held in the same units as $Q_{s
 Not all plants impose limits on every parameter.
 When a plant $t$ has no meaningful limit on the incoming $p$, the pair is neutralised rather than removed by setting
 \begin{equation}\label{eq:inlet_treatability_neutral}
-    \underline{I}_{tp} = 0
-    \qquad \text{and} \qquad
-    \overline{I}_{tp} = \max_{s \in \mathcal{S}}\{Q_{sp} : \overline{L}_{st} > 0\},
+	\underline{I}_{tp} = 0
+	\qquad \text{and} \qquad
+	\overline{I}_{tp} = \max_{s \in \mathcal{S}}\{Q_{sp} : \overline{L}_{st} > 0\},
 \end{equation}
 where $\overline{I}_{tp}$ represents the maximum value of $p$ among the sources that can reach $t$.
 Since the source values are non-negative, a volume-weighted blend cannot fall below zero or exceed the largest value among its inputs, so neither bound can be violated.
@@ -384,13 +381,13 @@ Since the source values are non-negative, a volume-weighted blend cannot fall be
 Water passes through the plant's removal processes sequentially, so each process acts on the load remaining after the preceding process.
 Denoting the load of $p$ that remains after the $i$-th process as $\ell^i_{tp}$, the load that enters the first process is what comes from the sources:
 \begin{equation}\label{eq:removal_process_initial}
-    \ell^0_{tp} = \sum_{s \in \mathcal{S}}
-    Q_{sp}\, b_{st}, \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+	\ell^0_{tp} = \sum_{s \in \mathcal{S}}
+	Q_{sp}\, b_{st}, \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
 \end{equation}
 Each process $r_{i}$ removes some of what it receives and passes on the rest:
 \begin{equation}\label{eq:removal_process_balance}
-    \ell^i_{tp} = \ell^{i-1}_{tp} - e_{t r_i p},
-    \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_t.
+	\ell^i_{tp} = \ell^{i-1}_{tp} - e_{t r_i p},
+	\qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_t.
 \end{equation}
 The load leaving the plant is what remains after the final process, $\ell^{n_t}_{tp}$.
 
@@ -398,8 +395,8 @@ The load leaving the plant is what remains after the final process, $\ell^{n_t}_
 Each process removes no more than a fixed fraction $H_{t r_i p}$ of the arriving load, based on what was passed on by the previous process rather than the total load that arrived at the plant.
 Modelling a removal process as a fixed fraction of the incoming load is inspired by the wastewater treatment network literature \cite{castro2007, castro2009}.
 \begin{equation}\label{eq:removal_capability}
-    e_{t r_i p} \le H_{t r_i p}\, \ell^{i-1}_{tp},
-    \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_t.
+	e_{t r_i p} \le H_{t r_i p}\, \ell^{i-1}_{tp},
+	\qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_t.
 \end{equation}
 Setting $H_{trp} = 0$ expresses that process $r$ does not act on parameter $p$.
 By \eqref{eq:nonnegativity} and \eqref{eq:removal_process_balance}, no combination of processes can remove more than the load that arrived, and the series behaviour is enforced process by process.
@@ -411,36 +408,32 @@ The constraint forces $e_{tr_ip}=0$ when $\sigma_{tr_i}=0$; when $\sigma_{tr_i}=
 
 At most $\overline{I}_{tp}\overline{V}_t$ of $p$ can reach plant $t$, being the highest concentration it will accept multiplied by the maximum volume it can process daily, and the process can remove at most the fraction $H_{t r_i p}$ of that amount.
 \begin{equation}\label{eq:removal_activation}
-    e_{t r_i p} \le H_{t r_i p}\, \overline{I}_{tp}\, \overline{V}_t\, \sigma_{t r_i},
-    \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_t.
+	e_{t r_i p} \le H_{t r_i p}\, \overline{I}_{tp}\, \overline{V}_t\, \sigma_{t r_i},
+	\qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_t.
 \end{equation}
 A larger coefficient would still be valid, but it would unnecessarily expand the feasible region of the LP relaxation~\cite{jstorMP}.
 This is why, where a plant does not have a genuine inlet limit on $p$, $\overline{I}_{tp}$ is adjusted to the maximum value that the sources are capable of producing instead of being set to an arbitrarily large number.
 
 One may notice that, $\sigma_{t r_i} = 1$, \eqref{eq:removal_activation} is immediately attained:
 \begin{equation*}
-    e_{t r_i p}
-    ~ \underbrace{\le H_{t r_i p}\,\ell^{i-1}_{tp}}_{\eqref{eq:removal_capability}}
-    ~ \underbrace{\le H_{t r_i p}\,\ell^{0}_{tp}}_{\eqref{eq:removal_process_balance}}
-    ~ \underbrace{\le H_{t r_i p} \sum_{s \in \mathcal S} Q_{sp} b_{st}}_{\eqref{eq:removal_process_initial}}
-    ~ \underbrace{\le H_{t r_i p}\,\overline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}}_{\eqref{eq:inlet_treatability}}
-    ~ \underbrace{\le H_{t r_i p}\,\overline{I}_{tp}\,\overline{V}_t \beta_t}_{\eqref{eq:plant_capacity}},
-\end{equation*}
-so \eqref{eq:removal_activation} restricts the model only through $\sigma_{t r_i} = 0$.
+	e_{t r_i p}
+	~ \underbrace{\le H_{t r_i p}\,\ell^{i-1}_{tp}}_{\eqref{eq:removal_capability}}
+	~ \underbrace{\le H_{t r_i p}\,\ell^{0}_{tp}}_{\eqref{eq:removal_process_balance}}
+	~ \underbrace{\le H_{t r_i p} \sum_{s \in \mathcal S}
+		Q_{sp} b_{st}}_{\eqref{eq:removal_process_initial}} ~ \underbrace{\le H_{t r_i p}\,\overline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}}_{\eqref{eq:inlet_treatability}} ~ \underbrace{\le H_{t r_i p}\,\overline{I}_{tp}\,\overline{V}_t \beta_t}_{\eqref{eq:plant_capacity}}, \end{equation*} so \eqref{eq:removal_activation} restricts the model only through $\sigma_{t r_i} = 0$.
 
 \paragraph{Outlet water quality.}
 The water leaving each plant must remain within the regulatory limits.
 For parameter $p$, $\ell^{n_t}_{tp}$ is the load remaining in the treated water, while $\sum_s b_{st}$ is the corresponding water volume, ensuring the volume-weighted average value of $p$ leaving the plant is between $\underline{Q}_p$ and $\overline{Q}_p$.
 \begin{equation}\label{eq:outlet_water_quality}
-    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
-    \le  \ell^{n_t}_{tp}
-    \le \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+	\underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+	\le  \ell^{n_t}_{tp}
+	\le \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
 \end{equation}
 The volume term is $\sum_s b_{st}$ rather than $\sum_z c_{tz}$; the two are equal by plant flow conservation, and utilising the inflow maintains consistency across all quality constraints expressed.
 
 Because the current treatment model can only reduce parameter loads, treatment cannot correct a blend that is already below a required lower bound.
 Consequently, lower-bound compliance must be achieved through source selection and blending.
-
 
 \section{Water quality formulation logic}
 
@@ -569,10 +562,50 @@ Consequently, lower-bound compliance must be achieved through source selection a
 
 \textcolor{blue}{The only thing I could think of the is outgoing flow, but if so, would it violate the flow conservation?}
 
-\textcolor{red}{water in equals water out, and removal doesn't change it by the assumption of no water loss so $\sum_s a_s$ still leaves plant and I think should remain that label because that's the volume of water leaving the plant. So maybe just one row in table.The single plant here will have a process sequence $r_{1}, r_{2}, r_{3},..$, i.e. $\mathcal{R}_t$ fixed and one process sequence. $\sigma_{tr}$ and $e_{trp}$ remain free}
+\textcolor{red}{water in equals water out, and removal doesn't change it by the assumption of no water loss so $\sum_s a_s$ still leaves plant and I think should remain that label because that's the volume of water leaving the plant.
+	So maybe just one row in table.The single plant here will have a process sequence $r_{1}, r_{2}, r_{3},.
+		.$, i.e. $\mathcal{R}_t$ fixed and one process sequence. $\sigma_{tr}$ and $e_{trp}$ remain free}
 
 \textcolor{magenta}{I added a row to clarify $\sigma_{tr} = 1$ as there is only 1 plant, but hmmm, why $e_{trp}$ is free?}
 
+\textcolor{blue}{$e_{trp}$ is the load removed by the process, which is a decision variable.
+	It is not fixed because it depends on the incoming load and the process efficiency.}
+
+\textcolor{blue}{I don't think $\sigma_{tr} = 1$ belongs in this table: with one plant and one zone, $b_{st}$ and $c_{tz}$ are fixed by conservation, there's nowhere else for the water to go but having one plant doesn't force its processes to run.
+	If a process is expensive and the blend already complies without it, the model switches it off.
+	so I guess the only thing that changes is the first paragraph here and then remove $\gamma_{st}$ and $\delta_{tz}$ from the table since we have removed that earlier?}
+
+\color{blue}{E.g. (feel free to not use this )
+
+	The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
+	With one plant and one zone there is nothing to route:
+	the arc flows are fixed by conservation, the source and treatment decisions remain free.
+
+	Every equation of the toy model follows from the general formulation by the substitutions below.
+	Nothing is restated here.
+	\begin{center}
+		\begin{tabular}{@{}ll@{}}
+			\toprule
+			\textbf{Substitution}                        & \textbf{Consequence}                                     \\
+			\midrule
+			$\mathcal{T} = \{t\}$, $\mathcal{Z} = \{z\}$ & one plant, one zone                                      \\
+			$b_{st} = a_s$                               & by source flow conservation                              \\
+			$c_{tz} = \sum_{s} a_s$                      & by plant flow conservation                               \\
+			$\beta_t = 1$                                & demand is positive, so $F_t$ is a constant and drops out \\
+			\bottomrule
+		\end{tabular}
+	\end{center}
+	then maybe after table:
+	The reduction is a substitution rather than a rewrite:
+	any constraint indexed over $\mathcal{T}$ or $\mathcal{Z}$ contributes exactly one instance, and any variable on an arc is determined by conservation as a sum of source draws.
+	Every term of the general model is inherited unchanged.
+
+	The treatment decisions are not fixed by this reduction:
+	$\sigma_{t r_i}$ and $e_{t r_i p}$ remain free, so the model still chooses which processes to run and how much to remove.
+	With routing determined, the trade-off the toy case exercises is between the cost of the water drawn and the cost of removing what it carries.
+}
+
+\color{black}
 The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
 With one plant and one zone there is nothing to route:
 the arc variables are fixed by conservation, and only the source decisions $\alpha_s$ and $a_s$ remain free.
@@ -581,18 +614,18 @@ Every equation of the toy model follows from the general formulation by the subs
 Nothing is restated here.
 
 \begin{center}
-    \begin{tabular}{@{}ll@{}}
-        \toprule
-        \textbf{Substitution}                        & \textbf{Consequence}                                             \\
-        \midrule
-        $\mathcal{T} = \{t\}$, $\mathcal{Z} = \{z\}$ & one plant, one zone                                              \\
-        $\beta_t = 1$                                & the plant is always active, so $F_t$ is a constant and drops out \\
-        $\gamma_{st} = \delta_{tz} = 1$              & every arc is active                                              \\
-        $b_{st} = a_s$                               & by source flow conservation                                      \\
-        $c_{tz} = \sum_{s} a_s$                      & by plant flow conservation                                       \\
-        $\sigma_{tr} = 1$                            & one plant, one fixed $\mathcal R_t$                                       \\
-        \bottomrule
-    \end{tabular}
+	\begin{tabular}{@{}ll@{}}
+		\toprule
+		\textbf{Substitution}                        & \textbf{Consequence}                                             \\
+		\midrule
+		$\mathcal{T} = \{t\}$, $\mathcal{Z} = \{z\}$ & one plant, one zone                                              \\
+		$\beta_t = 1$                                & the plant is always active, so $F_t$ is a constant and drops out \\
+		$\gamma_{st} = \delta_{tz} = 1$              & every arc is active                                              \\
+		$b_{st} = a_s$                               & by source flow conservation                                      \\
+		$c_{tz} = \sum_{s} a_s$                      & by plant flow conservation                                       \\
+		$\sigma_{tr} = 1$                            & one plant, one fixed $\mathcal R_t$                              \\
+		\bottomrule
+	\end{tabular}
 \end{center}
 
 The reduction is a substitution rather than a rewrite:
@@ -600,25 +633,25 @@ any constraint indexed over $\mathcal{T}$ or $\mathcal{Z}$ contributes exactly o
 Every term of the general model is inherited unchanged.
 
 \begin{center}
-    \begin{tikzpicture}[
-            nd/.style={circle, draw, minimum size=8mm, inner sep=1pt},
-            every edge/.style={draw, -latex, thick},
-            lbl/.style={fill=white, inner sep=1.5pt, font=\small},
-            thick
-        ]
-        \node[nd] (s1) at (0,3)   {$s_1$};
-        \node[nd] (s2) at (3,3)   {$s_2$};
-        \node[nd] (s3) at (6,3)   {$s_3$};
-        \node[nd] (t)  at (3,1) {$t$};
-        \node[nd] (z)  at (3,-1)   {$z$};
-        \draw (s1) edge node[lbl] {$a_1$} (t);
-        \draw (s2) edge node[lbl] {$a_2$} (t);
-        \draw (s3) edge node[lbl] {$a_3$} (t);
-        \draw (t) edge node[lbl, right=1pt] {$\textstyle\sum_s a_s$} (z);
-        % \draw (t) edge node[lbl, right=1pt] {$\ell^{n_t}_{tp}$?} (z);
-    \end{tikzpicture}
-    \captionof{figure}{Toy model.
-        Three sources draw $a_1,a_2,a_3$ into the single plant $t$, which delivers their sum to the single zone $z$.}
+	\begin{tikzpicture}[
+			nd/.style={circle, draw, minimum size=8mm, inner sep=1pt},
+			every edge/.style={draw, -latex, thick},
+			lbl/.style={fill=white, inner sep=1.5pt, font=\small},
+			thick
+		]
+		\node[nd] (s1) at (0,3)   {$s_1$};
+		\node[nd] (s2) at (3,3)   {$s_2$};
+		\node[nd] (s3) at (6,3)   {$s_3$};
+		\node[nd] (t)  at (3,1) {$t$};
+		\node[nd] (z)  at (3,-1)   {$z$};
+		\draw (s1) edge node[lbl] {$a_1$} (t);
+		\draw (s2) edge node[lbl] {$a_2$} (t);
+		\draw (s3) edge node[lbl] {$a_3$} (t);
+		\draw (t) edge node[lbl, right=1pt] {$\textstyle\sum_s a_s$} (z);
+		% \draw (t) edge node[lbl, right=1pt] {$\ell^{n_t}_{tp}$?} (z);
+	\end{tikzpicture}
+	\captionof{figure}{Toy model.
+		Three sources draw $a_1,a_2,a_3$ into the single plant $t$, which delivers their sum to the single zone $z$.}
 \end{center}
 
 \noindent Since this is just the network model with routing fixed, going the other way needs nothing new: free the routing variables and add more sources, plants and zones.
@@ -629,6 +662,7 @@ The toy can therefore be built and tested first, then scaled up without reformul
 \bibliography{references}
 
 \clearpage
+\textcolor{red}{put appendix before references?}
 \appendix
 \input{appendix.tex}
 
