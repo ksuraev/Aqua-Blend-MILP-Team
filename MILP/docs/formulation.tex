@@ -92,13 +92,6 @@ A subscript is an index; an overbar/underbar is an upper/lower bound.
 $n_{tp} = |\mathcal{R}_{tp}|$ is written with the index because plants differ in how many processes they run, and how many processes in a plant act on a parameter.
 For example, a plant with three processes removing alkalinity has $n_{t, \mathrm{alk}} = 3$, while one with a single removal process diminishing turbidity alone has $n_{t, \mathrm{turb}} = 1$.
 
-For simplicity, we shall insist on each removal process $r_i \in \mathcal R_{tp}$ acts on exactly one $p \in \mathcal P$, see \textbf{Sec. \ref{sec:removal_process_axiom}} for further assumptions of removal processes.
-Then, from the description of $\mathcal R_t$ and $\mathcal R_{tp}$ (Table \ref{tab:sets}), we must validate that:
-\begin{equation}
-	\label{eq:process_union_intersect}
-	\mathcal R_t = \bigcup_{p \in \mathcal P} \mathcal R_{tp} \qquad \text{and} \qquad
-	\bigcap_{p \in \mathcal P} \mathcal R_{tp} = \emptyset
-\end{equation}
 
 \subsection{Parameters}
 \begin{tabularx}{\textwidth}{@{}lXl@{}}
