@@ -194,9 +194,7 @@ For parameters such as turbidity measured in NTU, the cost is per NTU$\cdot$ML, 
 	$\beta_{t}$       & $\{0,1\}$                   & $1$ if plant $t$ is activated                               & ---                         \\[0.4em]
 	\midrule
 	\multicolumn{4}{@{}l}{\emph{Arcs}}                                                                                                          \\
-	$\gamma_{st}$     & $\{0,1\}$                   & $1$ if source $s$ sends water to plant $t$                  & ---                         \\
 	$b_{st}$          & $\ge 0$                     & volume of water from source $s$ to plant $t$                & ML/day                      \\
-	$\delta_{tz}$     & $\{0,1\}$                   & $1$ if plant $t$ sends water to demand zone $z$             & ---                         \\
 	$c_{tz}$          & $\ge 0$                     & volume of water from plant $t$ to demand zone $z$           & ML/day                      \\[0.4em]
 	\midrule
 	\multicolumn{4}{@{}l}{\emph{Removal processes}}                                                                                             \\
@@ -322,14 +320,14 @@ The volume drawn from each source $a_{s}$ must equal the total volume it sends t
 \end{equation}
 
 \paragraph{Arc capacity.}
-Each arc has a maximum flow and can carry water only if that arc is active.
-For a source-to-plant arc, the flow $b_{st}$ is capped at $\overline{L}_{st}$ and forced to zero unless the arc is active ($\gamma_{st} = 1$).
+Each arc has a maximum flow and can carry water only if that source or plant is active.
+For a source-to-plant arc, the flow $b_{st}$ is capped at $\overline{L}_{st}$ and is zero unless the source is active ($\alpha_s = 1$).
 \begin{equation}\label{eq:arc_capacity_st}
-	b_{st} \le \overline{L}_{st} \gamma_{st}, \quad \forall s \in \mathcal{S}, t \in \mathcal{T}.
+	b_{st} \le \min \left\{\overline{L}_{st}, \overline{W}_s, \overline{V}_t \right\} \alpha_s, \quad \forall s \in \mathcal{S}, t \in \mathcal{T}.
 \end{equation}
-Similarly, a plant-to-zone arc's flow $c_{tz}$ is capped at $\overline{L}_{tz}$ and is zero unless the arc is active ($\delta_{tz} = 1$).
+Similarly, a plant-to-zone arc's flow $c_{tz}$ is capped at $\overline{L}_{tz}$ and is zero unless the plant is active ($\beta_t = 1$).
 \begin{equation}\label{eq:arc_capacity_tz}
-	c_{tz} \le \overline{L}_{tz} \delta_{tz}, \quad \forall t \in \mathcal{T}, z \in \mathcal{Z}.
+	c_{tz} \le \min \left\{\overline{L}_{tz}, \overline{V}_t\right\} \beta_t, \quad \forall t \in \mathcal{T}, z \in \mathcal{Z}.
 \end{equation}
 
 % \paragraph{Arcs require active nodes.}
