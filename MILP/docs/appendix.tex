@@ -1,6 +1,6 @@
 \section{Implicit constraints}\label{sec:implicit_constraints}
 
-This appendix complements Section~\ref{sec:constraints} with inequalities that hold for the model but are not stated there explicitly, and records the status of the linking constraints \eqref{eq:arc_source_active}--\eqref{eq:arc_plant_active_optional}.
+This appendix complements Section~\ref{sec:constraints} with inequalities that hold for the model but are not stated there explicitly.
 
 \paragraph{Closed nodes send no flow.}
 \begin{align}
@@ -9,7 +9,7 @@ This appendix complements Section~\ref{sec:constraints} with inequalities that h
 \end{align}
 By \eqref{eq:nonnegativity} and \eqref{eq:source_flow_conservation}, $b_{st} \le \sum_{t' \in \mathcal{T}} b_{st'} = a_s$, and $a_s \le \overline{W}_s\alpha_s$ by \eqref{eq:source_capacity}.
 Likewise, \eqref{eq:nonnegativity} and \eqref{eq:plant_flow_conservation} give $c_{tz} \le \sum_{z' \in \mathcal{Z}} c_{tz'} = \sum_{s \in \mathcal{S}} b_{st}$, which is at most $\overline{V}_t\beta_t$ by \eqref{eq:plant_capacity}.
-Hence a closed source or plant sends no water, unnecessarily require \eqref{eq:arc_source_active}--\eqref{eq:arc_plant_active_optional} explicitly stated.
+Hence a closed source or plant never sends water outwards.
 
 \paragraph{Total supply covers total demand.}
 Summing \eqref{eq:demand} over all zones and applying \eqref{eq:plant_flow_conservation}, \eqref{eq:source_flow_conservation} and \eqref{eq:source_capacity} gives
