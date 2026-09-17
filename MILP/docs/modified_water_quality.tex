@@ -1,6 +1,6 @@
 Although nicely generic water quality constraints are presented above, i.e. \eqref{eq:inlet_treatability} to \eqref{eq:outlet_water_quality},
 we shall devote this section to interpret the quality parameters $p \in \mathcal P$ and how they are treated in plants.
-We confine ourselves to ``removal process'', though our model can be extended to include more treatment processes, e.g. ``chemical dosing'', and thus, this section will be adapted to be consistent with the existing parameter notation while preserving the linear structure of the MILP.
+We confine ourselves to ``removal processes'', though our model can be extended to include more treatment processes, e.g. ``chemical dosing'', and thus, this section will be adapted to be consistent with the existing parameter notation while preserving the linear structure of the MILP.
 
 \subsection{Inlet treatability and Outlet water quality}
 
@@ -46,7 +46,7 @@ For example, \eqref{eq:inlet_treatability} becomes:
     Q_{s,\mathrm{alk}} ~b_{st} \le \overline{I}_{t,\mathrm{alk}} ~\sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T}.
 \end{equation*}
 
-We highlight here that, according to \cite{who2004water}, removal process can only reduce alkalinity, though it can be increased by an adjustment process.
+We highlight here that, according to \cite{who2004water}, removal process can only reduce alkalinity, though it can be increased by an adjustment process.\textcolor{red}{which is not currently modelled}
 
 
 \subsection{pH transformation}
@@ -85,6 +85,8 @@ then the corresponding transformed bounds stored for the $\mathrm{pH}$ quality p
 
 The direction of the bounds changes because $\mathrm{pH}$ and hydrogen ion concentration are inversely related \cite{Fondriest2025pH}.
 A higher $\mathrm{pH}$ corresponds to a lower hydrogen ion concentration, while a lower $\mathrm{pH}$ corresponds to a higher hydrogen ion concentration.
+
+\textcolor{red}{With the new indexing, $\mathcal{R}_{t,\mathrm{pH}}=\emptyset$, and $n_{t,\mathrm{pH}}=0$ so the removal constraints generate no instances and $\ell^{n_{tp}}=\ell^{0}$ follows directly?}
 
 As mentioned earlier, pH cannot be handled by removal process; however, constraints from \eqref{eq:removal_process_initial} to \eqref{eq:outlet_water_quality} still hold, by setting $H_{tr,\mathrm{pH}} = 0, \forall r \in \mathcal R_t$.
 Hence, the constraint \eqref{eq:inlet_treatability} is also valid. Formally, this is:
@@ -127,7 +129,7 @@ The key assumptions are:
     \item Alkalinity and turbidity are approximated as volume-weighted linear blends.
     \item Raw $\mathrm{pH}$ values are not averaged directly; $\mathrm{pH}$ is transformed before optimisation.
     \item No nonlinear chemical reactions between blended sources are modelled.
-    \item Water quality is checked at each treatment plant, using the blend of its incoming sources.
+    \item Water quality is checked at each treatment plant, using the blend of its incoming sources. \textcolor{red}{now checked at inlet against $I$ and at outlet against $Q$}
 \end{enumerate}
 
 These assumptions allow the water quality constraints to remain linear and suitable for inclusion in the MILP formulation.
@@ -137,10 +139,12 @@ These assumptions allow the water quality constraints to remain linear and suita
 In practices, several designs for removal processes exist, see \cite{lower_murray_water2023, zouboulis2005improvement}. Therefore, we shall propose the following assumptions for convenience and simplicity.
 \begin{enumerate}[label=(\roman*), align=left, widest=viii]
     \item Removal processes $\mathcal R_{tp}$ are conducted in a sequence.
-    \item A removal process $r_i \in \mathcal R_{tp}$ can remove more than one $p \in \mathcal P$.
+    \item A removal process $r_i \in \mathcal R_{tp}$ can remove more than one $p \in \mathcal P$. \textcolor{red}{maybe: a process may act on several parameters, appearing in $\mathcal R_{tp}$ for each $p$ it acts on}
     \item Every process $r_i$ is only dependent on its preceeding process $r_{i - 1}$, see \eqref{eq:removal_process_balance}.
     \item Maximum removal efficiency $H_{trp}$ is known.
     \item Uniform treatment: $\sum_{s \in \mathcal S} b_{st}$ receives the same treatment.
     \item No water loss after passing through $r_i \in \mathcal R_{tp}$.
+    \item \textcolor{red}{treatment only reduces a load, lower limits met by blending alone}
+    \item \textcolor{red}{$\mathcal{R}_{tp}$ preserves the order of $\mathcal{R}_{t}$?}
 \end{enumerate}
 
