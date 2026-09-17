@@ -84,12 +84,21 @@ A subscript is an index; an overbar/underbar is an upper/lower bound.
 	$\mathcal{Z}$     & set of demand zones, $z \in \mathcal{Z}$                 \\
 	$\mathcal{P}$     & set of water quality parameters, $p \in \mathcal{P}$     \\
 	$\mathcal{R}$     & set of removal processes, $r \in \mathcal{R}$            \\
-	$\mathcal{R}_t$   & processes installed at plant $t$, as an ordered sequence
-	$r_1, \dots, r_{n_t}$ drawn from $\mathcal{R}$, in the order water
+	$\mathcal{R}_t$   & all processes installed at plant $t$ regardless of what parameters being removed, $\mathcal R_t \subseteq \mathcal{R}$            \\
+	$\mathcal{R}_{tp}$   & processes installed at plant $t$ acting on parameter $p$, as an ordered sequence
+	$r_1, \dots, r_{n_{tp}}$ drawn from $\mathcal{R}_t$, in the order water
 	flows through them                                                           \\
 \end{tabularx}
-$n_t = |\mathcal{R}_t|$ is written with the index because plants differ in how many processes they run.
-For example, a plant with coagulation, filtration and chlorination has $n_t = 3$, while one with filtration alone has $n_t = 1$.
+$n_{tp} = |\mathcal{R}_{tp}|$ is written with the index because plants differ in how many processes they run, and how many processes in a plant act on a parameter.
+For example, a plant with three processes removing alkalinity has $n_{t, \mathrm{alk}} = 3$, while one with a single removal process diminishing turbidity alone has $n_{t, \mathrm{turb}} = 1$.
+
+For simplicity, we shall insist on each removal process $r_i \in \mathcal R_{tp}$ acts on exactly one $p \in \mathcal P$, see \textbf{Sec. \ref{sec:removal_process_axiom}} for further assumptions of removal processes.
+Then, from the description of $\mathcal R_t$ and $\mathcal R_{tp}$ (Table \ref{tab:sets}), we must validate that:
+\begin{equation}
+	\label{eq:process_union_intersect}
+	\mathcal R_t = \bigcup_{p \in \mathcal P} \mathcal R_{tp} \qquad \text{and} \qquad
+	\bigcap_{p \in \mathcal P} \mathcal R_{tp} = \emptyset
+\end{equation}
 
 \subsection{Parameters}
 \begin{tabularx}{\textwidth}{@{}lXl@{}}
@@ -203,9 +212,9 @@ For parameters such as turbidity measured in NTU, the cost is per NTU$\cdot$ML, 
 	$\ell^i_{tp}$     & $\ge 0$                     & load of $p$ remaining after the $i$-th process at plant $t$
 	                  & (units of $p$)$\cdot$ML/day                                                                                             \\
 \end{tabularx}
-$\sigma_{tr}$ and $e_{trp}$ are defined only for $r \in \mathcal{R}_t$, and
+$\sigma_{tr}$ and $e_{trp}$ are defined only for $r \in \mathcal{R}_{tp}$, and
 $\ell^i_{tp}$ only for $i = 0, \dots, n_t$; the objective and constraints below reflect this.
-Since we have $\mathcal{R}_t = (r_1, \dots, r_{n_t})$ (Table~\ref{tab:sets}), the process at stage $i$ is $r_i$:
+Since we have $\mathcal{R}_{tp} = (r_1, \dots, r_{n_{tp}})$ (Table~\ref{tab:sets}), the process at stage $i$ is $r_i$:
 variables are indexed by the process itself, so $e_{t r_i p}$ is the same variable as $e_{trp}$ with $r = r_i$.
 
 \section{Example network structure}
@@ -243,7 +252,7 @@ variables are indexed by the process itself, so $e_{t r_i p}$ is the same variab
 		\draw (T2) edge node[lbl] {$c_{23}$} (Z3);
 	\end{tikzpicture}
 	\captionof{figure}{One example of the network structure (sources $\to$ treatment plants $\to$ demand zones).
-		Each source-plant arc has an activation binary $\gamma_{st}$ and a flow variable $b_{st}$; each plant-zone arc has $\delta_{tz}$ and $c_{tz}$.
+		Each source-plant arc has a flow variable $b_{st}$; each plant-zone arc has $c_{tz}$.
 		The formulation is generic over any number of sources, plants, zones and links.
 	}
 \end{center}
@@ -387,16 +396,16 @@ Denoting the load of $p$ that remains after the $i$-th process as $\ell^i_{tp}$,
 Each process $r_{i}$ removes some of what it receives and passes on the rest:
 \begin{equation}\label{eq:removal_process_balance}
 	\ell^i_{tp} = \ell^{i-1}_{tp} - e_{t r_i p},
-	\qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_t.
+	\qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_{tp}.
 \end{equation}
-The load leaving the plant is what remains after the final process, $\ell^{n_t}_{tp}$.
+The load leaving the plant is what remains after the final process, $\ell^{n_{tp}}_{tp}$.
 
 \paragraph{Removal capability.}
 Each process removes no more than a fixed fraction $H_{t r_i p}$ of the arriving load, based on what was passed on by the previous process rather than the total load that arrived at the plant.
 Modelling a removal process as a fixed fraction of the incoming load is inspired by the wastewater treatment network literature \cite{castro2007, castro2009}.
 \begin{equation}\label{eq:removal_capability}
 	e_{t r_i p} \le H_{t r_i p}\, \ell^{i-1}_{tp},
-	\qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_t.
+	\qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_{tp}.
 \end{equation}
 Setting $H_{trp} = 0$ expresses that process $r$ does not act on parameter $p$.
 By \eqref{eq:nonnegativity} and \eqref{eq:removal_process_balance}, no combination of processes can remove more than the load that arrived, and the series behaviour is enforced process by process.
@@ -424,10 +433,10 @@ One may notice that, $\sigma_{t r_i} = 1$, \eqref{eq:removal_activation} is imme
 
 \paragraph{Outlet water quality.}
 The water leaving each plant must remain within the regulatory limits.
-For parameter $p$, $\ell^{n_t}_{tp}$ is the load remaining in the treated water, while $\sum_s b_{st}$ is the corresponding water volume, ensuring the volume-weighted average value of $p$ leaving the plant is between $\underline{Q}_p$ and $\overline{Q}_p$.
+For parameter $p$, $\ell^{n_{tp}}_{tp}$ is the load remaining in the treated water, while $\sum_s b_{st}$ is the corresponding water volume, ensuring the volume-weighted average value of $p$ leaving the plant is between $\underline{Q}_p$ and $\overline{Q}_p$.
 \begin{equation}\label{eq:outlet_water_quality}
 	\underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
-	\le  \ell^{n_t}_{tp}
+	\le  \ell^{n_{tp}}_{tp}
 	\le \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
 \end{equation}
 The volume term is $\sum_s b_{st}$ rather than $\sum_z c_{tz}$; the two are equal by plant flow conservation, and utilising the inflow maintains consistency across all quality constraints expressed.

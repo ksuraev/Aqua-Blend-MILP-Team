@@ -117,7 +117,7 @@ This recovered $\mathrm{pH}$ value is not an MILP decision variable.
 It is a post-solve reporting value used for validation, interpretation, dashboard display, and output generation.
 
 \subsection{Linearity assumptions for water quality}
-
+\label{sec:model_axiom}
 The water quality formulation relies on simplifying assumptions that preserve linearity in the MILP.
 The key assumptions are:
 \begin{enumerate}[label=(\roman*), align=left, widest=viii]
@@ -133,13 +133,14 @@ The key assumptions are:
 These assumptions allow the water quality constraints to remain linear and suitable for inclusion in the MILP formulation.
 
 \subsection{Assumptions for removal processes}
-
+\label{sec:removal_process_axiom}
 In practices, several designs for removal processes exist, see \cite{lower_murray_water2023, zouboulis2005improvement}. Therefore, we shall propose the following assumptions for convenience and simplicity.
 \begin{enumerate}[label=(\roman*), align=left, widest=viii]
-    \item Removal process $\mathcal R_t$ is conducted in a sequence.
+    \item Removal processes $\mathcal R_{tp}$ are conducted in a sequence.
+    \item A removal process $r_i \in \mathcal R_{tp}$ removes exactly one $p \in \mathcal P$.
     \item Every process $r_i$ is only dependent on its preceeding process $r_{i - 1}$, see \eqref{eq:removal_process_balance}.
     \item Maximum removal efficiency $H_{trp}$ is known.
     \item Uniform treatment: $\sum_{s \in \mathcal S} b_{st}$ receives the same treatment.
-    \item No water loss after passing through $r_i \in \mathcal R_t$.
+    \item No water loss after passing through $r_i \in \mathcal R_{tp}$.
 \end{enumerate}
 
