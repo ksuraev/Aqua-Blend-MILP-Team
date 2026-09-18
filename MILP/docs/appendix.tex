@@ -1,6 +1,7 @@
 \section{Implicit constraints}\label{sec:implicit_constraints}
 
-This appendix complements Section~\ref{sec:constraints} with inequalities that hold for the model but are not stated there explicitly. \textcolor{magenta}{The opening sentence used to say this appendix records the status of the arc linking constraints, now that $\gamma$ and $\delta$ are gone, worth a short paragraph noting they were removed and that they'd be needed again if we add a fixed cost per arc.}
+This appendix complements Section~\ref{sec:constraints} with inequalities that hold for the model but are not stated there explicitly. 
+The arc linking constraints, formerly known as $\gamma_{st}$ and $\delta_{tz}$, are completely removed from our model; however, once incorporating transferring arcs activation cost is essential, we shall include them to the objective function \eqref{eq:objective} and re–introduce them, and possibly extra constraints on them are needed.
 
 \paragraph{Closed nodes send no flow.}
 \begin{align}
@@ -22,20 +23,23 @@ Summing \eqref{eq:demand} over all zones and applying \eqref{eq:plant_flow_conse
 Whatever the routing, the active sources must have enough combined capacity to cover total demand, so no set of sources whose maximum withdrawals sum to less than $\sum_z D_z$ can be the active set.
 
 \paragraph{Blend bounds implied by outlet quality.}
-Combining \eqref{eq:outlet_water_quality} with \eqref{eq:removal_process_initial} gives, for every $t \in \mathcal{T}$ and $p \in \mathcal{P}$: \textcolor{magenta}{Worth showing the step: $\underline{Q}_p \sum_s b_{st} \le \ell^{n_{tp}}_{tp} \le \ell^{0}_{tp} = \sum_s Q_{sp} b_{st}$, with the middle inequality holding because removal only decreases the load}
-\begin{equation}
-    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}  \le \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}, \label{eq:implied_blend_lower}
+Combining \eqref{eq:outlet_water_quality} with \eqref{eq:removal_process_initial} gives, for every $t \in \mathcal{T}$ and $p \in \mathcal{P}$.
+\begin{equation}\label{eq:implied_blend_lower}
+    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+    ~\underbrace{\le \ell^{n_{tp}}_{tp}}_{\eqref{eq:outlet_water_quality}}
+    ~\underbrace{\le \ell^{0}_{tp}}_{\eqref{eq:removal_process_balance}}
+    ~\underbrace{= \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}}_{\eqref{eq:removal_process_initial}}
 \end{equation}
-This means the incapability of $t \in \mathcal T$ to correct a blend that is below a lower limit, assuming only removal process is implemented; thereby, every lower regulatory limit must be met by source selection and blending, $\forall p \in \mathcal P$. \textcolor{magenta}{``the incapability of $t$ to correct a blend''- maybe ``a plant cannot correct a blend that is already below a lower limit'', and ``assuming only removal process is implemented'' $\to$ ``with only removal processes modelled''.}
+This means a plant cannot correct a blend that is already below a lower limit, with only removal processes modelled; thereby, every lower regulatory limit must be met by source selection and blending, $\forall p \in \mathcal P$.
 Three cases follow.
 \begin{itemize}
-    \item If $\underline{Q}_p = 0$, \eqref{eq:implied_blend_lower} never binds, otherwise no water is drawn. \textcolor{magenta}{with $\underline{Q}_p = 0$ the constraint is implied by non-negativity and never binds I think the ``otherwise no water is drawn'' clause can just be cut.}
-    \item If $\underline{Q}_p > 0$, as for alkalinity, \eqref{eq:implied_blend_lower} binds regardless of the processes installed at the plant. \textcolor{magenta}{``binds'' means tight at the optimum, which depends on the data I'd say it 'applies' regardless of the processes installed, since none of them can help satisfy it.}
-    \item If no process acts on $p$ ($H_{trp} = 0$ for all $r \in \mathcal{R}_{tp}$, or equivalently $e_{trp} = 0$, as for the transformed value \eqref{eq:ph_source_transformation}), then $\ell^{n_{tp}}_{tp} = \ell^{0}_{tp}$ and
+    \item If $\underline{Q}_p = 0$ is implied by non–negativity and \eqref{eq:implied_blend_lower} never binds.
+    \item If $\underline{Q}_p > 0$, as for alkalinity, \eqref{eq:implied_blend_lower} applies regardless of the processes installed at the plant, since none of them can help satisfy it.
+    \item If no process acts on $p$ (i.e. $\mathcal R_{tp} = \emptyset$ and $n_{tp} = 0$), then $\ell^{n_{tp}}_{tp} = \ell^{0}_{tp}$ and
           \begin{equation*}
               \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
               \le \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}
               \le \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st},
           \end{equation*}
-          so both limits must be met by blending alone. \textcolor{magenta}{Under the new indexing a process that doesn't act on $p$ isn't in $\mathcal{R}_{tp}$ at all, so this case should be $\mathcal{R}_{tp} = \emptyset$ and $n_{tp} = 0$ rather than $H_{trp} = 0$ over a non-empty set.}
+          so both limits must be met by blending alone.
 \end{itemize}
