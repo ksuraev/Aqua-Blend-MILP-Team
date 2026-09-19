@@ -104,7 +104,7 @@ class ScenarioData:
     quality_limits: dict[str, Any]
     validation_issues: tuple[str, ...]
 
-    input_policy_validation: InputValidationPolicy
+    input_validation_policy: InputValidationPolicy
     loader_validation: LoaderValidation
 
     @property

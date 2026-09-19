@@ -182,7 +182,7 @@ def _build_solver_variables(
         plant_zone_flow={(t, z): model.c[t, z] for (t, z) in model.TZ}, # type: ignore
     )
 
-def _variable_value(variable: Any, label: str) -> float | None:
+def _variable_value(variable: Any) -> float | None:
     """Extract a raw solved value from a Pyomo variable or a plain number."""
     if isinstance(variable, (int, float)):
         return float(variable)
@@ -201,7 +201,7 @@ def _clean_flow_value(
     warnings: list[str],
 ) -> float:
     """Read one solved flow/withdrawal value and apply solver-tolerance cleaning."""
-    raw = _variable_value(variable, label)
+    raw = _variable_value(variable)
 
     if raw is None:
         warnings.append(f"{label} was unset by the solver (None); treated as 0.0.")
@@ -236,7 +236,7 @@ def _clean_binary_value(
     warnings: list[str],
 ) -> bool:
     """Read one solved activation value and snap it to a boolean within tolerance."""
-    raw = _variable_value(variable, label)
+    raw = _variable_value(variable)
 
     if raw is None:
         warnings.append(f"{label} was unset by the solver (None); treated as inactive.")
@@ -507,8 +507,9 @@ def _build_source_results(
                         is_selected
                         and math.isclose(withdrawal, min_withdrawal, abs_tol=_SOLVER_TOLERANCE)
                     ),
-                    binding_upper=math.isclose(
-                        withdrawal, max_withdrawal, abs_tol=_SOLVER_TOLERANCE
+                    binding_upper=(
+                        is_selected
+                        and math.isclose(withdrawal, max_withdrawal, abs_tol=_SOLVER_TOLERANCE)
                     ),
                 ),
             )
@@ -853,9 +854,9 @@ def _build_input_scenario_obj(scenario: ScenarioData) -> InputScenario:
 def _get_input_validation_policy_obj(scenario: ScenarioData) -> InputValidationPolicy:
     """
     Passes through the input validation policy object from data_loader.py.
-    Currently not implemented, assuming it is passed through as input_policy_validation.
+    Currently not implemented, assuming it is passed through as input_validation_policy.
     """
-    return scenario.input_policy_validation
+    return scenario.input_validation_policy
 
 
 def _get_loader_validation_obj(scenario: ScenarioData) -> LoaderValidation:
@@ -873,7 +874,6 @@ def _get_preprocessing_validation_obj(parameters: ModelParameters) -> Preprocess
     """
     return parameters.preprocessing_validation
 
-    preprocessing_validation = _get_preprocessing_validation_obj(parameters)
 
 def _check(check: str, passed: bool) -> ValidationCheck:
     return ValidationCheck(check=check, enabled=True, passed=passed)
@@ -1114,7 +1114,7 @@ def postprocess_solution(
 
     return SolvedScenario(
         schema_version=schema_version,
-        run_id=parameters.run_id,
+        run_id=parameters.run_id, # currently waiting for a change upstream
         scenario=input_scenario,
         validation=validation,
         solver=solver,

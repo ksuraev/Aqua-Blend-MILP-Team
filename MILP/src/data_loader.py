@@ -98,19 +98,40 @@ class _CheckTracker:
     elsewhere by an immediate ``DataLoadError`` and so can only ever show as
     passed here: a failure there means loading aborts before a
     ``LoaderValidation`` is ever built from this tracker.
+
+    ``disabled`` names checks that the current ``InputValidationPolicy`` (or
+    ``allow_estimated_values``) has switched off entirely, so they can never
+    fail. Those checks report ``enabled=False`` unless ``fail()`` is actually
+    called for them, which happens for a policy-independent failure path
+    (e.g. an explicit ``demand_must_be_met: false``) and proves the check was
+    evaluated after all.
     """
 
-    def __init__(self, check_names: Iterable[str]) -> None:
+    def __init__(
+        self,
+        check_names: Iterable[str],
+        *,
+        disabled: Iterable[str] = (),
+    ) -> None:
         self._passed: dict[str, bool] = dict.fromkeys(check_names, True)
+        disabled_names = set(disabled)
+        self._enabled: dict[str, bool] = {
+            name: name not in disabled_names for name in self._passed
+        }
         self.issues: list[str] = []
 
     def fail(self, check: str, message: str) -> None:
         self._passed[check] = False
+        # A failure proves the check was actually evaluated, even if policy
+        # nominally disabled it (e.g. demand_must_be_met=False still fails
+        # demand_present_finite_and_non_negative even when
+        # fail_if_demand_missing is off).
+        self._enabled[check] = True
         self.issues.append(message)
 
     def as_checks(self) -> tuple[ValidationCheck, ...]:
         return tuple(
-            ValidationCheck(check=name, enabled=True, passed=passed)
+            ValidationCheck(check=name, enabled=self._enabled[name], passed=passed)
             for name, passed in self._passed.items()
         )
 
@@ -364,7 +385,7 @@ def _normalise_quality_limits(value: Any) -> dict[str, Any]:
         )
 
         default_model_name = (
-            "hydrogen_ion_concentration_mol_l"
+            "hydrogen_ion_concentration_nmol_l"
             if transform == "ph_to_hydrogen_ion"
             else parameter_id
         )
@@ -378,7 +399,7 @@ def _normalise_quality_limits(value: Any) -> dict[str, Any]:
             )
         model_names.add(model_name)
 
-        default_model_unit = "mol/L" if transform == "ph_to_hydrogen_ion" else unit
+        default_model_unit = "nmol/L" if transform == "ph_to_hydrogen_ion" else unit
         model_unit = _required_text(
             specification.get("model_unit", default_model_unit),
             f"quality_limits.parameters.{parameter_id}.model_unit",
@@ -1166,7 +1187,19 @@ def load_scenario(
     else:
         raise DataLoadError('"data_source.type" must be either "supabase" or "inline".')
 
-    tracker = _CheckTracker(_LOADER_CHECK_NAMES)
+    disabled_checks: set[str] = set()
+    if not input_policy.fail_if_source_missing_from_database:
+        disabled_checks.add("source_exists_in_configured_data_source")
+    if not input_policy.fail_if_daily_availability_missing:
+        disabled_checks.add("source_withdrawal_bounds_present")
+    if not input_policy.fail_if_required_quality_value_missing:
+        disabled_checks.add("source_quality_values_numeric_and_finite")
+    if not input_policy.fail_if_demand_missing:
+        disabled_checks.add("demand_present_finite_and_non_negative")
+    if allow_estimated_values:
+        disabled_checks.add("estimated_values_allowed_by_policy")
+
+    tracker = _CheckTracker(_LOADER_CHECK_NAMES, disabled=disabled_checks)
 
     sources = _build_sources(
         source_config,
@@ -1216,7 +1249,7 @@ def load_scenario(
         plant_to_zone_links=zone_links,
         quality_limits=quality_limits,
         validation_issues=issues,
-        input_policy_validation=input_policy,
+        input_validation_policy=input_policy,
         loader_validation=loader_validation,
     )
 
