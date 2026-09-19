@@ -60,8 +60,6 @@ A subscript is an index; an overbar/underbar is an upper/lower bound.
 \subsection{Sets}
 
 \begin{tabularx}{\textwidth}{@{}lX@{}}
-    % You can change the table name if you'd like, since I see later you mention Table 1, 
-    % but I'm afraid they could not find ``Table 1''.
     \caption{Notations on sets of input parameters}
     \label{tab:sets}                                                                                                                                 \\
     \toprule
@@ -161,10 +159,6 @@ When $p$ is represented as a concentration, multiplying concentration by volume 
 For parameters such as turbidity measured in NTU, the cost is per NTU$\cdot$ML, which is not a mass; however, we assume it correlates to the mass of sediment that would produce that level of turbidity.
 
 \subsection{Decision variables}
-% {\color{red}
-%     Just for notation consistency. Since in \textbf{Tab. \ref{tab:parameters}}, you used $C_{st}$ to represent cost from source $s$ to plant $t$.
-%     Should we also use $c_{st}$ instead of $b_{st}$?  \color{blue}{I think in future yes but at the moment it would put all code/docs out of sync?}
-% }
 
 \begin{tabularx}{\textwidth}{@{}llll@{}}
     % Same reason.
@@ -413,10 +407,157 @@ Consequently, lower-bound compliance must be achieved through source selection a
 
 \section{Water quality formulation logic}
 
-% I don't want to directly change the current formulation
-% so I added another .tex, once we both agree with changes
-% we can merge them later
-\input{modified_water_quality.tex}
+Although nicely generic water quality constraints are presented above, i.e. \eqref{eq:inlet_treatability} to \eqref{eq:outlet_water_quality},
+we shall devote this section to interpret the quality parameters $p \in \mathcal P$ and how they are treated in plants.
+We confine ourselves to ``removal processes'', though our model can be extended to include more treatment processes, e.g. ``chemical dosing'', and thus, this section will be adapted to be consistent with the existing parameter notation while preserving the linear structure of the MILP.
+
+\subsection{Inlet treatability and Outlet water quality}
+
+In \eqref{eq:inlet_treatability}, we propose acceptance criteria with respect to the incoming $p \in \mathcal P$ at every plant $t \in \mathcal T$.
+Due to linearity assumption, we insist these quality parameters can be blended approximately linearly by volume, and the source value can be used directly from $Q_{sp}$.
+In this constraint, we avoid division by decision variables $b_{st}$, which result in a non–linear program, we write the constraint in load form.
+It can be understood as a volume–weighted average quality, rather than pure quality constraints.
+
+In \eqref{eq:outlet_water_quality}, we restrict the outgoing $p \in \mathcal P$ after undergoing the treatment processes at $t \in \mathcal T$ to be within a certain regulatory range.
+Likewise, to avoid division by decision variables $b_{st}$, we express the constraints in load form, or equivalently, volume–weighted average.
+
+\subsection{Turbidity}
+
+Turbidity measures the cloudiness of water and is associated with suspended particles such as sediment, organic matter, algae, clay, or runoff material.
+In water supply modelling, turbidity is important because high turbidity may increase treatment requirements and affect disinfection performance \cite{WHOTurbidity2011, Matos2024Turbidity, UMNTurbidity}.
+
+For turbidity, the quality parameter is represented by setting $p=\mathrm{turb}$.
+Thus, $Q_{s,\mathrm{turb}}$ denotes the turbidity value of source $s$, while $\underline{Q}_{\mathrm{turb}}$ and $\overline{Q}_{\mathrm{turb}}$ denote the lower and upper turbidity limits.
+
+Conveniently, the turbidity requirement is handled directly by replacing the sub–index $p$ with $\mathrm{turb}$.
+For example, \eqref{eq:inlet_treatability} becomes:
+
+\begin{equation*}
+    \underline{I}_{t,\mathrm{turb}} ~\sum_{s \in \mathcal{S}} b_{st}
+    \le \sum_{s \in \mathcal{S}}
+    Q_{s,\mathrm{turb}} ~b_{st} \le \overline{I}_{t,\mathrm{turb}} ~\sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T}.
+\end{equation*}
+
+\subsection{Alkalinity}
+
+Alkalinity measures the ability of water to neutralise acid \cite{ADWG2011, TestNeeds2025Alkalinity, PerfectWater2025Alkalinity}.
+It represents the buffering capacity of water and is relevant to $\mathrm{pH}$ stability, corrosion control, treatment performance, remineralisation, and water stability in distribution systems \cite{ADWG2011, PerfectWater2025Alkalinity}.
+
+For alkalinity, the quality parameter is represented by setting $p = \mathrm{alk}$.
+Thus, $Q_{s,\mathrm{alk}}$ denotes the alkalinity value of source $s$, while $\underline{Q}_{\mathrm{alk}}$ and $\overline{Q}_{\mathrm{alk}}$ denote the lower and upper alkalinity limits.
+
+Conveniently, the alkalinity requirement is handled directly by replacing the sub–index $p$ with $\mathrm{alk}$.
+For example, \eqref{eq:inlet_treatability} becomes:
+
+\begin{equation*}
+    \underline{I}_{t,\mathrm{alk}} ~\sum_{s \in \mathcal{S}} b_{st}
+    \le \sum_{s \in \mathcal{S}}
+    Q_{s,\mathrm{alk}} ~b_{st} \le \overline{I}_{t,\mathrm{alk}} ~\sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T}.
+\end{equation*}
+
+We highlight here that, according to \cite{who2004water}, removal process can only reduce alkalinity, though it can be increased by an adjustment process, which is not currently modelled.
+
+
+\subsection{pH transformation}
+
+Unlike turbidity and alkalinity, pH cannot be treated in any removal processes, but rather in other treatment processes, e.g. chemical dosing,  coagulation and lime softening \cite{who2004water}.
+
+More importantly, $\mathrm{pH}$ values are not averaged directly because direct $\mathrm{pH}$ averaging can produce a scientifically misleading blended value.
+Therefore, in our mathematical model, we consider its corresponding hydrogen ion.
+
+\begin{equation}\label{eq:ph_definition}
+    \mathrm{pH} = -\log_{10}([\mathrm{H}^{+}]),
+\end{equation}
+where $[\mathrm{H}^{+}]$ represents hydrogen ion concentration \cite{EPA2026pH}.
+
+To keep the MILP linear, $\mathrm{pH}$ is handled as a preprocessing transformation \cite{WHO2007pH}.
+For the $\mathrm{pH}$ quality parameter, $Q_{s,\mathrm{pH}}$ stores the transformed hydrogen ion concentration obtained from the raw source $\mathrm{pH}$ value:
+\begin{equation}\label{eq:ph_source_transformation}
+    Q_{s,\mathrm{pH}} = 10^{-\mathrm{pH}_s}.
+\end{equation}
+
+The symbols $\underline{\mathrm{pH}}$ and $\overline{\mathrm{pH}}$ represent the raw regulatory lower and upper limits in $\mathrm{pH}$ units.
+These raw limits are converted once during data preparation before being passed into the MILP.
+If the acceptable raw $\mathrm{pH}$ range is:
+\begin{equation}\label{eq:raw_ph_range}
+    \underline{\mathrm{pH}} \leq
+    \mathrm{pH}
+    \leq
+    \overline{\mathrm{pH}},
+\end{equation}
+then the corresponding transformed bounds stored for the $\mathrm{pH}$ quality parameter are:
+\begin{equation}\label{eq:ph_bound_transformation}
+    \underline{Q}_{\mathrm{pH}} = 10^{-\overline{\mathrm{pH}}},
+    \qquad
+    \overline{Q}_{\mathrm{pH}} = 10^{-\underline{\mathrm{pH}}}.
+\end{equation}
+
+The direction of the bounds changes because $\mathrm{pH}$ and hydrogen ion concentration are inversely related \cite{Fondriest2025pH}.
+A higher $\mathrm{pH}$ corresponds to a lower hydrogen ion concentration, while a lower $\mathrm{pH}$ corresponds to a higher hydrogen ion concentration.
+
+As mentioned earlier, pH cannot be handled by removal process; however, constraints from \eqref{eq:removal_process_initial} to \eqref{eq:outlet_water_quality} still hold, by setting $H_{tr,\mathrm{pH}} = 0, \forall r \in \mathcal R_t$.
+Hence, the constraint \eqref{eq:inlet_treatability} is also valid. Formally, this is:
+
+\begin{equation*}
+    \underline{I}_{t,\mathrm{pH}} ~\sum_{s \in \mathcal{S}} b_{st}
+    \le \sum_{s \in \mathcal{S}}
+    Q_{s,\mathrm{pH}} ~b_{st} \le \overline{I}_{t,\mathrm{pH}} ~\sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T}.
+\end{equation*}
+Followed from that, $\mathcal R_{t, \mathrm{pH}} = \emptyset$ and $n_{t, \mathrm{pH}} = 0$, and consequently, $\ell^{n_{tp}}_{t, \mathrm{pH}} = \ell^0_{t, \mathrm{pH}}$.
+
+\subsection{Blended pH recovery after optimisation}
+
+The optimisation model constrains $\mathrm{pH}$ through the transformed value $Q_{s,\mathrm{pH}}$.
+After the solver finds the optimal source to plant flows, the blended hydrogen ion concentration at plant $t$ is calculated as:
+\begin{equation}\label{eq:blended_ph_transformed}
+    Q^{\mathrm{blend}}_{t,\mathrm{pH}} = \frac{ \sum_{s \in \mathcal{S}} Q_{s,\mathrm{pH}} b_{st} }{ \sum_{s \in \mathcal{S}} b_{st} }.
+\end{equation}
+
+The blended $\mathrm{pH}$ is then recovered in post-processing as:
+\begin{equation}\label{eq:blended_ph_recovery}
+    \mathrm{pH}^{\mathrm{blend}}_{t}
+    =
+    -\log_{10}
+    \left(
+    Q^{\mathrm{blend}}_{t,\mathrm{pH}}
+    \right).
+\end{equation}
+
+This recovered $\mathrm{pH}$ value is not an MILP decision variable.
+It is a post-solve reporting value used for validation, interpretation, dashboard display, and output generation.
+
+\subsection{Linearity assumptions for water quality}
+\label{sec:model_axiom}
+The water quality formulation relies on simplifying assumptions that preserve linearity in the MILP.
+The key assumptions are:
+\begin{enumerate}[label=(\roman*), align=left, widest=viii]
+    \item Water from selected sources is completely mixed before quality is assessed.
+    \item The model represents a single time period, so temporal variation in water quality is not modelled.
+    \item Source quality values are fixed input parameters for the representative period.
+    \item Alkalinity and turbidity are approximated as volume-weighted linear blends.
+    \item Raw $\mathrm{pH}$ values are not averaged directly; $\mathrm{pH}$ is transformed before optimisation.
+    \item No nonlinear chemical reactions between blended sources are modelled.
+    \item Water quality is checked at each treatment plant, incoming quality is validated against $\overline{I}_{tp}$ and $\underline{I}_{tp}$ \eqref{eq:inlet_treatability} - \eqref{eq:inlet_treatability_neutral},
+            whereas outcoming quality is validated against $\overline{Q}_p$ and $\underline{Q}_p$ \eqref{eq:outlet_water_quality}.
+\end{enumerate}
+
+These assumptions allow the water quality constraints to remain linear and suitable for inclusion in the MILP formulation.
+
+\subsection{Assumptions for removal processes}
+\label{sec:removal_process_axiom}
+In practices, several designs for removal processes exist, see \cite{lower_murray_water2023, zouboulis2005improvement}. Therefore, we shall propose the following assumptions for convenience and simplicity.
+\begin{enumerate}[label=(\roman*), align=left, widest=viii]
+    \item Removal processes $\mathcal R_{tp}$ are conducted in a sequence.
+    \item A removal process $r_i \in \mathcal R_{t}$ can remove more than one $p \in \mathcal P$, appearing as $r_i \in \mathcal R_{tp}$ for each $p$.
+    \item Every process $r_i$ is only dependent on its preceeding process $r_{i - 1}$, see \eqref{eq:removal_process_balance}.
+    \item Maximum removal efficiency $H_{trp}$ is known.
+    \item Uniform treatment: $\sum_{s \in \mathcal S} b_{st}$ receives the same treatment.
+    \item No water loss after passing through $r_i \in \mathcal R_{tp}$.
+    \item Treatment only reduces a load, lower limits met by blending alone.
+    \item $\mathcal{R}_{tp}$ is an ordered sequence induced by $\mathcal{R}_{t}$.
+\end{enumerate}
+
+
 
 \section{Application to the toy model}\label{sec:toy}
 
@@ -476,6 +617,50 @@ The toy can therefore be built and tested first, then scaled up without reformul
 
 \clearpage
 \appendix
-\input{appendix.tex}
+\section{Implicit constraints}\label{sec:implicit_constraints}
+
+This appendix complements Section~\ref{sec:constraints} with inequalities that hold for the model but are not stated there explicitly. 
+The arc linking constraints, formerly known as $\gamma_{st}$ and $\delta_{tz}$, are completely removed from our model; however, once incorporating transferring arcs activation cost is essential, we shall include them to the objective function \eqref{eq:objective} and re–introduce them, and possibly extra constraints on them are needed.
+
+\paragraph{Closed nodes send no flow.}
+\begin{align}
+    b_{st} & \le \overline{W}_s\,\alpha_s, \quad \forall s \in \mathcal{S},\ t \in \mathcal{T}, \label{eq:closed_source} \\
+    c_{tz} & \le \overline{V}_t\,\beta_t, \quad \forall t \in \mathcal{T},\ z \in \mathcal{Z}. \label{eq:closed_plant}
+\end{align}
+By \eqref{eq:nonnegativity} and \eqref{eq:source_flow_conservation}, $b_{st} \le \sum_{t' \in \mathcal{T}} b_{st'} = a_s$, and $a_s \le \overline{W}_s\alpha_s$ by \eqref{eq:source_capacity}.
+Likewise, \eqref{eq:nonnegativity} and \eqref{eq:plant_flow_conservation} give $c_{tz} \le \sum_{z' \in \mathcal{Z}} c_{tz'} = \sum_{s \in \mathcal{S}} b_{st}$, which is at most $\overline{V}_t\beta_t$ by \eqref{eq:plant_capacity}.
+Hence a closed source or plant never sends water outwards.
+
+\paragraph{Total supply covers total demand.}
+Summing \eqref{eq:demand} over all zones and applying \eqref{eq:plant_flow_conservation}, \eqref{eq:source_flow_conservation} and \eqref{eq:source_capacity} gives
+\begin{equation}\label{eq:total_supply}
+    \sum_{s \in \mathcal{S}} \overline{W}_s\,\alpha_s
+    \ \ge\ \sum_{s \in \mathcal{S}} a_s
+    \ =\ \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} c_{tz}
+    \ \ge\ \sum_{z \in \mathcal{Z}} D_z.
+\end{equation}
+Whatever the routing, the active sources must have enough combined capacity to cover total demand, so no set of sources whose maximum withdrawals sum to less than $\sum_z D_z$ can be the active set.
+
+\paragraph{Blend bounds implied by outlet quality.}
+Combining \eqref{eq:outlet_water_quality} with \eqref{eq:removal_process_initial} gives, for every $t \in \mathcal{T}$ and $p \in \mathcal{P}$.
+\begin{equation}\label{eq:implied_blend_lower}
+    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+    ~\underbrace{\le \ell^{n_{tp}}_{tp}}_{\eqref{eq:outlet_water_quality}}
+    ~\underbrace{\le \ell^{0}_{tp}}_{\eqref{eq:removal_process_balance}}
+    ~\underbrace{= \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}}_{\eqref{eq:removal_process_initial}}
+\end{equation}
+This means a plant cannot correct a blend that is already below a lower limit, with only removal processes modelled; thereby, every lower regulatory limit must be met by source selection and blending, $\forall p \in \mathcal P$.
+Three cases follow.
+\begin{itemize}
+    \item If $\underline{Q}_p = 0$ is implied by non–negativity and \eqref{eq:implied_blend_lower} never binds.
+    \item If $\underline{Q}_p > 0$, as for alkalinity, \eqref{eq:implied_blend_lower} applies regardless of the processes installed at the plant, since none of them can help satisfy it.
+    \item If no process acts on $p$ (i.e. $\mathcal R_{tp} = \emptyset$ and $n_{tp} = 0$), then $\ell^{n_{tp}}_{tp} = \ell^{0}_{tp}$ and
+          \begin{equation*}
+              \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+              \le \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}
+              \le \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st},
+          \end{equation*}
+          so both limits must be met by blending alone.
+\end{itemize}
 
 \end{document}
