@@ -11,6 +11,7 @@ from src.preprocessing import preprocess_scenario, PreprocessingError
 
 # FIXTURES
 
+
 @pytest.fixture
 def toy_scenario():
     scenario_path = (
@@ -20,6 +21,7 @@ def toy_scenario():
         / "toy_scenario.json"
     )
     return load_scenario(scenario_path)
+
 
 @pytest.fixture
 def toy_parameters(toy_scenario):
@@ -46,14 +48,10 @@ def test_preprocess_scenario(toy_parameters):
 def test_preprocessing_rejects_validation_issues(toy_scenario):
     """Preprocessing should reject scenarios with loader validation issues."""
     invalid_scenario = replace(
-        toy_scenario,
-        validation_issues=("Test validation error",)
+        toy_scenario, validation_issues=("Test validation error",)
     )
 
-    with pytest.raises(
-        PreprocessingError,
-        match="validation issues"
-    ):
+    with pytest.raises(PreprocessingError, match="validation issues"):
         preprocess_scenario(invalid_scenario)
 
 
@@ -63,31 +61,26 @@ def test_preprocessing_rejects_validation_issues(toy_scenario):
 def test_identifiers_preserved(toy_scenario, toy_parameters):
     """Source, plant and zone IDs should survive preprocessing."""
     assert set(toy_parameters.source_ids) == {
-        source.source_id
-        for source in toy_scenario.sources
+        source.source_id for source in toy_scenario.sources
     }
 
     assert set(toy_parameters.plant_ids) == {
-        plant.plant_id
-        for plant in toy_scenario.plants
+        plant.plant_id for plant in toy_scenario.plants
     }
 
     assert set(toy_parameters.zone_ids) == {
-        zone.zone_id
-        for zone in toy_scenario.demand_zones
+        zone.zone_id for zone in toy_scenario.demand_zones
     }
 
 
 def test_network_arcs_preserved(toy_scenario, toy_parameters):
     """Network connections should be preserved during preprocessing."""
     expected_source_plant = {
-        (link.source_id, link.plant_id)
-        for link in toy_scenario.source_to_plant_links
+        (link.source_id, link.plant_id) for link in toy_scenario.source_to_plant_links
     }
 
     expected_plant_zone = {
-        (link.plant_id, link.zone_id)
-        for link in toy_scenario.plant_to_zone_links
+        (link.plant_id, link.zone_id) for link in toy_scenario.plant_to_zone_links
     }
 
     assert set(toy_parameters.source_plant_arcs) == expected_source_plant
@@ -97,58 +90,39 @@ def test_network_arcs_preserved(toy_scenario, toy_parameters):
 #  CORE VALUE PRESERVATION
 
 
-def test_cost_and_demand_values_preserved(
-    toy_scenario,
-    toy_parameters
-):
+def test_cost_and_demand_values_preserved(toy_scenario, toy_parameters):
     """Core costs and demands should retain their original values."""
 
     for source in toy_scenario.sources:
         sid = source.source_id
 
-        assert (
-            toy_parameters.source_fixed_cost[sid]
-            == source.fixed_activation_cost
-        )
+        assert toy_parameters.source_fixed_cost[sid] == source.fixed_activation_cost
 
         if source.cost_per_ml is not None:
-            assert (
-                toy_parameters.source_unit_cost[sid]
-                == source.cost_per_ml
-            )
+            assert toy_parameters.source_unit_cost[sid] == source.cost_per_ml
 
     for plant in toy_scenario.plants:
         pid = plant.plant_id
 
-        assert (
-            toy_parameters.plant_fixed_cost[pid]
-            == plant.fixed_activation_cost
-        )
+        assert toy_parameters.plant_fixed_cost[pid] == plant.fixed_activation_cost
 
         assert (
-            toy_parameters.plant_unit_treatment_cost[pid]
-            == plant.treatment_cost_per_ml
+            toy_parameters.plant_unit_treatment_cost[pid] == plant.treatment_cost_per_ml
         )
 
     for zone in toy_scenario.demand_zones:
-        assert (
-            toy_parameters.demand_by_zone[zone.zone_id]
-            == zone.demand_ml_per_day
-        )
-
+        assert toy_parameters.demand_by_zone[zone.zone_id] == zone.demand_ml_per_day
 
 
 # QUALITY PARAMETER CONSISTENCY
+
 
 def test_quality_parameters_are_complete(toy_parameters):
     """Every source should contain every configured quality parameter."""
 
     for source_id in toy_parameters.source_ids:
         for parameter_id in toy_parameters.quality_parameter_ids:
-            assert (
-                source_id,
-                parameter_id
-            ) in toy_parameters.source_quality
+            assert (source_id, parameter_id) in toy_parameters.source_quality
 
     for parameter_id in toy_parameters.quality_parameter_ids:
         assert parameter_id in toy_parameters.quality_lower_bound
@@ -168,13 +142,15 @@ def test_quality_bounds_are_valid(toy_parameters):
 
 # DETERMINISTIC TRANSFORMATION
 
+
 def test_preprocessing_is_deterministic(toy_scenario):
-    """The same scenario should always produce the same parameters."""
+    """Repeated preprocessing should match except for the unique run ID."""
     first = preprocess_scenario(toy_scenario)
     second = preprocess_scenario(toy_scenario)
 
-    assert first == second
-    
+    assert first.run_id != second.run_id
+    assert replace(first, run_id=second.run_id) == second
+
     assert first.source_ids == second.source_ids
     assert first.plant_ids == second.plant_ids
     assert first.zone_ids == second.zone_ids
@@ -185,31 +161,32 @@ def test_preprocessing_is_deterministic(toy_scenario):
     assert first.source_fixed_cost == second.source_fixed_cost
     assert first.plant_fixed_cost == second.plant_fixed_cost
 
+
 #  pH NUMERICAL SCALING
+
 
 def test_ph_transformation_is_correct(toy_scenario, toy_parameters):
     """pH should be converted to hydrogen ion concentration in nmol/L."""
-    
-    ph_parameter = next(
-    (
-        parameter_id
-        for parameter_id in toy_parameters.quality_parameter_ids
-        if "hydrogen" in parameter_id.lower()
-    ),
-    None
-)
 
-    assert ph_parameter is not None, \
-    "Hydrogen ion quality parameter was not created during preprocessing"
-     
+    ph_parameter = next(
+        (
+            parameter_id
+            for parameter_id in toy_parameters.quality_parameter_ids
+            if "hydrogen" in parameter_id.lower()
+        ),
+        None,
+    )
+
+    assert ph_parameter is not None, (
+        "Hydrogen ion quality parameter was not created during preprocessing"
+    )
+
     assert toy_parameters.quality_units[ph_parameter] == "nmol/L"
 
     for source in toy_scenario.sources:
         if "pH" in source.quality:
             expected = (10 ** (-source.quality["pH"])) * 1e9
 
-            actual = toy_parameters.source_quality[
-                (source.source_id, ph_parameter)
-            ]
+            actual = toy_parameters.source_quality[(source.source_id, ph_parameter)]
 
             assert actual == pytest.approx(expected)
