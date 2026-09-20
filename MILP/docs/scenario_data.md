@@ -350,7 +350,9 @@ Represents one directed network connection from a source to a plant.
 | `source_id` | `str` | Source at the start of the arc. | Arc key `(source_id, plant_id)` | Must reference an available source. |
 | `plant_id` | `str` | Plant at the end of the arc. | Arc key `(source_id, plant_id)` | Must reference an existing plant. |
 | `enabled` | `bool` | Indicates whether the route is enabled. | Topology filtering | Disabled arcs should not enter model arc sets. |
-| `maximum_flow_ml_per_day` | `float \| None` | Maximum daily link flow. | `source_plant_link_capacity[(source_id, plant_id)]` | Required, finite and non-negative for a usable link. |
+| `maximum_flow_ml_per_day` | `float \| None` | Maximum daily link flow. | `source_plant_link_capacity[(source_id, plant_id)]` |
+Required, finite and non-negative for a usable link. |
+| `transfer_cost_aud_per_ml` | `float \| None` | Variable transfer cost for each ML sent across the link. | Preprocessing and objective input | Optional; when supplied, must be finite and non-negative. `null` or omission means the cost is unknown, not zero. |
 
 ## 9.3 Formulation mapping
 
@@ -375,6 +377,7 @@ Represents one directed connection from a plant to a demand zone.
 | `zone_id` | `str` | Receiving demand zone. | Arc key `(plant_id, zone_id)` | Must reference an existing zone. |
 | `enabled` | `bool` | Indicates whether the route is enabled. | Topology filtering | Disabled arcs should not enter model arc sets. |
 | `maximum_flow_ml_per_day` | `float \| None` | Maximum daily link flow. | `plant_zone_link_capacity[(plant_id, zone_id)]` | Required, finite and non-negative for a usable link. |
+| `transfer_cost_aud_per_ml` | `float \| None` | Variable transfer cost for each ML sent across the link. | Preprocessing and objective input | Optional; when supplied, must be finite and non-negative. `null` or omission means the cost is unknown, not zero. |
 
 ## 10.3 Formulation mapping
 

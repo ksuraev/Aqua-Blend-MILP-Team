@@ -125,19 +125,22 @@
         "source_id": "225103",
         "plant_id": "facility_1",
         "enabled": true,
-        "maximum_flow_ml_per_day": 700.0
+        "maximum_flow_ml_per_day": 700.0,
+        "transfer_cost_aud_per_ml": 0.25
       },
       {
         "source_id": "229421",
         "plant_id": "facility_1",
         "enabled": true,
-        "maximum_flow_ml_per_day": 300.0
+        "maximum_flow_ml_per_day": 300.0,
+        "transfer_cost_aud_per_ml": 0.35
       },
       {
         "source_id": "233217",
         "plant_id": "facility_1",
         "enabled": true,
-        "maximum_flow_ml_per_day": 680.0
+        "maximum_flow_ml_per_day": 680.0,
+        "transfer_cost_aud_per_ml": 0.45
       }
     ],
     "plant_to_zone_links": [
@@ -145,7 +148,9 @@
         "plant_id": "facility_1",
         "zone_id": "zone_1",
         "enabled": true,
-        "maximum_flow_ml_per_day": 1680.0
+        "maximum_flow_ml_per_day": 1680.0,
+        "transfer_cost_aud_per_ml": 0.15
+
       }
     ]
   },

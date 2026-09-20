@@ -224,7 +224,10 @@ def test_missing_daily_availability_fails_by_default(tmp_path: Path) -> None:
     del config["data_source"]["source_rows"][0]["max_available_ml_per_day"]
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(scenario.loader_validation, "source_withdrawal_bounds_present").passed is False
+    assert (
+        _check(scenario.loader_validation, "source_withdrawal_bounds_present").passed
+        is False
+    )
     assert scenario.loader_validation.status == "FAILED"
 
 
@@ -249,7 +252,12 @@ def test_missing_quality_value_fails_by_default(tmp_path: Path) -> None:
     del config["data_source"]["source_rows"][0]["turbidity_ntu"]
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(scenario.loader_validation, "source_quality_values_numeric_and_finite").passed is False
+    assert (
+        _check(
+            scenario.loader_validation, "source_quality_values_numeric_and_finite"
+        ).passed
+        is False
+    )
     assert scenario.loader_validation.status == "FAILED"
 
 
@@ -265,8 +273,18 @@ def test_missing_quality_value_still_fails_key_match_when_policy_relaxed(
     del config["data_source"]["source_rows"][0]["turbidity_ntu"]
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(scenario.loader_validation, "source_quality_values_numeric_and_finite").passed is True
-    assert _check(scenario.loader_validation, "source_quality_keys_match_quality_limits").passed is False
+    assert (
+        _check(
+            scenario.loader_validation, "source_quality_values_numeric_and_finite"
+        ).passed
+        is True
+    )
+    assert (
+        _check(
+            scenario.loader_validation, "source_quality_keys_match_quality_limits"
+        ).passed
+        is False
+    )
     assert scenario.loader_validation.status == "FAILED"
 
 
@@ -276,7 +294,12 @@ def test_missing_demand_fails_by_default(tmp_path: Path) -> None:
     config["network"]["demand_zones"][0]["demand_ml_per_day"] = None
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(scenario.loader_validation, "demand_present_finite_and_non_negative").passed is False
+    assert (
+        _check(
+            scenario.loader_validation, "demand_present_finite_and_non_negative"
+        ).passed
+        is False
+    )
 
 
 def test_missing_demand_allowed_when_policy_relaxed(tmp_path: Path) -> None:
@@ -296,7 +319,10 @@ def test_estimated_values_rejected_unless_allowed(tmp_path: Path) -> None:
     config["data_source"]["source_rows"][0]["cost_is_estimated"] = True
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(scenario.loader_validation, "estimated_values_allowed_by_policy").passed is False
+    assert (
+        _check(scenario.loader_validation, "estimated_values_allowed_by_policy").passed
+        is False
+    )
 
 
 def test_estimated_values_allowed_when_policy_permits(tmp_path: Path) -> None:
@@ -342,9 +368,13 @@ def test_source_withdrawal_min_greater_than_max_soft_fails(tmp_path: Path) -> No
     config["data_source"]["source_rows"][0]["max_available_ml_per_day"] = 5.0
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(
-        scenario.loader_validation, "source_withdrawal_bounds_non_negative_and_ordered"
-    ).passed is False
+    assert (
+        _check(
+            scenario.loader_validation,
+            "source_withdrawal_bounds_non_negative_and_ordered",
+        ).passed
+        is False
+    )
 
 
 def test_negative_source_cost_soft_fails(tmp_path: Path) -> None:
@@ -353,9 +383,12 @@ def test_negative_source_cost_soft_fails(tmp_path: Path) -> None:
     config["data_source"]["source_rows"][0]["cost_per_ml"] = -1.0
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(
-        scenario.loader_validation, "source_cost_present_finite_and_non_negative"
-    ).passed is False
+    assert (
+        _check(
+            scenario.loader_validation, "source_cost_present_finite_and_non_negative"
+        ).passed
+        is False
+    )
 
 
 def test_plant_capacity_min_greater_than_max_soft_fails(tmp_path: Path) -> None:
@@ -365,10 +398,13 @@ def test_plant_capacity_min_greater_than_max_soft_fails(tmp_path: Path) -> None:
     config["network"]["plants"][0]["maximum_processing_capacity_ml_per_day"] = 10.0
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(
-        scenario.loader_validation,
-        "plant_capacity_bounds_finite_non_negative_and_ordered",
-    ).passed is False
+    assert (
+        _check(
+            scenario.loader_validation,
+            "plant_capacity_bounds_finite_non_negative_and_ordered",
+        ).passed
+        is False
+    )
 
 
 def test_negative_link_capacity_soft_fails(tmp_path: Path) -> None:
@@ -377,9 +413,12 @@ def test_negative_link_capacity_soft_fails(tmp_path: Path) -> None:
     config["network"]["source_to_plant_links"][0]["maximum_flow_ml_per_day"] = -5.0
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(
-        scenario.loader_validation, "link_capacities_finite_and_non_negative"
-    ).passed is False
+    assert (
+        _check(
+            scenario.loader_validation, "link_capacities_finite_and_non_negative"
+        ).passed
+        is False
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -394,7 +433,10 @@ def test_duplicate_enabled_plant_ids_soft_fails(tmp_path: Path) -> None:
     config["network"]["plants"].append(duplicate_plant)
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(scenario.loader_validation, "plant_ids_present_and_unique").passed is False
+    assert (
+        _check(scenario.loader_validation, "plant_ids_present_and_unique").passed
+        is False
+    )
 
 
 def test_link_referencing_unknown_plant_soft_fails(tmp_path: Path) -> None:
@@ -403,9 +445,12 @@ def test_link_referencing_unknown_plant_soft_fails(tmp_path: Path) -> None:
     config["network"]["plant_to_zone_links"][0]["plant_id"] = "unknown_plant"
     scenario = load_scenario(_write(tmp_path, config), strict=False)
 
-    assert _check(
-        scenario.loader_validation, "plant_to_zone_links_unique_and_valid"
-    ).passed is False
+    assert (
+        _check(
+            scenario.loader_validation, "plant_to_zone_links_unique_and_valid"
+        ).passed
+        is False
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -458,3 +503,43 @@ def test_non_strict_mode_returns_scenario_instead_of_raising(tmp_path: Path) -> 
 
     assert scenario.is_ready is False
     assert scenario.validation_issues
+
+
+def test_transfer_costs_are_loaded(tmp_path: Path) -> None:
+    """Valid transfer costs are carried into both link contracts."""
+    config = _config()
+    config["network"]["source_to_plant_links"][0]["transfer_cost_aud_per_ml"] = 0.25
+    config["network"]["plant_to_zone_links"][0]["transfer_cost_aud_per_ml"] = 0.15
+
+    scenario = load_scenario(_write(tmp_path, config), strict=True)
+
+    assert scenario.source_to_plant_links[0].transfer_cost_aud_per_ml == pytest.approx(
+        0.25
+    )
+    assert scenario.plant_to_zone_links[0].transfer_cost_aud_per_ml == pytest.approx(
+        0.15
+    )
+
+
+def test_missing_transfer_costs_default_to_none(tmp_path: Path) -> None:
+    """Legacy link data without transfer costs remains supported."""
+    scenario = load_scenario(_write(tmp_path, _config()), strict=True)
+
+    assert scenario.source_to_plant_links[0].transfer_cost_aud_per_ml is None
+    assert scenario.plant_to_zone_links[0].transfer_cost_aud_per_ml is None
+
+
+def test_negative_transfer_cost_soft_fails(tmp_path: Path) -> None:
+    """A negative transfer cost is reported by loader validation."""
+    config = _config()
+    config["network"]["source_to_plant_links"][0]["transfer_cost_aud_per_ml"] = -0.25
+
+    scenario = load_scenario(_write(tmp_path, config), strict=False)
+
+    assert (
+        _check(
+            scenario.loader_validation,
+            "link_transfer_costs_finite_and_non_negative",
+        ).passed
+        is False
+    )
