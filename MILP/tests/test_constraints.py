@@ -14,6 +14,7 @@ from src.preprocessing import ModelParameters
 def parameters() -> ModelParameters:
     """Create a small parameter object for constraint testing."""
     return ModelParameters(
+        scenario_id="constraints_test",
         source_ids=("S1", "S2"),
         plant_ids=("T1",),
         zone_ids=("Z1",),
@@ -73,6 +74,7 @@ def two_plant_parameters() -> ModelParameters:
     Both sources flow to both plants, and both plants flow to the zone.
     """
     return ModelParameters(
+        scenario_id="constraints_test",
         source_ids=("S1", "S2"),
         plant_ids=("T1", "T2"),
         zone_ids=("Z1",),

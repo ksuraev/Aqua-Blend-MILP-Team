@@ -14,6 +14,7 @@ from src.preprocessing import ModelParameters
 def parameters() -> ModelParameters:
     """Return a small complete parameter object for component testing."""
     return ModelParameters(
+        scenario_id="model_components_test",
         source_ids=("source_1", "source_2"),
         plant_ids=("plant_1",),
         zone_ids=("zone_1",),
@@ -194,6 +195,7 @@ def test_objective_uses_all_four_cost_components(
 
 def test_objective_supports_one_source_connected_to_multiple_plants() -> None:
     parameters = ModelParameters(
+        scenario_id="multi_plant_model_test",
         source_ids=("source_1",),
         plant_ids=("plant_1", "plant_2"),
         zone_ids=("zone_1",),
