@@ -419,7 +419,7 @@ Each process $r_{i}$ removes some of what it receives and passes on the rest:
     \ell^i_{tp} = \ell^{i-1}_{tp} - e_{t r_i p},
     \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_{tp}.
 \end{equation}
-The load leaving the plant is what remains after the final process, $\ell^{n_{tp}}_{tp}$.
+The load remaining after the final relevant removal process is  $\ell^{n_{tp}}_{tp}$.
 
 \paragraph{Removal capability.}
 Each process removes no more than a fixed fraction $H_{t r_i p}$ of the arriving load, based on what was passed on by the previous process rather than the total load that arrived at the plant.
@@ -827,7 +827,6 @@ In practices, several designs for removal processes exist, see \cite{lower_murra
     \item Maximum removal efficiency $H_{trp}$ is known.
     \item Uniform treatment: $\sum_{s \in \mathcal S} b_{st}$ receives the same treatment.
     \item No water loss after passing through $r_i \in \mathcal R_{tp}$.
-    \item Treatment only reduces a load, lower limits met by blending alone.
     \item $\mathcal{R}_{tp}$ is an ordered sequence induced by $\mathcal{R}_{t}$.
 \end{enumerate}
 
@@ -836,18 +835,18 @@ In practices, several designs for removal processes exist, see \cite{lower_murra
 \subsection{Assumptions for chemical dosing}
 
 The chemical dosing formulation uses the following simplifying assumptions:
-\begin{itemize}
+\begin{enumerate}[label=(\roman*), align=left, widest=vii]
     \item Chemical mass is the primary optimisation decision and is measured in kg/day.
     \item Dose rate limits are specified in mg/L and are converted to equivalent daily mass bounds through plant throughput.
     \item Chemical dosing is optional and can occur only for chemicals in $\mathcal{K}_t$ and when plant $t$ is active.
     \item Chemical additions are completely mixed with the treated plant flow before outlet quality is assessed.
     \item The formulation assumes that chemical dosing occurs as a separate stage following the parameter-specific removal sequence $\mathcal{R}_{tp}$.
     \item The coefficient $\eta_{cp}$ is fixed for the representative period and already reflects any purity or equivalent conversion required by the supported relationship.
-    \item Chemical interactions, reaction kinetics, decay, and other nonlinear dose-response behaviour are outside the MILP unless represented by a separately justified linear approximation.
-\end{itemize}
+    \item Chemical interactions, reaction kinetics, decay, and other nonlinear dose response behaviour are outside the MILP unless represented by a separately justified linear approximation.
+\end{enumerate}
 
-The assumptions in Section~\ref{sec:removal_process_axiom} apply specifically to the removal-process subsystem.
-The chemical dosing stage is modelled separately after that sequence, so supported chemical additions may adjust lower-bound quality requirements without changing the removal-process equations.
+The assumptions in Section~\ref{sec:removal_process_axiom} apply specifically to the removal process subsystem.
+The chemical dosing stage is modelled separately after that sequence, so supported chemical additions may adjust lower-bound quality requirements without changing the removal process equations.
 
 \section{Application to the toy model}\label{sec:toy}
 
@@ -932,26 +931,105 @@ Summing \eqref{eq:demand} over all zones and applying \eqref{eq:plant_flow_conse
 \end{equation}
 Whatever the routing, the active sources must have enough combined capacity to cover total demand, so no set of sources whose maximum withdrawals sum to less than $\sum_z D_z$ can be the active set.
 
-\paragraph{Blend bounds implied by outlet quality.}
-Combining \eqref{eq:outlet_water_quality} with \eqref{eq:removal_process_initial} gives, for every $t \in \mathcal{T}$ and $p \in \mathcal{P}$.
-\begin{equation}\label{eq:implied_blend_lower}
-    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
-    ~\underbrace{\le \ell^{n_{tp}}_{tp}}_{\eqref{eq:outlet_water_quality}}
-    ~\underbrace{\le \ell^{0}_{tp}}_{\eqref{eq:removal_process_balance}}
-    ~\underbrace{= \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}}_{\eqref{eq:removal_process_initial}}
+\paragraph{Final quality bounds implied by removal and chemical treatment.}
+Repeated application of the removal process balance \eqref{eq:removal_process_balance} across the ordered sequence $\mathcal{R}_{tp}=(r_1,\dots,r_{n_{tp}})$ gives
+\begin{equation}\label{eq:implicit_removal_load}
+    \ell^{n_{tp}}_{tp}
+    =
+    \ell^{0}_{tp}
+    -
+    \sum_{i=1}^{n_{tp}} e_{t r_i p},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
 \end{equation}
-This means a plant cannot correct a blend that is already below a lower limit, with only removal processes modelled; thereby, every lower regulatory limit must be met by source selection and blending, $\forall p \in \mathcal P$.
+Using the incoming load definition \eqref{eq:removal_process_initial}, this becomes
+\begin{equation}\label{eq:implicit_removal_load_sources}
+    \ell^{n_{tp}}_{tp}
+    =
+    \sum_{s \in \mathcal{S}} Q_{sp}\,b_{st}
+    -
+    \sum_{i=1}^{n_{tp}} e_{t r_i p},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+\end{equation}
+
+The chemical quality stage \eqref{eq:final_treatment_load} then adds the supported chemical contributions to the remaining removal-stage load.
+Combining \eqref{eq:implicit_removal_load_sources}, \eqref{eq:final_treatment_load}, and the outlet quality constraint
+\eqref{eq:outlet_water_quality} gives, for every $t \in \mathcal{T}$ and $p \in \mathcal{P}$,
+\begin{equation}\label{eq:implicit_final_quality_bounds}
+    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+    \le
+    \ell^{n_{tp}+1}_{tp}
+    =
+    \sum_{s \in \mathcal{S}} Q_{sp}\,b_{st}
+    -
+    \sum_{i=1}^{n_{tp}} e_{t r_i p}
+    +
+    \sum_{c \in \mathcal{K}_t} \eta_{cp}m_{tc}
+    \le
+    \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st}.
+\end{equation}
+
+Unlike the removal only case, a positive lower regulatory limit does not necessarily have to be met by source selection and blending alone.
+Removal processes can only reduce the load passed through the removal sequence, while supported chemical additions with $\eta_{cp}>0$ can increase the final treated load.
 Three cases follow.
 \begin{itemize}
-    \item If $\underline{Q}_p = 0$ is implied by non–negativity and \eqref{eq:implied_blend_lower} never binds.
-    \item If $\underline{Q}_p > 0$, as for alkalinity, \eqref{eq:implied_blend_lower} applies regardless of the processes installed at the plant, since none of them can help satisfy it.
-    \item If no process acts on $p$ (i.e. $\mathcal R_{tp} = \emptyset$ and $n_{tp} = 0$), then $\ell^{n_{tp}}_{tp} = \ell^{0}_{tp}$ and
+    \item If $\underline{Q}_p = 0$, the lower bound in \eqref{eq:implicit_final_quality_bounds} is implied by the non-negativity of $\ell^{n_{tp}+1}_{tp}$ in \eqref{eq:nonnegativity}.
+
+    \item If $\eta_{cp}>0$ for at least one $c\in\mathcal{K}_t$, chemical dosing may contribute to satisfying the lower regulatory limit through the final treatment-stage relation \eqref{eq:final_treatment_load}.
+
+    \item If no supported chemical effect exists for parameter $p$ at plant $t$, so that
+          \begin{equation*}
+              \eta_{cp}=0,
+              \qquad
+              \forall c\in\mathcal{K}_t,
+          \end{equation*}
+          then \eqref{eq:final_treatment_load} gives
+          \begin{equation*}
+              \ell^{n_{tp}+1}_{tp}
+              =
+              \ell^{n_{tp}}_{tp}.
+          \end{equation*}
+          Since removal processes only reduce load,
+          \begin{equation*}
+              \ell^{n_{tp}}_{tp}
+              \le
+              \ell^0_{tp}
+              =
+              \sum_{s\in\mathcal{S}}Q_{sp}b_{st},
+          \end{equation*}
+          so a positive lower regulatory limit must already be satisfied by the incoming blend.
+          If, in addition, no removal process acts on $p$ (i.e.\ $\mathcal{R}_{tp}=\emptyset$ and $n_{tp}=0$), then
+          \begin{equation*}
+              \ell^{n_{tp}+1}_{tp}
+              =
+              \ell^0_{tp}
+              =
+              \sum_{s\in\mathcal{S}}Q_{sp}b_{st},
+          \end{equation*}
+          and the outlet quality constraint reduces to
           \begin{equation*}
               \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
-              \le \sum_{s \in \mathcal{S}} Q_{sp}\, b_{st}
-              \le \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st},
+              \le
+              \sum_{s \in \mathcal{S}} Q_{sp}\,b_{st}
+              \le
+              \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st},
           \end{equation*}
-          so both limits must be met by blending alone.
+          so both regulatory limits must be met by blending alone.
 \end{itemize}
+
+\paragraph{Inactive plants cannot dose chemicals.}
+Combining the chemical mass activation constraint \eqref{eq:chemical_mass_activation} with the chemical activation constraint \eqref{eq:chemical_activation} gives
+\begin{equation}\label{eq:implicit_chemical_plant_activation}
+    m_{tc}
+    ~\underbrace{\le
+    \overline{\rho}_{tc}\,\overline{V}_t\,\kappa_{tc}}_{\eqref{eq:chemical_mass_activation}}
+    ~\underbrace{\le
+    \overline{\rho}_{tc}\,\overline{V}_t\,\beta_t}_{\eqref{eq:chemical_activation}},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall c \in \mathcal{K}_t.
+\end{equation}
+Therefore, if plant $t$ is inactive ($\beta_t=0$), then \eqref{eq:chemical_activation} forces $\kappa_{tc}=0$ and \eqref{eq:chemical_mass_activation} forces $m_{tc}=0$.
+Hence an inactive treatment plant cannot dose chemicals.
 
 \end{document}
