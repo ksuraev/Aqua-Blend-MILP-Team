@@ -1,11 +1,11 @@
 """Test that json sample contracts match the classes in the output contract"""
 
-import src.contracts as contracts
-
 import dataclasses
 import json
 import typing
 from pathlib import Path
+
+from src import contracts
 
 # Add all relevant contract paths here
 CONTRACT_PATHS = sorted(
