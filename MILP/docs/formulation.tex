@@ -1,20 +1,26 @@
-\PassOptionsToPackage{hidelinks}{hyperref}
 \documentclass[10pt]{article}
 \usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{lmodern}
 \usepackage{amsmath,amssymb}
 \usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{ltablex}
+\keepXColumns
 \usepackage{enumitem}
 \usepackage{caption}
 \usepackage{parskip}
-\captionsetup{hypcap=false}
 \usepackage{tikz}
 \usetikzlibrary{positioning}
+
 \usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
 \usepackage{xurl}
 
+\renewcommand{\arraystretch}{1.2}
+\captionsetup{hypcap=false}
+
 \title{\textbf{Aquablend --- MILP Mathematical Formulation}}
 \author{MILP Stream}
-\date{\today}
+\date{}
 
 \begin{document}
 \maketitle
@@ -27,87 +33,208 @@ The question this model answers is:
 which sources should be drawn from, how much from each, and how should that water be routed to plants and zones, so that demand is met, and water quality stays within safe limits, at the lowest possible cost?
 
 This is formulated as a Mixed-Integer Linear Program (MILP).
-Whether a source, plant, or transfer link is used at all is a binary decision; how much water is drawn or flows along each link is a continuous decision.
+Source, plant, removal-process, and chemical-dosing activation decisions are binary, while water flows, removal loads, and chemical masses are continuous.
+Transfer links are represented directly by continuous flow variables and capacity limits because the current formulation does not assign fixed activation costs to arcs.
 The objective balances fixed activation costs against the variable cost of drawing, transferring and treating water.
 
-Treatment cost here is a flat rate per megalitre (ML) processed, and water quality only enters as a feasibility requirement:
-a blend must stay within limits, but blending sources more favourably does not itself lower the treatment cost.
-Modelling that difference, where a better blend reduces treatment cost, is a future enhancement.
+Treatment is modelled in three parts.
+A flat rate per megalitre (ML) covers the cost of operating a plant, each removal process is charged based on the load it removes, and chemical dosing is charged based on the mass of chemical used.
+The load-based removal cost and chemical dosing cost make source blending an economic decision rather than purely a feasibility problem:
+a cheaper but more contaminated source may incur higher treatment costs than a cleaner, more expensive source.
+Removal processes reduce parameter loads, while chemical dosing can add load for supported quality parameters where a defensible linear conversion is available.
+This allows the model to represent both removal of excessive constituents and chemical adjustment used to meet required lower quality limits.
 
-The toy case works with the simplest version of this problem:
+The toy case considers the simplest version of this problem:
 one treatment plant and one demand zone, fed by several candidate sources.
 With only one plant and one zone, there is no routing choice to make:
-every source that's switched on sends its full draw to the plant, and the plant sends everything on to the zone.
-As a result, the model reduces to deciding which sources to activate and how much to draw from each.
-Section~\ref{sec:toy} below derives this toy case as a special case of the general network formulation, so the same model scales up to multiple plants and zones later without being rebuilt from scratch.
+every active source sends its full withdrawal to the plant, and the plant sends its entire outflow to the demand zone.
+As a result, the routing variables are determined by the source withdrawals, leaving the model to determine which sources to activate, how much to draw from each, and any required treatment decisions.
+Section~\ref{sec:toy} derives this toy case as a special case of the general network formulation, so the same formulation can later be extended to multiple plants and zones without being rebuilt from scratch.
 
 \section{Notation}
 
 \paragraph{Convention.}
 This is a single-period model (one representative day), so no day index is used.
-Parameters are uppercase; decision variables are lowercase, using Greek letters for binary decisions and lowercase Latin for continuous volumes.
+Parameters are uppercase; decision variables are lowercase, using Greek letters for binary decisions and lowercase Latin for continuous quantities.
 A subscript is an index; an overbar/underbar is an upper/lower bound.
 
 \subsection{Sets}
-\begin{center}
-    \begin{tabular}{@{}ll@{}}
-        \toprule
-        \textbf{Notation} & \textbf{Description}                                 \\
-        \midrule
-        $\mathcal{S}$     & set of water sources, $s \in \mathcal{S}$            \\
-        $\mathcal{T}$     & set of treatment plants, $t \in \mathcal{T}$         \\
-        $\mathcal{Z}$     & set of demand zones, $z \in \mathcal{Z}$             \\
-        $\mathcal{P}$     & set of water quality parameters, $p \in \mathcal{P}$ \\
-        \bottomrule
-    \end{tabular}
-\end{center}
+
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+    \caption{Notations on sets of input parameters}
+    \label{tab:sets}                                                                                                                                 \\
+    \toprule
+    \textbf{Notation}  & \textbf{Description}                                                                                                        \\
+    \midrule
+    \endfirsthead
+
+    \toprule
+    \textbf{Notation}  & \textbf{Description}                                                                                                        \\
+    \midrule
+    \endhead
+
+    \midrule
+    \multicolumn{2}{r}{\emph{Continued on next page}}                                                                                                \\
+    \endfoot
+    \bottomrule
+    \endlastfoot
+    $\mathcal{S}$      & set of water sources, $s \in \mathcal{S}$                                                                                   \\
+    $\mathcal{T}$      & set of treatment plants, $t \in \mathcal{T}$                                                                                \\
+    $\mathcal{Z}$      & set of demand zones, $z \in \mathcal{Z}$                                                                                    \\
+    $\mathcal{P}$      & set of water quality parameters, $p \in \mathcal{P}$                                                                        \\
+    $\mathcal{R}$      & set of removal processes, $r \in \mathcal{R}$                                                                               \\
+    $\mathcal{R}_t$    & all removalprocesses installed at plant $t$ regardless of what parameters they act on, $\mathcal R_t \subseteq \mathcal{R}$ \\
+    $\mathcal{R}_{tp}$ & removal processes installed at plant $t$ acting on parameter $p$, as an ordered sequence
+    $r_1, \dots, r_{n_{tp}}$ drawn from $\mathcal{R}_t$, in the order water
+    flows through them                                                                                                                               \\
+    $\mathcal{K}$       & set of treatment chemicals and additives, $c \in \mathcal{K}$                                                              \\
+    $\mathcal{K}_t$     & subset of treatment chemicals and additives available for dosing at plant $t$, with $\mathcal{K}_t \subseteq \mathcal{K}$   \\
+\end{tabularx}
+$n_{tp} = |\mathcal{R}_{tp}|$ is written with the index because plants differ in how many processes they run, and how many processes in a plant act on a parameter.
+For example, a plant with three processes removing alkalinity has $n_{t, \mathrm{alk}} = 3$, while one with a single removal process diminishing turbidity alone has $n_{t, \mathrm{turb}} = 1$.
+
+The plant-specific set $\mathcal{K}_t$ represents chemical availability at plant $t$.
+Unlike the parameter-specific ordered removal sequence $\mathcal{R}_{tp}$, $\mathcal{K}_t$ is an unordered subset containing only the chemicals and additives that can be dosed at plant $t$.
 
 \subsection{Parameters}
-\begin{center}
-    \begin{tabular}{@{}lll@{}}
-        \toprule
-        \textbf{Notation}   & \textbf{Description}                                         & \textbf{Units} \\
-        \midrule
-        $D_{z}$             & volume of water to deliver to demand zone $z$                & ML/day         \\
-        $F_{s}$             & fixed cost of activating source $s$                          & \$/day         \\
-        $F_{t}$             & fixed cost of activating treatment plant $t$                 & \$/day         \\
-        $C_{s}$             & unit cost of drawing water from source $s$                   & \$/ML          \\
-        $C_{t}$             & unit treatment cost at plant $t$                             & \$/ML          \\
-        $C_{st}$            & unit cost of transferring water from source $s$ to plant $t$ & \$/ML          \\
-        $C_{tz}$            & unit cost of transferring water from plant $t$ to zone $z$   & \$/ML          \\
-        $\underline{W}_{s}$ & minimum daily withdrawal from source $s$                     & ML/day         \\
-        $\overline{W}_{s}$  & maximum daily withdrawal from source $s$                     & ML/day         \\
-        $\underline{V}_{t}$ & minimum daily throughput of plant $t$                        & ML/day         \\
-        $\overline{V}_{t}$  & maximum daily throughput of plant $t$                        & ML/day         \\
-        $\overline{L}_{st}$ & maximum flow on the link from source $s$ to plant $t$        & ML/day         \\
-        $\overline{L}_{tz}$ & maximum flow on the link from plant $t$ to zone $z$          & ML/day         \\
-        $Q_{sp}$            & value of quality parameter $p$ in source $s$                 & units of $p$   \\
-        $\underline{Q}_{p}$ & lower regulatory limit for parameter $p$                     & units of $p$   \\
-        $\overline{Q}_{p}$  & upper regulatory limit for parameter $p$                     & units of $p$   \\
-        \bottomrule
-    \end{tabular}
-\end{center}
+\begin{tabularx}{\textwidth}{@{}lXl@{}}
+    % Same reason.
+    \caption{Notations on input parameters}
+    \label{tab:parameters}                                                                                                                                  \\
+    \toprule
+    \textbf{Notation}    & \textbf{Description}                                                                                  & \textbf{Units}           \\
+    \midrule
+    \endfirsthead
+
+    \toprule
+    \textbf{Notation}    & \textbf{Description}                                                                                  & \textbf{Units}           \\
+    \midrule
+    \endhead
+
+    \midrule
+    \multicolumn{3}{r}{\emph{Continued on next page}}                                                                                                       \\
+    \endfoot
+
+    \bottomrule
+    \endlastfoot
+
+    \multicolumn{3}{@{}l}{\emph{Demand}}                                                                                                                    \\
+    $D_{z}$              & volume of water to deliver to demand zone $z$                                                         & ML/day                   \\[0.4em]
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Sources}}                                                                                                                   \\
+
+    $F_{s}$              & fixed cost of activating source $s$                                                                   & \$/day                   \\
+    $C_{s}$              & unit cost of drawing water from source $s$                                                            & \$/ML                    \\
+    $\underline{W}_{s}$  & minimum daily withdrawal from source $s$                                                              & ML/day                   \\
+    $\overline{W}_{s}$   & maximum daily withdrawal from source $s$                                                              & ML/day                   \\[0.4em]
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Treatment plants}}                                                                                                          \\
+    $F_{t}$              & fixed cost of activating treatment plant $t$                                                          & \$/day                   \\
+
+    $C_{t}$              & unit treatment cost at plant $t$                                                                      & \$/ML                    \\
+    $\underline{V}_{t}$  & minimum daily throughput of plant $t$                                                                 & ML/day                   \\
+    $\overline{V}_{t}$   & maximum daily throughput of plant $t$                                                                 & ML/day                   \\[0.4em]
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Arcs}}                                                                                                                      \\
+    $\overline{L}_{st}$  & maximum flow on the arc from source $s$ to plant $t$                                                  & ML/day                   \\
+    $\overline{L}_{tz}$  & maximum flow on the arc from plant $t$ to zone $z$                                                    & ML/day                   \\
+    $C_{st}$             & unit cost of transferring water from source $s$ to plant $t$                                          & \$/ML                    \\
+    $C_{tz}$             & unit cost of transferring water from plant $t$ to zone $z$                                            & \$/ML                    \\[0.4em]
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Water quality}}                                                                                                             \\
+    $Q_{sp}$             & value of quality parameter $p$ in source $s$                                                          & units of $p$             \\
+    $\underline{Q}_{p}$  & lower regulatory limit for parameter $p$                                                              & units of $p$             \\
+    $\overline{Q}_{p}$   & upper regulatory limit for parameter $p$                                                              & units of $p$             \\
+    $\underline{I}_{tp}$ & minimum value of $p$ that plant $t$ can accept                                                        & units of $p$             \\
+    $\overline{I}_{tp}$  & maximum value of $p$ that plant $t$ can accept                                                        & units of $p$             \\[0.4em]
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Removal processes}}                                                                                                         \\
+    $F_{tr}$             & fixed daily cost of operating process $r$ at plant $t$                                                & \$/day                   \\
+    $C_{trp}$            & cost per unit of load of $p$ removed by process $r$ at plant $t$                                      & \$/(units of $p\cdot$ML) \\
+    $H_{trp}$            & maximum fraction of the load of $p$ removable by process $r$ at plant $t$, with $0 \le H_{trp} \le 1$ & ---                      \\[0.4em]
+    \midrule
+    \multicolumn{3}{@{}l}{\emph{Chemical dosing}}                                                                                                             \\
+    $C^{\mathrm{chem}}_{tc}$ & unit purchase cost of chemical $c$ at plant $t$                                                    & \$/kg                    \\
+    $\underline{\rho}_{tc}$ & minimum dose rate when chemical $c$ is active at plant $t$                                         & mg/L                     \\
+    $\overline{\rho}_{tc}$  & maximum dose rate of chemical $c$ at plant $t$                                                       & mg/L                     \\
+    $\eta_{cp}$          & effect on quality parameter $p$ per unit mass of chemical $c$                                           & $((\text{units of }p)\cdot\text{ML})/\text{kg}$ \\
+\end{tabularx}
 Costs and limits are treated as fixed.
-All costs, capacities, and demands are assumed non-negative.
-The units of a water quality parameter depend on $p$ (e.g.\ mg/L, NTU).
-Parameters that are not linear in their natural units are stored in $Q_{sp}$ as a transformed value that blends approximately linearly.
+The units of a quality parameter depend on $p$ (e.g.\ mg/L, NTU).
+Quality parameters that are not approximately linear in their natural units are represented using transformed quantities chosen to support linear blending within the MILP.
+For $p=\mathrm{pH}$, the MILP uses scaled hydrogen ion concentration in nmol/L rather than raw pH units; the source values and corresponding inlet and regulatory bounds are all represented on this same scale.
+
+The inlet limits $\underline{I}_{tp}$ and $\overline{I}_{tp}$ bound the same physical quantity as the regulatory limits $\underline{Q}_{p}$ and $\overline{Q}_{p}$, but they have different meanings.
+$I$ is what a plant can accept, while $Q$ denotes the standards that the water must meet after treatment before reaching the demand zone.
+
+$C_{trp}$ is charged per unit of load removed.
+When $p$ is represented as a concentration, multiplying concentration by volume gives a quantity proportional to mass, subject to consistent units.
+For parameters such as turbidity measured in NTU, the cost is per NTU$\cdot$ML, which is not a mass; however, we assume it correlates to the mass of sediment that would produce that level of turbidity.
+
+The plant-specific chemical parameters $C^{\mathrm{chem}}_{tc}$, $\underline{\rho}_{tc}$ and $\overline{\rho}_{tc}$ are defined only for $c \in \mathcal{K}_t$.
+The coefficient $\eta_{cp}$ is defined for chemical quality pairs $c \in \mathcal{K}$ and $p \in \mathcal{P}$; unsupported linear relationships are represented by setting $\eta_{cp}=0$.
+For chemical dosing, $\underline{\rho}_{tc}$ and $\overline{\rho}_{tc}$ are concentration based operating bounds, while the optimisation variable introduced below is the total chemical mass used per day.
+The coefficient $\eta_{cp}$ converts chemical mass into the same load units used by the water-quality formulation.
+When chemical $c$ has no supported linear effect on parameter $p$, $\eta_{cp}$ is set to zero.
+Direct pH adjustment is not represented by a constant linear chemical effect coefficient in this formulation.
 
 \subsection{Decision variables}
-\begin{center}
-    \begin{tabular}{@{}llll@{}}
-        \toprule
-        \textbf{Notation} & \textbf{Domain} & \textbf{Description}                              & \textbf{Units} \\
-        \midrule
-        $\alpha_{s}$      & $\{0,1\}$       & $1$ if source $s$ is activated                    & ---            \\
-        $a_{s}$           & $\ge 0$         & volume drawn from source $s$                      & ML/day         \\
-        $\beta_{t}$       & $\{0,1\}$       & $1$ if plant $t$ is activated                     & ---            \\
-        $\gamma_{st}$     & $\{0,1\}$       & $1$ if source $s$ sends water to plant $t$        & ---            \\
-        $b_{st}$          & $\ge 0$         & volume of water from source $s$ to plant $t$      & ML/day         \\
-        $\delta_{tz}$     & $\{0,1\}$       & $1$ if plant $t$ sends water to demand zone $z$   & ---            \\
-        $c_{tz}$          & $\ge 0$         & volume of water from plant $t$ to demand zone $z$ & ML/day         \\
-        \bottomrule
-    \end{tabular}
-\end{center}
+
+\begin{tabularx}{\textwidth}{@{}llll@{}}
+    % Same reason.
+    \caption{Notations on decision variables}
+    \label{tab:variables}                                                                                                                       \\
+    \toprule
+    \textbf{Notation} & \textbf{Domain}             & \textbf{Description}                                        & \textbf{Units}              \\
+    \midrule
+    \endfirsthead
+
+    \toprule
+    \textbf{Notation} & \textbf{Domain}             & \textbf{Description}                                        & \textbf{Units}              \\
+    \midrule
+    \endhead
+
+    \midrule
+    \multicolumn{4}{r}{\emph{Continued on next page}}                                                                                           \\
+    \endfoot
+
+    \bottomrule
+    \endlastfoot
+
+    \multicolumn{4}{@{}l}{\emph{Sources}}                                                                                                       \\
+    $\alpha_{s}$      & $\{0,1\}$                   & $1$ if source $s$ is activated                              & ---                         \\
+    $a_{s}$           & $\ge 0$                     & volume drawn from source $s$                                & ML/day                      \\[0.4em]
+    \midrule
+    \multicolumn{4}{@{}l}{\emph{Treatment plants}}                                                                                              \\
+    $\beta_{t}$       & $\{0,1\}$                   & $1$ if plant $t$ is activated                               & ---                         \\[0.4em]
+    \midrule
+    \multicolumn{4}{@{}l}{\emph{Arcs}}                                                                                                          \\
+    $b_{st}$          & $\ge 0$                     & volume of water from source $s$ to plant $t$                & ML/day                      \\
+    $c_{tz}$          & $\ge 0$                     & volume of water from plant $t$ to demand zone $z$           & ML/day                      \\[0.4em]
+    \midrule
+    \multicolumn{4}{@{}l}{\emph{Removal processes}}                                                                                             \\
+    $\sigma_{tr}$     & $\{0,1\}$                   & $1$ if removal process $r$ is operated at plant $t$         & ---                         \\
+    $e_{trp}$         & $\ge 0$                     & load of parameter $p$ removed by process $r$ at plant $t$   & (units of $p$)$\cdot$ML/day \\[0.4em]
+    \midrule
+    \multicolumn{4}{@{}l}{\emph{Water quality loads}}                                                                                              \\
+    $\ell^i_{tp}$     & $\ge 0$                     & quality load of parameter $p$ at treatment stage $i$ at plant $t$
+                      & (units of $p$)$\cdot$ML/day                                                                                             \\[0.4em]
+    \midrule
+    \multicolumn{4}{@{}l}{\emph{Chemical dosing}}                                                                                              \\
+    $\kappa_{tc}$     & $\{0,1\}$                   & $1$ if chemical $c$ is actively dosed at plant $t$          & ---                         \\
+    $m_{tc}$          & $\ge 0$                     & mass of chemical $c$ dosed at plant $t$                     & kg/day                      \\
+\end{tabularx}
+$\sigma_{tr}$ and $e_{trp}$ are defined only for $r \in \mathcal{R}_{tp}$.
+The load variable $\ell^i_{tp}$ is defined for $i=0,\dots,n_{tp}+1$.
+Stage $i=0$ represents the incoming quality load, stages $i=1,\dots,n_{tp}$ represent the loads remaining after the parameter-specific removal processes, and stage $i=n_{tp}+1$ represents the final treated load after supported chemical additions.
+Since we have $\mathcal{R}_{tp} = (r_1, \dots, r_{n_{tp}})$ (Table~\ref{tab:sets}), the process at removal stage $i$ is $r_i$:
+variables are indexed by the process itself, so $e_{t r_i p}$ is the same variable as $e_{trp}$ with $r = r_i$.
+
+The chemical variables $\kappa_{tc}$ and $m_{tc}$ are defined only for $c \in \mathcal{K}_t$.
+This avoids introducing chemical decision variables for chemicals that are not available at plant $t$.
+The chemical mass variable $m_{tc}$ is used instead of dose concentration as the primary optimisation variable.
+This keeps chemical cost and supported quality load additions linear.
+The corresponding dose rate in mg/L is recovered after optimisation from the solved chemical mass and plant throughput.
 
 \section{Example network structure}
 \begin{center}
@@ -144,33 +271,67 @@ Parameters that are not linear in their natural units are stored in $Q_{sp}$ as 
         \draw (T2) edge node[lbl] {$c_{23}$} (Z3);
     \end{tikzpicture}
     \captionof{figure}{One example of the network structure (sources $\to$ treatment plants $\to$ demand zones).
-        Each source-plant arc has an activation binary $\gamma_{st}$ and a flow variable $b_{st}$; each plant-zone arc has $\delta_{tz}$ and $c_{tz}$.
+        Each source-plant arc has a flow variable $b_{st}$; each plant-zone arc has $c_{tz}$.
         The formulation is generic over any number of sources, plants, zones and links.
     }
 \end{center}
 
 \section{Objective}
-Minimise total cost over a single period:
-the fixed cost of activating each source and plant, and the
-per-ML costs of drawing water, treating it (charged on the volume each plant processes, $\sum_s b_{st}$) and transferring it along each link.
+Minimise total cost over a single period.
 
-\begin{equation}
-    \min
-    \underbrace{\sum_{s \in \mathcal{S}}
-        F_s \alpha_s}_{\text{source activation}} + \underbrace{\sum_{t \in \mathcal{T}} F_t \beta_t}_{\text{plant activation}} + \underbrace{\sum_{s \in \mathcal{S}} C_s a_s}_{\text{drawing water}} + \underbrace{\sum_{t \in \mathcal{T}} C_t \sum_{s \in \mathcal{S}} b_{st}}_{\text{plant treatment}} + \underbrace{\sum_{s \in \mathcal{S}} \sum_{t \in \mathcal{T}} C_{st} b_{st} + \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} C_{tz} c_{tz}}_{\text{transfer}}.
+Costs are grouped according to the part of the network to which they belong:
+sources, arcs, plants, removal processes, and chemical dosing.
+Sources and plants carry fixed activation costs and variable costs based on the volume handled.
+Removal processes carry a fixed operating cost and a variable cost based on the load removed.
+Chemical dosing is charged according to the mass of each chemical used, reflecting the economic trade-off between treatment performance and chemical consumption \cite{Li2022CoagulantDose}.
+Arcs are charged on flow volume only, since the model does not currently assign a fixed cost to activating a link.
+
+The removal and chemical costs make source blending an economic decision rather than purely a feasibility problem.
+A source requiring greater contaminant removal or additional chemical adjustment may incur a higher treatment cost than a source whose raw quality is naturally closer to the required outlet limits.
+\begin{equation}\label{eq:objective}
+    \begin{aligned}
+        \min \quad
+                     & \sum_{s \in \mathcal{S}}
+        F_s \alpha_s &                          & \text{source fixed cost} \\
+        + \; & \sum_{s \in \mathcal{S}} C_s a_s & & \text{source draw cost} \\
+        + \; & \sum_{t \in \mathcal{T}} F_t \beta_t & & \text{plant fixed cost} \\
+        + \; & \sum_{t \in \mathcal{T}} C_t \sum_{s \in \mathcal{S}} b_{st} & & \text{plant throughput cost} \\
+        + \; & \sum_{s \in \mathcal{S}} \sum_{t \in \mathcal{T}} C_{st}\, b_{st}
+              + \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} C_{tz}\, c_{tz}
+              & & \text{arc transfer cost} \\
+        + \; & \sum_{t \in \mathcal{T}} \sum_{r \in \mathcal{R}_t} F_{tr} \sigma_{tr}
+              & & \text{removal process fixed cost} \\
+        + \; & \sum_{t \in \mathcal{T}} \sum_{p \in \mathcal{P}} \sum_{r \in \mathcal{R}_{tp}}
+              C_{trp}\, e_{trp}
+              & & \text{removal cost} \\
+        + \; & \sum_{t \in \mathcal{T}} \sum_{c \in \mathcal{K}_t}
+              C^{\mathrm{chem}}_{tc}\, m_{tc}
+              & & \text{chemical dosing cost}
+    \end{aligned}
 \end{equation}
 
-\section{Constraints}
-
-\paragraph{Non-negativity.}
-All continuous flow variables must be non-negative.
-\begin{equation}
-    a_s, b_{st}, c_{tz} \ge 0, \qquad \forall s \in \mathcal{S}, t \in \mathcal{T}, z \in \mathcal{Z}.
+\section{Constraints} \label{sec:constraints} \paragraph{Non-negativity.}
+All continuous variables must be non-negative.
+\begin{equation}\label{eq:nonnegativity}
+\begin{aligned}
+    a_s &\ge 0,
+    && \forall s \in \mathcal{S},\\
+    b_{st} &\ge 0,
+    && \forall s \in \mathcal{S},\ \forall t \in \mathcal{T},\\
+    c_{tz} &\ge 0,
+    && \forall t \in \mathcal{T},\ \forall z \in \mathcal{Z},\\
+    e_{trp} &\ge 0,
+    && \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ \forall r \in \mathcal{R}_{tp},\\
+    \ell^i_{tp} &\ge 0,
+    && \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i=0,\dots,n_{tp}+1,\\
+    m_{tc} &\ge 0,
+    && \forall t \in \mathcal{T},\ \forall c \in \mathcal{K}_t.
+\end{aligned}
 \end{equation}
 
 \paragraph{Demand satisfaction.}
-The total volume of water sent from all treatment plants to demand zone $z$ via the links $c_{tz}$ must be at least the demand $D_z$ for that zone.
-\begin{equation}
+The total volume of water sent from all treatment plants to demand zone $z$ via the arcs $c_{tz}$ must be at least the demand $D_z$ for that zone.
+\begin{equation}\label{eq:demand}
     \sum_{t \in \mathcal{T}} c_{tz} \ge D_z, \qquad \forall z \in \mathcal{Z}.
 \end{equation}
 
@@ -201,180 +362,497 @@ If plant $t$ is active ($\beta_t=1$), the total incoming volume must lie between
 \end{equation}
 
 \paragraph{Plant flow conservation.}
-The total volume leaving plant $t$ toward all zones via the links $c_{tz}$ equals the total volume entering it from all sources via the links $b_{st}$.
-\begin{equation}
+The total volume leaving plant $t$ toward all zones via the arcs $c_{tz}$ equals the total volume entering it from all sources via the arcs $b_{st}$.
+\begin{equation}\label{eq:plant_flow_conservation}
     \sum_{z \in \mathcal{Z}} c_{tz} = \sum_{s \in \mathcal{S}} b_{st},
     \quad \forall t \in \mathcal{T}.
 \end{equation}
 
 \paragraph{Source flow conservation.}
-The volume drawn from each source $a_{s}$ must equal the total volume it sends to all plants via the links $b_{st}$.
-\begin{equation}
+The volume drawn from each source $a_{s}$ must equal the total volume it sends to all plants via the arcs $b_{st}$.
+\begin{equation}\label{eq:source_flow_conservation}
     a_s = \sum_{t \in \mathcal{T}} b_{st} , \quad \forall s \in \mathcal{S}.
 \end{equation}
 
-\paragraph{Link capacity.}
-Each link has a maximum flow and can carry water only if that link is active.
-For a source-to-plant link, the flow $b_{st}$ is capped at $\overline{L}_{st}$ and forced to zero unless the link is active ($\gamma_{st} = 1$).
-\begin{equation}
-    b_{st} \le \overline{L}_{st} \gamma_{st}, \quad \forall s \in \mathcal{S}, t \in \mathcal{T}.
+\paragraph{Arc capacity.}
+Each arc has a maximum flow and can carry water only if that source or plant is active.
+For a source-to-plant arc, the flow $b_{st}$ is bounded by the arc capacity $\overline{L}_{st}$, the source's maximum withdrawal $\overline{W}_s$, and the plant's maximum throughput $\overline{V}_t$, and is zero unless the source is active ($\alpha_s = 1$).
+\begin{equation}\label{eq:arc_capacity_st}
+    b_{st} \le \min \left\{\overline{L}_{st}, \overline{W}_s, \overline{V}_t \right\} \alpha_s, \quad \forall s \in \mathcal{S}, t \in \mathcal{T}.
 \end{equation}
-Similarly, a plant-to-zone link's flow $c_{tz}$ is capped at $\overline{L}_{tz}$ and is zero unless the link is active ($\delta_{tz} = 1$).
-\begin{equation}
-    c_{tz} \le \overline{L}_{tz} \delta_{tz}, \quad \forall t \in \mathcal{T}, z \in \mathcal{Z}.
+Similarly, the flow $c_{tz}$ on a plant-to-zone arc is bounded by the arc capacity $\overline{L}_{tz}$ and the plant's maximum throughput $\overline{V}_t$, and is zero unless the plant is active ($\beta_t = 1$).
+\begin{equation}\label{eq:arc_capacity_tz}
+    c_{tz} \le \min \left\{\overline{L}_{tz}, \overline{V}_t\right\} \beta_t, \quad \forall t \in \mathcal{T}, z \in \mathcal{Z}.
 \end{equation}
 
-\paragraph{Links require active nodes.}
-Links can only be active if the corresponding upstream node (source or treatment plant) is active.
-This is enforced by ensuring that the binary variables representing the links are less than or equal to the binary variables representing the activation of the sources and plants.
-A source-to-plant link requires the source to be active:
-\begin{equation}
-    \gamma_{st} \le \alpha_s, \quad \forall s \in \mathcal{S}, t \in \mathcal{T}.
-\end{equation}
-A plant-to-zone link requires the plant to be active:
-\begin{equation}
-    \delta_{tz} \le \beta_t,  \quad \forall t \in \mathcal{T}, z \in \mathcal{Z}.
-\end{equation}
-\emph{Optional}: a source-to-plant link could also require the plant to be active,
-\begin{equation}
-    \gamma_{st} \le \beta_t, \quad \forall s \in \mathcal{S},\, t \in \mathcal{T}.
-\end{equation}
-This is not explicitly needed, since zero flow to an inactive plant is already guaranteed by the plant capacity constraint \eqref{eq:plant_capacity}.
-Suppose the plant $t$ is inactive, so $\beta_t = 0$.
-Then \eqref{eq:plant_capacity} becomes
-\begin{equation*}
-    \sum_{s \in \mathcal{S}} b_{st} \le \overline{V}_t\,\beta_t = 0,
-\end{equation*}
-and since every flow is non-negative ($b_{st} \ge 0$), this forces $b_{st} = 0$ for all $s \in \mathcal{S}$.
-
-\paragraph{Water quality.}
-The water arriving at each plant must stay within the quality limits.
-For parameter $p$, $\sum_s Q_{sp} b_{st}$ is the total amount of $p$ entering plant $t$ and $\sum_s b_{st}$ is the total volume, so this keeps the average value of $p$ at the plant between $\underline{Q}_p$ and $\overline{Q}_p$.
-\begin{equation}\label{eq:general_water_quality}
-    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+\paragraph{Inlet treatability.}
+A plant can only accept raw water that its installed processes are built to handle.
+This is a property of the plant rather than a regulatory standard, which is the reason the bound includes the index $t$.
+\begin{equation}\label{eq:inlet_treatability}
+    \underline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}
     \le \sum_{s \in \mathcal{S}}
-    Q_{sp}b_{st} \le \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+    Q_{sp} b_{st} \le \overline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}, \quad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
 \end{equation}
-Each $Q_{sp}$ must be a quantity that blends linearly by volume so that summing each source's contribution, $\sum_{s \in \mathcal{S}} Q_{sp}\,b_{st}$, correctly represents the blended quality at the plant.
+Each $Q_{sp}$ must be a quantity that blends linearly by volume, so that $\sum_{s\in\mathcal S}Q_{sp}b_{st}$ represents the total load of parameter $p$ arriving at the plant.
+The corresponding blended value is obtained by dividing this load by the total incoming water volume.
+$\underline{I}_{tp}$ and $\overline{I}_{tp}$ are held in the same units as $Q_{sp}$, so where $Q_{sp}$ stores a transformed value the limits are transformed with it.
+
+Not all plants impose limits on every parameter.
+When a plant $t$ has no meaningful limit on the incoming $p$, the pair is neutralised rather than removed by setting
+\begin{equation}\label{eq:inlet_treatability_neutral}
+    \underline{I}_{tp} = 0
+    \qquad \text{and} \qquad
+    \overline{I}_{tp} = \max_{s \in \mathcal{S}}\{Q_{sp} : \overline{L}_{st} > 0\},
+\end{equation}
+where $\overline{I}_{tp}$ represents the maximum value of $p$ among the sources that can reach $t$.
+Since the source values are non-negative, a volume-weighted blend cannot fall below zero or exceed the largest value among its inputs, so neither bound can be violated.
+
+\paragraph{Removal process load balance.}
+Water passes through the plant's removal processes sequentially, so each process acts on the load remaining after the preceding process.
+Denoting the load of $p$ that remains after the $i$-th process as $\ell^i_{tp}$, the load that enters the first process is what comes from the sources:
+\begin{equation}\label{eq:removal_process_initial}
+    \ell^0_{tp} = \sum_{s \in \mathcal{S}}
+    Q_{sp}\, b_{st}, \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+\end{equation}
+Each process $r_{i}$ removes some of what it receives and passes on the rest:
+\begin{equation}\label{eq:removal_process_balance}
+    \ell^i_{tp} = \ell^{i-1}_{tp} - e_{t r_i p},
+    \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_{tp}.
+\end{equation}
+The load remaining after the final relevant removal process is  $\ell^{n_{tp}}_{tp}$.
+
+\paragraph{Removal capability.}
+Each process removes no more than a fixed fraction $H_{t r_i p}$ of the arriving load, based on what was passed on by the previous process rather than the total load that arrived at the plant.
+Modelling a removal process as a fixed fraction of the incoming load is inspired by the wastewater treatment network literature \cite{castro2007, castro2009}.
+\begin{equation}\label{eq:removal_capability}
+    e_{t r_i p} \le H_{t r_i p}\, \ell^{i-1}_{tp},
+    \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_{tp}.
+\end{equation}
+Setting $H_{trp} = 0$ expresses that process $r$ does not act on parameter $p$.
+By \eqref{eq:nonnegativity} and \eqref{eq:removal_process_balance}, no combination of processes can remove more than the load that arrived, and the series behaviour is enforced process by process.
+
+\paragraph{Removal activation.}
+No removal occurs unless the removal process is active.
+The coefficient is the maximum load the process could ever remove.
+The constraint forces $e_{tr_ip}=0$ when $\sigma_{tr_i}=0$; when $\sigma_{tr_i}=1$, it reduces to a valid upper bound on the maximum removable load and therefore does not further restrict the feasible removal, formal derivations for $\sigma_{tr_i} = 1$ is given below.
+
+At most $\overline{I}_{tp}\overline{V}_t$ of $p$ can reach plant $t$, being the highest concentration it will accept multiplied by the maximum volume it can process daily, and the process can remove at most the fraction $H_{t r_i p}$ of that amount.
+\begin{equation}\label{eq:removal_activation}
+    e_{t r_i p} \le H_{t r_i p}\, \overline{I}_{tp}\, \overline{V}_t\, \sigma_{t r_i},
+    \qquad \forall t \in \mathcal{T},\ \forall p \in \mathcal{P},\ i = 1, \dots, n_{tp}.
+\end{equation}
+A larger coefficient would still be valid, but it would unnecessarily expand the feasible region of the LP relaxation~\cite{jstorMP}.
+This is why, where a plant does not have a genuine inlet limit on $p$, $\overline{I}_{tp}$ is adjusted to the maximum value that the sources are capable of producing instead of being set to an arbitrarily large number.
+
+One may notice that, $\sigma_{t r_i} = 1$, \eqref{eq:removal_activation} is immediately attained:
+\begin{equation*}
+    e_{t r_i p}
+    ~ \underbrace{\le H_{t r_i p}\,\ell^{i-1}_{tp}}_{\eqref{eq:removal_capability}}
+    ~ \underbrace{\le H_{t r_i p}\,\ell^{0}_{tp}}_{\eqref{eq:removal_process_balance}}
+    ~ \underbrace{\le H_{t r_i p} \sum_{s \in \mathcal S}
+        Q_{sp} b_{st}}_{\eqref{eq:removal_process_initial}} ~ \underbrace{\le H_{t r_i p}\,\overline{I}_{tp} \sum_{s \in \mathcal{S}} b_{st}}_{\eqref{eq:inlet_treatability}} ~ \underbrace{\le H_{t r_i p}\,\overline{I}_{tp}\,\overline{V}_t \beta_t}_{\eqref{eq:plant_capacity}}, \end{equation*} so \eqref{eq:removal_activation} restricts the model only through $\sigma_{t r_i} = 0$.
+
+
+\paragraph{Integration with the chemical treatment stage.}
+The removal-process equations above are retained unchanged.
+When chemical dosing is enabled, $\ell^{n_{tp}}_{tp}$ is the load passed from the removal process sequence to the subsequent chemical treatment stage; the final plant outlet load is defined below as $\ell^{n_{tp}+1}_{tp}$.
+
+\paragraph{Chemical dosing activation.}
+Chemical availability is represented directly by the plant specific set $\mathcal{K}_t$, so no separate availability parameter is required.
+For each $c \in \mathcal{K}_t$, dosing can occur only when plant $t$ is active.
+The binary variable $\kappa_{tc}$ therefore satisfies
+\begin{equation}\label{eq:chemical_activation}
+    \kappa_{tc} \le \beta_t,
+    \qquad
+    \forall t \in \mathcal{T},\ \forall c \in \mathcal{K}_t.
+\end{equation}
+
+\paragraph{Chemical dose bounds.}
+The optimisation uses chemical mass $m_{tc}$ in kg/day as the decision variable, while plant operating limits are expressed as dose rates in mg/L.
+Since
+\[
+1\ \mathrm{mg/L} \times 1\ \mathrm{ML/day} = 1\ \mathrm{kg/day},
+\]
+the dose-rate bounds can be linked directly to the plant throughput $\sum_s b_{st}$.
+
+The upper dose rate is enforced by
+\begin{equation}\label{eq:chemical_dose_upper}
+    m_{tc}
+    \le
+    \overline{\rho}_{tc}
+    \sum_{s \in \mathcal{S}} b_{st},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall c \in \mathcal{K}_t.
+\end{equation}
+Chemical mass is forced to zero when dosing is inactive by
+\begin{equation}\label{eq:chemical_mass_activation}
+    m_{tc}
+    \le
+    \overline{\rho}_{tc}\,\overline{V}_t\,\kappa_{tc},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall c \in \mathcal{K}_t.
+\end{equation}
+When a positive minimum operating dose is specified, it is enforced only when dosing is active:
+\begin{equation}\label{eq:chemical_dose_lower}
+    m_{tc}
+    \ge
+    \underline{\rho}_{tc}
+    \sum_{s \in \mathcal{S}} b_{st}
+    -
+    \overline{\rho}_{tc}\,\overline{V}_t\,(1-\kappa_{tc}),
+    \qquad
+    \forall t \in \mathcal{T},\ \forall c \in \mathcal{K}_t.
+\end{equation}
+When $\kappa_{tc}=1$, constraints~\eqref{eq:chemical_dose_upper} and~\eqref{eq:chemical_dose_lower} reduce to the required operating dose range.
+When $\kappa_{tc}=0$, constraint~\eqref{eq:chemical_mass_activation} forces $m_{tc}=0$, while the minimum dose requirement is relaxed.
+If no minimum operating dose is required, $\underline{\rho}_{tc}$ is set to zero.
+In this case, and provided that no other chemical specific on/off condition is required, $\kappa_{tc}$ may be omitted from the implementation.
+The binary variable $\kappa_{tc}$ is retained in the general formulation because some chemicals may require a positive minimum operating dose.
+This allows chemical dosing to remain optional: when $\kappa_{tc}=1$, the specified minimum dose must be satisfied, while when $\kappa_{tc}=0$, no chemical is dosed.
+
+For reporting after optimisation, the realised dose rate is recovered as
+\begin{equation}\label{eq:chemical_dose_reporting}
+    \rho^{\mathrm{dose}}_{tc}
+    =
+    \frac{m_{tc}}
+    {\sum_{s \in \mathcal{S}} b_{st}},
+    \qquad
+    \text{when }
+    \sum_{s \in \mathcal{S}} b_{st} > 0.
+\end{equation}
+This division is performed only in post processing and is not part of the MILP.
+
+\paragraph{Chemical quality load contribution.}
+The formulation assumes that chemical dosing occurs as a separate treatment stage following the ordered parameter specific removal sequence $\mathcal{R}_{tp}$.
+For each supported chemical quality relationship, $\eta_{cp}m_{tc}$ is the load of quality parameter $p$ contributed by chemical $c$ at plant $t$.
+The final treatment stage load extends the existing load sequence by one stage:
+\begin{equation}\label{eq:final_treatment_load}
+    \ell^{n_{tp}+1}_{tp}
+    =
+    \ell^{n_{tp}}_{tp}
+    +
+    \sum_{c \in \mathcal{K}_t} \eta_{cp} m_{tc},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+\end{equation}
+If $\mathcal{R}_{tp}=\varnothing$, then $n_{tp}=0$ and the final stage becomes
+\[
+\ell^1_{tp}
+=
+\ell^0_{tp}
++
+\sum_{c\in\mathcal{K}_t}\eta_{cp}m_{tc}.
+\]
+For chemical quality pairs without a supported linear additive relationship, $\eta_{cp}=0$.
+
+\paragraph{Outlet water quality.}
+The water leaving each plant must remain within the regulatory limits after both removal processes and supported chemical additions have been applied.
+For parameter $p$, $\ell^{n_{tp}+1}_{tp}$ is the final treated quality load, while $\sum_s b_{st}$ is the corresponding water volume.
+The outlet constraint is therefore
+\begin{equation}\label{eq:outlet_water_quality}
+    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+    \le
+    \ell^{n_{tp}+1}_{tp}
+    \le
+    \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st},
+    \quad
+    \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+\end{equation}
+The volume term is $\sum_s b_{st}$ rather than $\sum_z c_{tz}$; the two are equal by plant flow conservation, and using the inflow maintains consistency across all quality constraints.
+Removal processes can reduce excessive parameter loads, while chemical dosing can increase supported parameter loads where a valid linear conversion coefficient $\eta_{cp}$ is available.
+This allows lower bound compliance to be achieved through a combination of source selection, removal, and chemical adjustment rather than through source blending alone.
+
 
 \section{Water quality formulation logic}
 
-This section explains how the generic water quality constraint \eqref{eq:general_water_quality} is interpreted for turbidity, alkalinity, and $\mathrm{pH}$.
-The purpose is to keep the quality formulation consistent with the existing parameter notation while preserving the linear structure of the MILP.
+This section explains how the generic water quality formulation is interpreted across the treatment pathway.
+The model distinguishes three stages:
+the quality of the source blend entering a plant, the load remaining after the ordered parameter specific removal sequence $\mathcal{R}_{tp}$, and the final treated load $\ell^{n_{tp}+1}_{tp}$ after supported chemical additions.
+This separation allows plant treatability limits to be applied before treatment and regulatory limits to be applied after treatment.
 
-\subsection{Interpretation of the generic quality parameter}
+\subsection{Inlet treatability and outlet water quality}
 
-In the general formulation, $Q_{sp}$ represents the value of quality parameter $p$ in source $s$.
-The set $\mathcal{P}$ may include parameters such as turbidity, alkalinity, and $\mathrm{pH}$.
-For quality parameters that blend approximately linearly by volume, the source value can be used directly in $Q_{sp}$.
+Constraint~\eqref{eq:inlet_treatability} limits the quality of the incoming blend to the range that plant $t$ can accept.
+For each $p \in \mathcal{P}$, the incoming quality load is
+\[
+\sum_{s \in \mathcal{S}} Q_{sp}b_{st},
+\]
+while the total incoming water volume is
+\[
+\sum_{s \in \mathcal{S}} b_{st}.
+\]
+The constraint is written in load form to avoid dividing by a decision variable.
+It is equivalent to constraining the volume weighted average inlet quality between $\underline{I}_{tp}$ and $\overline{I}_{tp}$.
 
-The constraint~\eqref{eq:general_water_quality} is written in load form.
-It is equivalent to requiring the volume-weighted average quality at each treatment plant to remain between the lower and upper bounds for each quality parameter, but it avoids division by a decision variable.
+The incoming load then passes through the ordered parameter specific removal sequence $\mathcal{R}_{tp}$ according to
+\eqref{eq:removal_process_initial}--\eqref{eq:removal_process_balance}.
+After the final removal stage relevant to parameter $p$, the remaining load is $\ell^{n_{tp}}_{tp}$.
+If $\mathcal{R}_{tp}=\varnothing$, then $n_{tp}=0$ and this removal-stage load is simply the incoming load $\ell^0_{tp}$.
+Supported chemical contributions are then incorporated through~\eqref{eq:final_treatment_load}, producing the final treated load $\ell^{n_{tp}+1}_{tp}$.
+The final outlet quality is constrained by~\eqref{eq:outlet_water_quality}.
+Therefore, the model distinguishes plant inlet treatability from final regulatory compliance:
+the incoming blend need only be treatable by the plant, while the treated water leaving the plant must satisfy the regulatory limits.
 
 \subsection{Turbidity}
 
 Turbidity measures the cloudiness of water and is associated with suspended particles such as sediment, organic matter, algae, clay, or runoff material.
-In water supply modelling, turbidity is important because high turbidity may increase treatment requirements and affect disinfection performance \cite{WHOTurbidity2011, Matos2024Turbidity, UMNTurbidity}.
+In water supply modelling, turbidity is important because high turbidity can increase treatment requirements and affect disinfection performance \cite{WHOTurbidity2011, Matos2024Turbidity, UMNTurbidity}.
 
 For turbidity, the quality parameter is represented by setting $p=\mathrm{turb}$.
-Thus, $Q_{s,\mathrm{turb}}$ denotes the turbidity value of source $s$, while $\underline{Q}_{\mathrm{turb}}$ and $\overline{Q}_{\mathrm{turb}}$ denote the lower and upper turbidity limits.
+Thus, $Q_{s,\mathrm{turb}}$ denotes the turbidity value of source $s$, while
+$\underline{I}_{t,\mathrm{turb}}$ and $\overline{I}_{t,\mathrm{turb}}$ define the inlet range accepted by plant $t$ and
+$\underline{Q}_{\mathrm{turb}}$ and $\overline{Q}_{\mathrm{turb}}$ define the required outlet range.
 
-The turbidity requirement is therefore handled directly by the generic water quality constraint~\eqref{eq:general_water_quality} with $p=\mathrm{turb}$.
-This avoids redefining the same load form constraint using separate turbidity specific equations.
+Turbidity is handled primarily through the removal process formulation.
+A process that does not remove turbidity has $H_{tr,\mathrm{turb}}=0$.
+Only the processes in $\mathcal{R}_{t,\mathrm{turb}}$ are included in the ordered removal sequence for turbidity; installed processes that do not act on turbidity are excluded from this parameter specific sequence. This formulation does not assume that adding a coagulant produces a fixed linear reduction in turbidity; such a treatment response depends on water quality and operating conditions and therefore requires a separately justified or calibrated relationship \cite{Huang2025CoagulantDosing}. Accordingly, it is not represented by $\eta_{c,\mathrm{turb}}$ unless supporting data are available.
 
 \subsection{Alkalinity}
 
 Alkalinity measures the ability of water to neutralise acid \cite{ADWG2011, TestNeeds2025Alkalinity, PerfectWater2025Alkalinity}.
-It represents the buffering capacity of water and is relevant to $\mathrm{pH}$ stability, corrosion control, treatment performance, remineralisation, and water stability in distribution systems \cite{ADWG2011, PerfectWater2025Alkalinity}.
+It represents the buffering capacity of water and is relevant to pH stability, corrosion control, treatment performance, remineralisation, and water stability in distribution systems \cite{ADWG2011, PerfectWater2025Alkalinity}.
 
 For alkalinity, the quality parameter is represented by setting $p=\mathrm{alk}$.
-Thus, $Q_{s,\mathrm{alk}}$ denotes the alkalinity value of source $s$, while $\underline{Q}_{\mathrm{alk}}$ and $\overline{Q}_{\mathrm{alk}}$ denote the lower and upper alkalinity limits.
+Thus, $Q_{s,\mathrm{alk}}$ denotes the source alkalinity.
+The model can represent both reductions in alkalinity through removal processes and increases in alkalinity through supported chemical additions.
 
-The alkalinity requirement is therefore handled directly by the generic water quality constraint~\eqref{eq:general_water_quality} with $p=\mathrm{alk}$.
-This avoids redefining the same load form constraint using separate alkalinity specific equations.
+The final treated alkalinity load at plant $t$ is
+\begin{equation}\label{eq:alkalinity_post_treatment}
+    \ell^{n_{t,\mathrm{alk}}+1}_{t,\mathrm{alk}}
+    =
+    \ell^{n_{t,\mathrm{alk}}}_{t,\mathrm{alk}}
+    +
+    \sum_{c \in \mathcal{K}_t}
+    \eta_{c,\mathrm{alk}}m_{tc}.
+\end{equation}
+For chemicals such as sodium bicarbonate, soda ash, lime, or caustic soda, a linear alkalinity equivalent contribution can be used when a defensible equivalent weight conversion is available.
+The final alkalinity must then satisfy the same outlet quality constraint~\eqref{eq:outlet_water_quality} with $p=\mathrm{alk}$.
 
 \subsection{pH transformation}
 
-$\mathrm{pH}$ is handled differently from turbidity and alkalinity because
-$\mathrm{pH}$ is a logarithmic measure of hydrogen ion concentration.
-Raw $\mathrm{pH}$ values are not averaged directly because direct $\mathrm{pH}$ averaging can produce a scientifically misleading blended value.
-
-$\mathrm{pH}$ is defined as \cite{WHO2007pH}:
+Unlike alkalinity and turbidity, raw pH is not represented as a linearly blended concentration.
+pH is a logarithmic measure of hydrogen ion concentration and is defined as \cite{WHO2007pH}
 \begin{equation}\label{eq:ph_definition}
     \mathrm{pH} = -\log_{10}([\mathrm{H}^{+}]),
 \end{equation}
-where $[\mathrm{H}^{+}]$ represents hydrogen ion concentration \cite{EPA2026pH}.
+where $[\mathrm{H}^{+}]$ represents hydrogen ion concentration expressed in mol/L in the defining relationship \cite{EPA2026pH}.
 
-To keep the MILP linear, $\mathrm{pH}$ is handled as a preprocessing transformation \cite{WHO2007pH}.
-For the $\mathrm{pH}$ quality parameter, $Q_{s,\mathrm{pH}}$ stores the transformed hydrogen ion concentration obtained from the raw source $\mathrm{pH}$ value:
+Raw pH values are therefore transformed during preprocessing.
+To maintain numerical consistency with the implementation, the transformed hydrogen ion concentration used by the MILP is stored in nmol/L.
+For the pH quality parameter,
 \begin{equation}\label{eq:ph_source_transformation}
-    Q_{s,\mathrm{pH}} = 10^{-\mathrm{pH}_s}.
+    Q_{s,\mathrm{pH}}
+    =
+    10^{-\mathrm{pH}_s}\times 10^{9}.
 \end{equation}
+The factor $10^{9}$ converts hydrogen ion concentration from mol/L to nmol/L.
+This scaling changes only the numerical representation of the transformed quantity and not its physical meaning.
 
-The symbols $\underline{\mathrm{pH}}$ and $\overline{\mathrm{pH}}$ represent the raw regulatory lower and upper limits in $\mathrm{pH}$ units.
-These raw limits are converted once during data preparation before being passed into the MILP.
-If the acceptable raw $\mathrm{pH}$ range is:
+If the acceptable raw regulatory pH range is
 \begin{equation}\label{eq:raw_ph_range}
-    \underline{\mathrm{pH}} \leq
+    \underline{\mathrm{pH}}
+    \le
     \mathrm{pH}
-    \leq
+    \le
     \overline{\mathrm{pH}},
 \end{equation}
-then the corresponding transformed bounds stored for the $\mathrm{pH}$ quality parameter are:
+the corresponding transformed regulatory bounds, expressed in nmol/L, are
 \begin{equation}\label{eq:ph_bound_transformation}
-    \underline{Q}_{\mathrm{pH}} = 10^{-\overline{\mathrm{pH}}},
+    \underline{Q}_{\mathrm{pH}}
+    =
+    10^{-\overline{\mathrm{pH}}}\times 10^{9},
     \qquad
-    \overline{Q}_{\mathrm{pH}} = 10^{-\underline{\mathrm{pH}}}.
+    \overline{Q}_{\mathrm{pH}}
+    =
+    10^{-\underline{\mathrm{pH}}}\times 10^{9}.
 \end{equation}
+The bound direction changes because pH and hydrogen ion concentration are inversely related \cite{Fondriest2025pH}.
 
-The direction of the bounds changes because $\mathrm{pH}$ and hydrogen ion concentration are inversely related \cite{Fondriest2025pH}.
-A higher $\mathrm{pH}$ corresponds to a lower hydrogen ion concentration, while a lower $\mathrm{pH}$ corresponds to a higher hydrogen ion concentration.
+The plant inlet pH limits are transformed using the same scaling.
+If plant $t$ accepts an incoming raw pH range
+\begin{equation}\label{eq:raw_ph_inlet_range}
+    \underline{\mathrm{pH}}^{\,\mathrm{in}}_t
+    \le
+    \mathrm{pH}
+    \le
+    \overline{\mathrm{pH}}^{\,\mathrm{in}}_t,
+\end{equation}
+the corresponding inlet bounds used in constraint~\eqref{eq:inlet_treatability} are
+\begin{equation}\label{eq:ph_inlet_bound_transformation}
+    \underline{I}_{t,\mathrm{pH}}
+    =
+    10^{-\overline{\mathrm{pH}}^{\,\mathrm{in}}_t}\times 10^{9},
+    \qquad
+    \overline{I}_{t,\mathrm{pH}}
+    =
+    10^{-\underline{\mathrm{pH}}^{\,\mathrm{in}}_t}\times 10^{9}.
+\end{equation}
+Thus, $Q_{s,\mathrm{pH}}$, $\underline{I}_{t,\mathrm{pH}}$, $\overline{I}_{t,\mathrm{pH}}$, $\underline{Q}_{\mathrm{pH}}$, and $\overline{Q}_{\mathrm{pH}}$ are all represented consistently in nmol/L.
 
-After this preprocessing step, $\mathrm{pH}$ is handled by the same general water quality constraint~\eqref{eq:general_water_quality}, with $p=\mathrm{pH}$.
-This avoids introducing a separate $\mathrm{pH}$ specific constraint in the MILP.
+In this formulation, removal processes do not act directly on pH.
+For every installed process,
+\[
+H_{tr,\mathrm{pH}}=0
+\qquad
+\forall t\in\mathcal{T},\ r\in\mathcal{R}_t,
+\]
+so the parameter specific removal sequence is empty:
+\[
+\mathcal{R}_{t,\mathrm{pH}}=\varnothing,
+\qquad
+n_{t,\mathrm{pH}}=0.
+\]
+Consequently,
+\[
+\ell^{n_{t,\mathrm{pH}}}_{t,\mathrm{pH}}
+=
+\ell^0_{t,\mathrm{pH}},
+\]
+and the transformed pH load passes unchanged through the removal part of the formulation.
+Likewise, direct chemical adjustment of pH is not represented by the linear additive coefficient $\eta_{cp}$, so
+\[
+\eta_{c,\mathrm{pH}}=0
+\qquad
+\forall c\in\mathcal{K}
+\]
+in this formulation.
+Since $n_{t,\mathrm{pH}}=0$ and the chemical contribution is zero, the final treatment-stage load is
+\[
+\ell^{n_{t,\mathrm{pH}}+1}_{t,\mathrm{pH}}
+=
+\ell^1_{t,\mathrm{pH}}
+=
+\ell^0_{t,\mathrm{pH}}.
+\]
+This avoids treating pH response to lime, caustic soda, carbon dioxide, or other chemicals as a fixed linear relationship.
+A future extension may introduce a separately justified piecewise linear or nonlinear pH treatment model.
 
 \subsection{Blended pH recovery after optimisation}
 
-The optimisation model constrains $\mathrm{pH}$ through the transformed value $Q_{s,\mathrm{pH}}$.
-After the solver finds the optimal source to plant flows, the blended hydrogen ion concentration at plant $t$ is calculated as:
+The optimisation model constrains pH through the scaled transformed source value $Q_{s,\mathrm{pH}}$ in nmol/L.
+After the solver finds the optimal source-to-plant flows, the blended hydrogen ion concentration at plant $t$ is calculated as
 \begin{equation}\label{eq:blended_ph_transformed}
-    Q^{\mathrm{blend}}_{t,\mathrm{pH}} = \frac{ \sum_{s \in \mathcal{S}} Q_{s,\mathrm{pH}} b_{st} }{ \sum_{s \in \mathcal{S}} b_{st} }.
+    Q^{\mathrm{blend}}_{t,\mathrm{pH}}
+    =
+    \frac{
+        \sum_{s \in \mathcal{S}} Q_{s,\mathrm{pH}}b_{st}
+    }{
+        \sum_{s \in \mathcal{S}} b_{st}
+    },
+    \qquad
+    \text{when }
+    \sum_{s \in \mathcal{S}} b_{st}>0.
 \end{equation}
-
-The blended $\mathrm{pH}$ is then recovered in post-processing as:
+Because $Q^{\mathrm{blend}}_{t,\mathrm{pH}}$ is expressed in nmol/L, it is converted back to mol/L before applying the pH definition.
+The blended pH is therefore recovered in post-processing as
 \begin{equation}\label{eq:blended_ph_recovery}
     \mathrm{pH}^{\mathrm{blend}}_{t}
     =
     -\log_{10}
     \left(
-    Q^{\mathrm{blend}}_{t,\mathrm{pH}}
+        Q^{\mathrm{blend}}_{t,\mathrm{pH}}\times 10^{-9}
+    \right)
+    =
+    9-\log_{10}
+    \left(
+        Q^{\mathrm{blend}}_{t,\mathrm{pH}}
     \right).
 \end{equation}
+This conversion is performed only in post processing and is not part of the MILP.
+In this formulation, pH is not modified by either removal processes or chemical dosing, so the recovered blended pH is also the modelled plant outlet pH.
 
-This recovered $\mathrm{pH}$ value is not an MILP decision variable.
-It is a post-solve reporting value used for validation, interpretation, dashboard display, and output generation.
+\subsection{Chemical quality effect coefficients}
+
+For each supported chemical quality relationship, the coefficient $\eta_{cp}$ converts the mass of chemical $c$ used at a treatment plant into the corresponding contribution to quality parameter $p$. The contribution from chemical $c$ to parameter $p$ at treatment plant $t$ is defined as
+
+\begin{equation}\label{eq:chemical_quality_effect}
+\Delta L_{tcp}
+=
+\eta_{cp} m_{tc}.
+\end{equation}
+
+Here, $m_{tc}$ is the mass of chemical $c$ dosed at plant $t$ in kg/day, while $\Delta L_{tcp}$ is the resulting contribution to the load of quality parameter $p$. The coefficient $\eta_{cp}$ is specific to each chemical quality pair and is treated as a fixed model parameter.
+
+The units of $\eta_{cp}$ are defined so that $\eta_{cp}m_{tc}$ has the same load units as the pre-chemical removal-stage load $\ell^{n_{tp}}_{tp}$ and the final treated load $\ell^{n_{tp}+1}_{tp}$. Thus,
+
+\[
+\left[
+\frac{(\text{units of }p)\cdot\text{ML}}
+{\text{kg}}
+\right]
+\left[
+\frac{\text{kg}}{\text{day}}
+\right]
+=
+\frac{(\text{units of }p)\cdot\text{ML}}
+{\text{day}}.
+\]
+
+The value of $\eta_{cp}$ is determined according to the physical relationship between the chemical and the quality parameter being represented. For direct constituent addition, the coefficient can be calculated from molecular composition and commercial product purity. For parameters such as alkalinity or hardness, an equivalent weight conversion can be used. Where the treatment response depends on additional water quality or operating conditions, a constant coefficient is used only when a defensible empirical or calibrated linear approximation is available \cite{Huang2025CoagulantDosing}.
+
+If no supported linear additive relationship exists between chemical $c$ and parameter $p$, the corresponding coefficient is set to
+
+\[
+\eta_{cp}=0.
+\]
+
+This includes relationships, such as direct chemical adjustment of pH, that are not represented by the linear chemical dosing formulation.
+
+Because $\eta_{cp}$ is a fixed parameter and $m_{tc}$ is a continuous decision variable, the relationship in Equation~\eqref{eq:chemical_quality_effect} remains linear and is therefore compatible with the MILP formulation.
 
 \subsection{Linearity assumptions for water quality}
+\label{sec:model_axiom}
 
-The water quality formulation relies on simplifying assumptions that preserve linearity in the Sprint~1 MILP.
+The water quality formulation relies on simplifying assumptions that preserve linearity in the MILP.
 The key assumptions are:
-\begin{enumerate}[label=(\roman*), align=left, widest=viii]
+\begin{enumerate}[label=(\roman*), align=left, widest=vii]
     \item Water from selected sources is completely mixed before quality is assessed.
     \item The model represents a single time period, so temporal variation in water quality is not modelled.
     \item Source quality values are fixed input parameters for the representative period.
-    \item Alkalinity and turbidity are approximated as volume-weighted linear blends.
-    \item Raw $\mathrm{pH}$ values are not averaged directly; $\mathrm{pH}$ is transformed before optimisation.
-    \item No nonlinear chemical reactions between blended sources are modelled.
-    \item Water quality is checked at each treatment plant, using the blend of its incoming sources.
+    \item Quality parameters represented directly in $Q_{sp}$ are assumed to blend approximately linearly by volume.
+    \item Raw $\mathrm{pH}$ values are not averaged directly; $\mathrm{pH}$ is transformed to scaled hydrogen ion concentration in nmol/L before optimisation.
+    \item Nonlinear interactions between blended source-water quality parameters are not modelled.
+    \item Water quality is checked at each treatment plant: incoming quality is validated against $\underline{I}_{tp}$ and $\overline{I}_{tp}$, while final treated quality is validated against $\underline{Q}_p$ and $\overline{Q}_p$ using constraint~\eqref{eq:outlet_water_quality}.
 \end{enumerate}
 
-These assumptions allow the water quality constraints to remain linear and suitable for inclusion in the MILP formulation.
+These assumptions allow the general water-quality constraints to remain linear and suitable for inclusion in the MILP formulation.
+
+\subsection{Assumptions for removal processes}
+\label{sec:removal_process_axiom}
+In practices, several designs for removal processes exist, see \cite{lower_murray_water2023, zouboulis2005improvement}. Therefore, we shall propose the following assumptions for convenience and simplicity.
+\begin{enumerate}[label=(\roman*), align=left, widest=viii]
+    \item Removal processes $\mathcal R_{tp}$ are conducted in a sequence.
+    \item A removal process $r_i \in \mathcal R_{t}$ can remove more than one $p \in \mathcal P$, appearing as $r_i \in \mathcal R_{tp}$ for each $p$.
+    \item Every process $r_i$ is only dependent on its preceeding process $r_{i - 1}$, see \eqref{eq:removal_process_balance}.
+    \item Maximum removal efficiency $H_{trp}$ is known.
+    \item Uniform treatment: $\sum_{s \in \mathcal S} b_{st}$ receives the same treatment.
+    \item No water loss after passing through $r_i \in \mathcal R_{tp}$.
+    \item $\mathcal{R}_{tp}$ is an ordered sequence induced by $\mathcal{R}_{t}$.
+\end{enumerate}
+
+
+
+\subsection{Assumptions for chemical dosing}
+
+The chemical dosing formulation uses the following simplifying assumptions:
+\begin{enumerate}[label=(\roman*), align=left, widest=vii]
+    \item Chemical mass is the primary optimisation decision and is measured in kg/day.
+    \item Dose rate limits are specified in mg/L and are converted to equivalent daily mass bounds through plant throughput.
+    \item Chemical dosing is optional and can occur only for chemicals in $\mathcal{K}_t$ and when plant $t$ is active.
+    \item Chemical additions are completely mixed with the treated plant flow before outlet quality is assessed.
+    \item The formulation assumes that chemical dosing occurs as a separate stage following the parameter-specific removal sequence $\mathcal{R}_{tp}$.
+    \item The coefficient $\eta_{cp}$ is fixed for the representative period and already reflects any purity or equivalent conversion required by the supported relationship.
+    \item Chemical interactions, reaction kinetics, decay, and other nonlinear dose response behaviour are outside the MILP unless represented by a separately justified linear approximation.
+\end{enumerate}
+
+The assumptions in Section~\ref{sec:removal_process_axiom} apply specifically to the removal process subsystem.
+The chemical dosing stage is modelled separately after that sequence, so supported chemical additions may adjust lower-bound quality requirements without changing the removal process equations.
 
 \section{Application to the toy model}\label{sec:toy}
 
 The toy model is not a different problem but the special case of the network formulation with three sources, a single treatment plant and a single demand zone.
-With one plant and one zone there is nothing to route:
-the arc variables are fixed by conservation, and only the source decisions $\alpha_s$ and $a_s$ remain free.
+With one plant and one zone there is no routing choice:
+the flow variables are fixed by conservation, while the source decisions and any applicable removal and chemical dosing decisions remain free.
 
 Every equation of the toy model follows from the general formulation by the substitutions below.
 Nothing is restated here.
@@ -382,20 +860,19 @@ Nothing is restated here.
 \begin{center}
     \begin{tabular}{@{}ll@{}}
         \toprule
-        \textbf{Substitution}                        & \textbf{Consequence}                                             \\
+        \textbf{Substitution} & \textbf{Consequence} \\
         \midrule
-        $\mathcal{T} = \{t\}$, $\mathcal{Z} = \{z\}$ & one plant, one zone                                              \\
-        $\beta_t = 1$                                & the plant is always active, so $F_t$ is a constant and drops out \\
-        $\gamma_{st} = \delta_{tz} = 1$              & every arc is active                                              \\
-        $b_{st} = a_s$                               & by source flow conservation                                      \\
-        $c_{tz} = \sum_{s} a_s$                      & by plant flow conservation                                       \\
+        $\mathcal{T}=\{t\}$, $\mathcal{Z}=\{z\}$ & one plant, one zone \\
+        $\beta_t=1$ & the plant is always active, so $F_t$ is a constant and drops out \\
+        $b_{st}=a_s$ & by source flow conservation \\
+        $c_{tz}=\sum_s a_s$ & by plant flow conservation \\
+        $\mathcal{R}_{tp}$ and $\mathcal{K}_t$ fixed & the plant inherits its removal and chemical dosing configuration \\
         \bottomrule
     \end{tabular}
 \end{center}
 
-The reduction is a substitution rather than a rewrite:
-any constraint indexed over $\mathcal{T}$ or $\mathcal{Z}$ contributes exactly one instance, and any variable on an arc is determined by conservation as a sum of source draws.
-Every term of the general model is inherited unchanged.
+The routing variables are therefore determined by the source withdrawals, but treatment decisions are still inherited from the general model.
+Where applicable, these include process activation $\sigma_{tr}$, removal loads $e_{trp}$, chemical activation $\kappa_{tc}$, and chemical mass $m_{tc}$.
 
 \begin{center}
     \begin{tikzpicture}[
@@ -404,25 +881,155 @@ Every term of the general model is inherited unchanged.
             lbl/.style={fill=white, inner sep=1.5pt, font=\small},
             thick
         ]
-        \node[nd] (s1) at (0,3)   {$s_1$};
-        \node[nd] (s2) at (3,3)   {$s_2$};
-        \node[nd] (s3) at (6,3)   {$s_3$};
-        \node[nd] (t)  at (3,1) {$t$};
-        \node[nd] (z)  at (3,-1)   {$z$};
+        \node[nd] (s1) at (0,3) {$s_1$};
+        \node[nd] (s2) at (3,3) {$s_2$};
+        \node[nd] (s3) at (6,3) {$s_3$};
+        \node[nd] (t) at (3,1) {$t$};
+        \node[nd] (z) at (3,-1) {$z$};
         \draw (s1) edge node[lbl] {$a_1$} (t);
         \draw (s2) edge node[lbl] {$a_2$} (t);
         \draw (s3) edge node[lbl] {$a_3$} (t);
         \draw (t) edge node[lbl, right=1pt] {$\textstyle\sum_s a_s$} (z);
     \end{tikzpicture}
     \captionof{figure}{Toy model.
-        Three sources draw $a_1,a_2,a_3$ into the single plant $t$, which delivers their sum to the single zone $z$.}
+        Three sources draw $a_1,a_2,a_3$ into the single plant $t$, which delivers their total water volume to the single zone $z$.}
 \end{center}
 
-\noindent Since this is just the network model with routing fixed, going the other way needs nothing new: free the routing variables and add more sources, plants and zones.
-The toy can therefore be built and tested first, then scaled up without reformulating.
+Removal and chemical dosing change quality loads but, under the current assumptions, do not change the water volume flow balance.
+The outgoing water volume is therefore $\sum_s a_s$, not a quality load quantity such as the final treated load $\ell^{n_{tp}+1}_{tp}$.
+
+\noindent Since this is just the network model with routing fixed, scaling up requires only freeing the routing variables and adding more sources, plants and zones.
+The same treatment and chemical dosing formulation is inherited without reformulation.
 
 \clearpage
 \bibliographystyle{plainurl}
 \bibliography{references}
+
+\clearpage
+\appendix
+\section{Implicit constraints}\label{sec:implicit_constraints}
+
+This appendix complements Section~\ref{sec:constraints} with inequalities that hold for the model but are not stated there explicitly. 
+The arc linking constraints, formerly known as $\gamma_{st}$ and $\delta_{tz}$, are completely removed from our model; however, once incorporating transferring arcs activation cost is essential, we shall include them to the objective function \eqref{eq:objective} and re–introduce them, and possibly extra constraints on them are needed.
+
+\paragraph{Closed nodes send no flow.}
+\begin{align}
+    b_{st} & \le \overline{W}_s\,\alpha_s, \quad \forall s \in \mathcal{S},\ t \in \mathcal{T}, \label{eq:closed_source} \\
+    c_{tz} & \le \overline{V}_t\,\beta_t, \quad \forall t \in \mathcal{T},\ z \in \mathcal{Z}. \label{eq:closed_plant}
+\end{align}
+By \eqref{eq:nonnegativity} and \eqref{eq:source_flow_conservation}, $b_{st} \le \sum_{t' \in \mathcal{T}} b_{st'} = a_s$, and $a_s \le \overline{W}_s\alpha_s$ by \eqref{eq:source_capacity}.
+Likewise, \eqref{eq:nonnegativity} and \eqref{eq:plant_flow_conservation} give $c_{tz} \le \sum_{z' \in \mathcal{Z}} c_{tz'} = \sum_{s \in \mathcal{S}} b_{st}$, which is at most $\overline{V}_t\beta_t$ by \eqref{eq:plant_capacity}.
+Hence a closed source or plant never sends water outwards.
+
+\paragraph{Total supply covers total demand.}
+Summing \eqref{eq:demand} over all zones and applying \eqref{eq:plant_flow_conservation}, \eqref{eq:source_flow_conservation} and \eqref{eq:source_capacity} gives
+\begin{equation}\label{eq:total_supply}
+    \sum_{s \in \mathcal{S}} \overline{W}_s\,\alpha_s
+    \ \ge\ \sum_{s \in \mathcal{S}} a_s
+    \ =\ \sum_{t \in \mathcal{T}} \sum_{z \in \mathcal{Z}} c_{tz}
+    \ \ge\ \sum_{z \in \mathcal{Z}} D_z.
+\end{equation}
+Whatever the routing, the active sources must have enough combined capacity to cover total demand, so no set of sources whose maximum withdrawals sum to less than $\sum_z D_z$ can be the active set.
+
+\paragraph{Final quality bounds implied by removal and chemical treatment.}
+Repeated application of the removal process balance \eqref{eq:removal_process_balance} across the ordered sequence $\mathcal{R}_{tp}=(r_1,\dots,r_{n_{tp}})$ gives
+\begin{equation}\label{eq:implicit_removal_load}
+    \ell^{n_{tp}}_{tp}
+    =
+    \ell^{0}_{tp}
+    -
+    \sum_{i=1}^{n_{tp}} e_{t r_i p},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+\end{equation}
+Using the incoming load definition \eqref{eq:removal_process_initial}, this becomes
+\begin{equation}\label{eq:implicit_removal_load_sources}
+    \ell^{n_{tp}}_{tp}
+    =
+    \sum_{s \in \mathcal{S}} Q_{sp}\,b_{st}
+    -
+    \sum_{i=1}^{n_{tp}} e_{t r_i p},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall p \in \mathcal{P}.
+\end{equation}
+
+The chemical quality stage \eqref{eq:final_treatment_load} then adds the supported chemical contributions to the remaining removal-stage load.
+Combining \eqref{eq:implicit_removal_load_sources}, \eqref{eq:final_treatment_load}, and the outlet quality constraint
+\eqref{eq:outlet_water_quality} gives, for every $t \in \mathcal{T}$ and $p \in \mathcal{P}$,
+\begin{equation}\label{eq:implicit_final_quality_bounds}
+    \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+    \le
+    \ell^{n_{tp}+1}_{tp}
+    =
+    \sum_{s \in \mathcal{S}} Q_{sp}\,b_{st}
+    -
+    \sum_{i=1}^{n_{tp}} e_{t r_i p}
+    +
+    \sum_{c \in \mathcal{K}_t} \eta_{cp}m_{tc}
+    \le
+    \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st}.
+\end{equation}
+
+Unlike the removal only case, a positive lower regulatory limit does not necessarily have to be met by source selection and blending alone.
+Removal processes can only reduce the load passed through the removal sequence, while supported chemical additions with $\eta_{cp}>0$ can increase the final treated load.
+Three cases follow.
+\begin{itemize}
+    \item If $\underline{Q}_p = 0$, the lower bound in \eqref{eq:implicit_final_quality_bounds} is implied by the non-negativity of $\ell^{n_{tp}+1}_{tp}$ in \eqref{eq:nonnegativity}.
+
+    \item If $\eta_{cp}>0$ for at least one $c\in\mathcal{K}_t$, chemical dosing may contribute to satisfying the lower regulatory limit through the final treatment-stage relation \eqref{eq:final_treatment_load}.
+
+    \item If no supported chemical effect exists for parameter $p$ at plant $t$, so that
+          \begin{equation*}
+              \eta_{cp}=0,
+              \qquad
+              \forall c\in\mathcal{K}_t,
+          \end{equation*}
+          then \eqref{eq:final_treatment_load} gives
+          \begin{equation*}
+              \ell^{n_{tp}+1}_{tp}
+              =
+              \ell^{n_{tp}}_{tp}.
+          \end{equation*}
+          Since removal processes only reduce load,
+          \begin{equation*}
+              \ell^{n_{tp}}_{tp}
+              \le
+              \ell^0_{tp}
+              =
+              \sum_{s\in\mathcal{S}}Q_{sp}b_{st},
+          \end{equation*}
+          so a positive lower regulatory limit must already be satisfied by the incoming blend.
+          If, in addition, no removal process acts on $p$ (i.e.\ $\mathcal{R}_{tp}=\emptyset$ and $n_{tp}=0$), then
+          \begin{equation*}
+              \ell^{n_{tp}+1}_{tp}
+              =
+              \ell^0_{tp}
+              =
+              \sum_{s\in\mathcal{S}}Q_{sp}b_{st},
+          \end{equation*}
+          and the outlet quality constraint reduces to
+          \begin{equation*}
+              \underline{Q}_p \sum_{s \in \mathcal{S}} b_{st}
+              \le
+              \sum_{s \in \mathcal{S}} Q_{sp}\,b_{st}
+              \le
+              \overline{Q}_p \sum_{s \in \mathcal{S}} b_{st},
+          \end{equation*}
+          so both regulatory limits must be met by blending alone.
+\end{itemize}
+
+\paragraph{Inactive plants cannot dose chemicals.}
+Combining the chemical mass activation constraint \eqref{eq:chemical_mass_activation} with the chemical activation constraint \eqref{eq:chemical_activation} gives
+\begin{equation}\label{eq:implicit_chemical_plant_activation}
+    m_{tc}
+    ~\underbrace{\le
+    \overline{\rho}_{tc}\,\overline{V}_t\,\kappa_{tc}}_{\eqref{eq:chemical_mass_activation}}
+    ~\underbrace{\le
+    \overline{\rho}_{tc}\,\overline{V}_t\,\beta_t}_{\eqref{eq:chemical_activation}},
+    \qquad
+    \forall t \in \mathcal{T},\ \forall c \in \mathcal{K}_t.
+\end{equation}
+Therefore, if plant $t$ is inactive ($\beta_t=0$), then \eqref{eq:chemical_activation} forces $\kappa_{tc}=0$ and \eqref{eq:chemical_mass_activation} forces $m_{tc}=0$.
+Hence an inactive treatment plant cannot dose chemicals.
 
 \end{document}

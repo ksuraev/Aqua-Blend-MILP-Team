@@ -125,19 +125,22 @@
         "source_id": "225103",
         "plant_id": "facility_1",
         "enabled": true,
-        "maximum_flow_ml_per_day": 700.0
+        "maximum_flow_ml_per_day": 700.0,
+        "transfer_cost_aud_per_ml": 0.25
       },
       {
         "source_id": "229421",
         "plant_id": "facility_1",
         "enabled": true,
-        "maximum_flow_ml_per_day": 300.0
+        "maximum_flow_ml_per_day": 300.0,
+        "transfer_cost_aud_per_ml": 0.35
       },
       {
         "source_id": "233217",
         "plant_id": "facility_1",
         "enabled": true,
-        "maximum_flow_ml_per_day": 680.0
+        "maximum_flow_ml_per_day": 680.0,
+        "transfer_cost_aud_per_ml": 0.45
       }
     ],
     "plant_to_zone_links": [
@@ -145,7 +148,9 @@
         "plant_id": "facility_1",
         "zone_id": "zone_1",
         "enabled": true,
-        "maximum_flow_ml_per_day": 1680.0
+        "maximum_flow_ml_per_day": 1680.0,
+        "transfer_cost_aud_per_ml": 0.15
+
       }
     ]
   },
@@ -158,8 +163,8 @@
         "max": 8.5,
         "transform": "ph_to_hydrogen_ion",
         "source_field": "representative_ph",
-        "model_name": "hydrogen_ion_concentration_mol_l",
-        "model_unit": "mol/L"
+        "model_name": "hydrogen_ion_concentration_nmol_l",
+        "model_unit": "nmol/L"
       },
       "alkalinity": {
         "unit": "mg/L CaCO3",
@@ -170,7 +175,7 @@
       },
       "turbidity": {
         "unit": "NTU",
-        "min": 0.0,
+        "min": 0.5,
         "max": 5.0,
         "transform": "identity",
         "source_field": "representative_turbidity_ntu"

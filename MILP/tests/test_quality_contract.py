@@ -122,3 +122,4 @@ def test_ph_uses_nmol_per_litre_for_model(path: Path) -> None:
     assert ph["transform"] == "ph_to_hydrogen_ion"
     assert ph["source_field"] == "representative_ph"
     assert ph["model_unit"] == "nmol/L"
+    assert ph["model_name"] == "hydrogen_ion_concentration_nmol_l"

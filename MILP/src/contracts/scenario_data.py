@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .solved_data import InputValidationPolicy, LoaderValidation
+
 
 @dataclass(frozen=True, slots=True)
 class SourceInput:
@@ -66,6 +68,7 @@ class SourcePlantLinkInput:
     plant_id: str
     enabled: bool
     maximum_flow_ml_per_day: float | None
+    transfer_cost_aud_per_ml: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +79,7 @@ class PlantZoneLinkInput:
     zone_id: str
     enabled: bool
     maximum_flow_ml_per_day: float | None
+    transfer_cost_aud_per_ml: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +105,9 @@ class ScenarioData:
 
     quality_limits: dict[str, Any]
     validation_issues: tuple[str, ...]
+
+    input_validation_policy: InputValidationPolicy
+    loader_validation: LoaderValidation
 
     @property
     def is_ready(self) -> bool:

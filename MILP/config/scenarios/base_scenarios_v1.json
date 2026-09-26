@@ -102,7 +102,7 @@
       "max": 8.5,
       "transform": "ph_to_hydrogen_ion",
       "source_field": "representative_ph",
-      "model_name": "hydrogen_ion_concentration_mol_l",
+      "model_name": "hydrogen_ion_concentration_nmol_l",
       "model_unit": "nmol/L"
     },
     "alkalinity": {
