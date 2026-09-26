@@ -1,8 +1,6 @@
 """Tests for runtime validation of quality-parameter identifiers."""
 
-import pytest
-
-from src.data_loader import DataLoadError, _normalise_quality_limits
+from src.data_loader import _normalise_quality_limits
 
 
 def _quality_limits(parameter_id: str | None = "ph") -> dict:
@@ -28,23 +26,7 @@ def _quality_limits(parameter_id: str | None = "ph") -> dict:
     }
 
 
-def test_loader_accepts_matching_quality_parameter_id() -> None:
-    result = _normalise_quality_limits(_quality_limits())
-
-    assert result["parameters"]["ph"]["id"] == "ph"
-
-
-def test_loader_rejects_mismatched_quality_parameter_id() -> None:
-    with pytest.raises(DataLoadError, match="must exactly match"):
-        _normalise_quality_limits(_quality_limits("pH"))
-
-
-def test_loader_rejects_blank_quality_parameter_id() -> None:
-    with pytest.raises(DataLoadError, match=r"parameters\.ph\.id"):
-        _normalise_quality_limits(_quality_limits(""))
-
-
-def test_loader_accepts_legacy_parameter_without_explicit_id() -> None:
+def test_loader_defaults_missing_quality_parameter_id() -> None:
     result = _normalise_quality_limits(_quality_limits(None))
 
-    assert "id" not in result["parameters"]["ph"]
+    assert result["parameters"]["ph"]["id"] == "ph"

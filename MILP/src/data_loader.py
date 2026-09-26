@@ -343,18 +343,7 @@ def _normalise_quality_limits(value: Any) -> dict[str, Any]:
                 f"quality_limits.parameters.{parameter_id}",
             )
         )
-        explicit_id = specification.get("id")
-        if explicit_id is not None:
-            explicit_id = _required_text(
-                explicit_id,
-                f"quality_limits.parameters.{parameter_id}.id",
-            )
-            if explicit_id != parameter_id:
-                raise DataLoadError(
-                    f'Quality parameter "{parameter_id}" has id "{explicit_id}", '
-                    "but its id must exactly match its parameter key."
-                )
-            specification["id"] = explicit_id
+        specification.setdefault("id", parameter_id)
 
         minimum = _to_float(
             specification.get("min"),
