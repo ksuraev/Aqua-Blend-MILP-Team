@@ -620,11 +620,15 @@ def _model_quality_name(
     parameters: ModelParameters,
     raw_name: str,
     transform: str,
+    specification: dict[str, Any],
 ) -> str:
     """Resolve the raw quality-parameter name to its model-space identifier."""
     default_model_name = (
         "hydrogen_ion_concentration_nmol_l" if transform == "ph_to_hydrogen_ion" else raw_name
     )
+    configured_name = str(specification.get("model_name", default_model_name)).strip()
+    if configured_name in parameters.quality_parameter_ids:
+        return configured_name
     if default_model_name in parameters.quality_parameter_ids:
         return default_model_name
 
@@ -669,7 +673,9 @@ def _build_quality_result(
 
         for raw_name, specification in quality_parameters.items():
             transform = str(specification.get("transform", "identity"))
-            model_name = _model_quality_name(parameters, raw_name, transform)
+            model_name = _model_quality_name(
+                parameters, raw_name, transform, specification
+            )
 
             if total_inflow <= _EPSILON:
                 warnings.append(
