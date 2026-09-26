@@ -543,3 +543,19 @@ def test_negative_transfer_cost_soft_fails(tmp_path: Path) -> None:
         ).passed
         is False
     )
+
+
+def test_negative_plant_zone_transfer_cost_soft_fails(tmp_path: Path) -> None:
+    """A negative plant-to-zone transfer cost is reported."""
+    config = _config()
+    config["network"]["plant_to_zone_links"][0]["transfer_cost_aud_per_ml"] = -0.25
+
+    scenario = load_scenario(_write(tmp_path, config), strict=False)
+
+    assert (
+        _check(
+            scenario.loader_validation,
+            "link_transfer_costs_finite_and_non_negative",
+        ).passed
+        is False
+    )

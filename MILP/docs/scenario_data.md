@@ -360,7 +360,7 @@ Required, finite and non-negative for a usable link. |
 |---|---|---|
 | `(source_id, plant_id)` | `source_plant_arcs` | Existing source-to-plant arc set |
 | `maximum_flow_ml_per_day` | `source_plant_link_capacity` | \(\overline{L}_{st}\) |
-
+| `transfer_cost_aud_per_ml` | `source_plant_transfer_cost[(source_id, plant_id)]` | Variable source-to-plant flow cost used in the objective. |
 ---
 
 # 10. `PlantZoneLinkInput`
@@ -385,7 +385,7 @@ Represents one directed connection from a plant to a demand zone.
 |---|---|---|
 | `(plant_id, zone_id)` | `plant_zone_arcs` | Existing plant-to-zone arc set |
 | `maximum_flow_ml_per_day` | `plant_zone_link_capacity` | \(\overline{L}_{tz}\) |
-
+| `transfer_cost_aud_per_ml` | `plant_zone_transfer_cost[(plant_id, zone_id)]` | Variable plant-to-zone flow cost used in the objective. |
 ---
 
 # 11. `ScenarioData`
