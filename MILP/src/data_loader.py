@@ -999,12 +999,25 @@ def _build_network(
             missing_check="link_capacities_finite_and_non_negative",
             invalid_check="link_capacities_finite_and_non_negative",
         )
+        transfer_cost = _to_float(
+            item.get("transfer_cost_aud_per_ml"),
+            f"network.source_to_plant_links[{index}].transfer_cost_aud_per_ml",
+        )
+        _append_non_negative_issue(
+            tracker,
+            transfer_cost,
+            f"Source-to-plant link {source_id} -> {plant_id} transfer cost",
+            required=False,
+            missing_check="link_transfer_costs_finite_and_non_negative",
+            invalid_check="link_transfer_costs_finite_and_non_negative",
+        )
         source_links.append(
             SourcePlantLinkInput(
                 source_id=source_id,
                 plant_id=plant_id,
                 enabled=True,
                 maximum_flow_ml_per_day=capacity,
+                transfer_cost_aud_per_ml=transfer_cost,
             )
         )
 
@@ -1052,12 +1065,25 @@ def _build_network(
             missing_check="link_capacities_finite_and_non_negative",
             invalid_check="link_capacities_finite_and_non_negative",
         )
+        transfer_cost = _to_float(
+            item.get("transfer_cost_aud_per_ml"),
+            f"network.plant_to_zone_links[{index}].transfer_cost_aud_per_ml",
+        )
+        _append_non_negative_issue(
+            tracker,
+            transfer_cost,
+            f"Plant-to-zone link {plant_id} -> {zone_id} transfer cost",
+            required=False,
+            missing_check="link_transfer_costs_finite_and_non_negative",
+            invalid_check="link_transfer_costs_finite_and_non_negative",
+        )
         zone_links.append(
             PlantZoneLinkInput(
                 plant_id=plant_id,
                 zone_id=zone_id,
                 enabled=True,
                 maximum_flow_ml_per_day=capacity,
+                transfer_cost_aud_per_ml=transfer_cost,
             )
         )
 

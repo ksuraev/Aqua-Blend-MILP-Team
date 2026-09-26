@@ -68,6 +68,7 @@ class SourcePlantLinkInput:
     plant_id: str
     enabled: bool
     maximum_flow_ml_per_day: float | None
+    transfer_cost_aud_per_ml: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,6 +79,7 @@ class PlantZoneLinkInput:
     zone_id: str
     enabled: bool
     maximum_flow_ml_per_day: float | None
+    transfer_cost_aud_per_ml: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
