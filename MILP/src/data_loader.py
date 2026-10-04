@@ -343,6 +343,7 @@ def _normalise_quality_limits(value: Any) -> dict[str, Any]:
                 f"quality_limits.parameters.{parameter_id}",
             )
         )
+        specification.setdefault("id", parameter_id)
 
         minimum = _to_float(
             specification.get("min"),
